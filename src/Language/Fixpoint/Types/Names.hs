@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveDataTypeable         #-}
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE FlexibleInstances          #-}
@@ -139,6 +141,7 @@ import           GHC.Generics                (Generic)
 import           Text.PrettyPrint.HughesPJ   (text)
 import           Language.Fixpoint.Types.PrettyPrint
 import           Language.Fixpoint.Types.Spans
+import           Language.Fixpoint.Types.Symbol (Symbolic(..))
 
 ---------------------------------------------------------------
 -- | Symbols --------------------------------------------------
@@ -246,10 +249,10 @@ checkedText x
 type LocSymbol = Located Symbol
 type LocText   = Located T.Text
 
-isDummy :: (Symbolic a) => a -> Bool
+isDummy :: (Symbolic a Symbol) => a -> Bool
 isDummy a = isPrefixOfSym (symbol dummyName) (symbol a)
 
-instance Symbolic a => Symbolic (Located a) where
+instance Symbolic a Symbol => Symbolic (Located a) Symbol  where
   symbol = symbol . val
 
 ---------------------------------------------------------------------------
@@ -495,22 +498,22 @@ isNonSymbol = (== nonSymbol)
 -- | Values that can be viewed as Symbols
 ------------------------------------------------------------------------------
 
-class Symbolic a where
-  symbol :: a -> Symbol
+-- class Symbolic a where
+--   symbol :: a -> Symbol
 
-symbolicString :: (Symbolic a) => a -> String
+symbolicString :: (Symbolic a Symbol) => a -> String
 symbolicString = symbolString . symbol
 
-instance Symbolic T.Text where
+instance Symbolic T.Text Symbol where
   symbol = textSymbol
 
-instance Symbolic String where
+instance Symbolic String Symbol where
   symbol = symbol . T.pack
 
-instance Symbolic Symbol where
+instance Symbolic Symbol Symbol where
   symbol = id
 
-symbolBuilder :: (Symbolic a) => a -> Builder.Builder
+symbolBuilder :: (Symbolic a Symbol) => a -> Builder.Builder
 symbolBuilder = Builder.fromText . symbolSafeText . symbol
 
 {-# INLINE buildMany #-}
@@ -566,7 +569,7 @@ boolConName  = "Bool"
 funConName   = "->"
 
 
-listConName, listLConName, tupConName, propConName, _hpropConName, vvName, setConName, mapConName :: Symbol
+listConName, listLConName, tupConName, propConName, _hpropConName, vvName, setConName, mapConName :: IsString s => s
 listConName  = "[]"
 listLConName = "List"
 tupConName   = "Tuple"
@@ -585,7 +588,7 @@ charConName  = "Char"
 symSepName   :: (IsString a) => a
 symSepName   = "##"
 
-nilName, consName, size32Name, size64Name, bitVecName, bvOrName, bvAndName :: Symbol
+nilName, consName, size32Name, size64Name, bitVecName, bvOrName, bvAndName :: IsString s => s
 nilName      = "nil"
 consName     = "cons"
 size32Name   = "Size32"

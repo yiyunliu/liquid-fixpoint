@@ -84,6 +84,7 @@ library
                     Language.Fixpoint.Types.PrettyPrint
                     Language.Fixpoint.Types.Refinements
                     Language.Fixpoint.Types.Solutions
+                    Language.Fixpoint.Types.Symbol
                     Language.Fixpoint.Types.Sorts
                     Language.Fixpoint.Types.Spans
                     Language.Fixpoint.Types.Substitutions
