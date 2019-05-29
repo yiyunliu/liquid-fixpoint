@@ -177,7 +177,7 @@ symbolFTycon c = symbolNumInfoFTyCon c defNumInfo defRealInfo
 fApp :: Sort s -> [Sort s] -> Sort s
 fApp = foldl' FApp
 
-fAppTC :: Eq s => FTycon s -> [Sort s] -> Sort s
+fAppTC :: (IsString s, Eq s) => FTycon s -> [Sort s] -> Sort s
 fAppTC = fApp . fTyconSort
 
 fTyconSelfSort :: (Eq s, IsString s) => FTycon s -> Int -> Sort s
@@ -197,10 +197,10 @@ unAbs :: Sort s -> Sort s
 unAbs (FAbs _ s) = unAbs s
 unAbs s          = s
 
-fObj :: Eq s => Located s -> Sort s
+fObj :: (IsString s, Eq s) => Located s -> Sort s
 fObj = fTyconSort . (`TC` defTcInfo)
 
-sortFTycon :: Sort s -> Maybe (FTycon s)
+sortFTycon :: IsString s => Sort s -> Maybe (FTycon s)
 sortFTycon FInt    = Just intFTyCon
 sortFTycon FReal   = Just realFTyCon
 sortFTycon FNum    = Just numFTyCon
@@ -301,17 +301,17 @@ isReal (FAbs _ s)     = isReal s
 isReal _              = False
 
 
-isString :: Sort s -> Bool
+isString :: (Eq s, IsString s) => Sort s -> Bool
 isString (FApp l c)     = (isList l && isChar c) || isString l
 isString (FTC (TC c i)) = (val c == strConName || tc_isString i)
 isString (FAbs _ s)     = isString s
 isString _              = False
 
-isList :: Sort s -> Bool
+isList :: (Eq s, IsString s) => Sort s -> Bool
 isList (FTC c) = isListTC c
 isList _       = False
 
-isChar :: Sort s -> Bool
+isChar :: (Eq s, IsString s) => Sort s -> Bool
 isChar (FTC c) = c == charFTyCon
 isChar _       = False
 
@@ -361,10 +361,10 @@ instance Hashable s => Hashable (Sort s)
 
 newtype Sub s = Sub [(Int, (Sort s))] deriving (Generic)
 
-instance Fixpoint s => Fixpoint (Sort s) where
+instance (Fixpoint s, Eq s, IsString s) => Fixpoint (Sort s) where
   toFix = toFixSort
 
-toFixSort :: (Fixpoint s) => Sort s -> Doc
+toFixSort :: (Fixpoint s, Eq s, IsString s) => Sort s -> Doc
 toFixSort (FVar i)     = text "@" <-> parens (toFix i)
 toFixSort FInt         = text "int"
 toFixSort FReal        = text "real"
@@ -376,14 +376,14 @@ toFixSort t@(FFunc _ _)= toFixAbsApp t
 toFixSort (FTC c)      = toFix c
 toFixSort t@(FApp _ _) = toFixFApp (unFApp t)
 
-toFixAbsApp :: Fixpoint s => (Sort s) -> Doc
+toFixAbsApp :: (Fixpoint s, Eq s, IsString s) => (Sort s) -> Doc
 toFixAbsApp t = text "func" <-> parens (toFix n <+> text "," <+> toFix ts)
   where
     Just (vs, ss, s) = functionSort t
     n                = length vs
     ts               = ss ++ [s]
 
-toFixFApp            :: Fixpoint s => ListNE (Sort s) -> Doc
+toFixFApp            :: (Eq s, IsString s, Fixpoint s) => ListNE (Sort s) -> Doc
 toFixFApp [t]        = toFixSort t
 toFixFApp [FTC c, t]
   | isListTC c       = brackets $ toFixSort t
@@ -392,13 +392,13 @@ toFixFApp ts         = parens $ intersperse (text "") (toFixSort <$> ts)
 instance Fixpoint s => Fixpoint (FTycon s) where
   toFix (TC s _)       = toFix (val s)
 
-instance Fixpoint s => Fixpoint (DataField s) where
+instance (Fixpoint s, Eq s, IsString s) => Fixpoint (DataField s) where
   toFix (DField x t) = toFix x <+> text ":" <+> toFix t
 
-instance Fixpoint s =>  Fixpoint (DataCtor s) where
+instance (Fixpoint s, Eq s, IsString s) =>  Fixpoint (DataCtor s) where
   toFix (DCtor x flds) = toFix x <+> braces (intersperse comma (toFix <$> flds))
 
-instance Fixpoint s => Fixpoint (DataDecl s) where
+instance (Fixpoint s, Eq s, IsString s) => Fixpoint (DataDecl s) where
   toFix (DDecl tc n ctors) = vcat ([header] ++ body ++ [footer])
     where
       header               = {- text "data" <+> -} toFix tc <+> toFix n <+> text "= ["
@@ -408,20 +408,20 @@ instance Fixpoint s => Fixpoint (DataDecl s) where
 instance Fixpoint s => PPrint (FTycon s) where
   pprintTidy _ = toFix
 
-instance Fixpoint s => PPrint (DataField s) where
+instance (Fixpoint s, Eq s, IsString s) => PPrint (DataField s) where
   pprintTidy _ = toFix
 
-instance Fixpoint s => PPrint (DataCtor s) where
+instance (Fixpoint s, Eq s, IsString s) => PPrint (DataCtor s) where
   pprintTidy _ = toFix
 
-instance Fixpoint s => PPrint (DataDecl s) where
+instance (Fixpoint s, Eq s, IsString s) => PPrint (DataDecl s) where
   pprintTidy _ = toFix
 
 -------------------------------------------------------------------------
 -- | Exported Basic Sorts -----------------------------------------------
 -------------------------------------------------------------------------
 
-boolSort, intSort, realSort, strSort, charSort, funcSort :: Eq s => Sort s
+boolSort, intSort, realSort, strSort, charSort, funcSort :: (IsString s, Eq s) => Sort s
 boolSort = fTyconSort boolFTyCon
 charSort = fTyconSort charFTyCon
 strSort  = fTyconSort strFTyCon
@@ -429,26 +429,26 @@ intSort  = fTyconSort intFTyCon
 realSort = fTyconSort realFTyCon
 funcSort = fTyconSort funcFTyCon
 
-setSort :: Sort s -> Sort s
+setSort :: (Eq s, IsString s) => Sort s -> Sort s
 setSort    = FApp (FTC setFTyCon)
 
-bitVecSort :: Sort s
+bitVecSort :: (Eq s, IsString s) => Sort s
 bitVecSort = FApp (FTC $ symbolFTycon' bitVecName) (FTC $ symbolFTycon' size32Name)
 
-mapSort :: Sort s -> Sort s -> Sort s
+mapSort :: (Eq s, IsString s) => Sort s -> Sort s -> Sort s
 mapSort = FApp . FApp (FTC (symbolFTycon' mapConName))
 
-symbolFTycon' :: s -> FTycon s
+symbolFTycon' :: (Eq s, IsString s) => s -> FTycon s
 symbolFTycon' = symbolFTycon . dummyLoc
 
-fTyconSort :: Eq s => FTycon s -> Sort s
+fTyconSort :: (Eq s, IsString s) => FTycon s -> Sort s
 fTyconSort c
   | c == intFTyCon  = FInt
   | c == realFTyCon = FReal
   | c == numFTyCon  = FNum
   | otherwise       = FTC c
 
-basicSorts :: Eq s => [Sort s]
+basicSorts :: (Eq s, IsString s) => [Sort s]
 basicSorts = [FInt, boolSort] 
 
 ------------------------------------------------------------------------
@@ -482,14 +482,14 @@ instance NFData s => NFData (DataCtor s)
 instance NFData s => NFData (DataDecl s)
 instance NFData s => NFData (Sub s)
 
-instance (Monoid s, Eq s, Show s) => Semigroup (Sort s) where
+instance (Monoid s, Eq s, Show s, IsString s) => Semigroup (Sort s) where
   t1 <> t2
     | t1 == mempty  = t2
     | t2 == mempty  = t1
     | t1 == t2      = t1
     | otherwise     = errorstar $ "mappend-sort: conflicting sorts t1 =" ++ show t1 ++ " t2 = " ++ show t2
 
-instance (Show s, Eq s, Monoid s) => Monoid (Sort s) where
+instance (Show s, Eq s, Monoid s, IsString s) => Monoid (Sort s) where
   mempty  = FObj "any"
   mappend = (<>)
 
@@ -499,9 +499,9 @@ instance (Show s, Eq s, Monoid s) => Monoid (Sort s) where
 newtype TCEmb a s = TCE (M.HashMap a (Sort s, TCArgs)) 
   deriving (Typeable, Generic) 
 
-deriving instance Eq s => Eq (TCEmb a s)
-deriving instance Show s => Show (TCEmb a s)
-deriving instance Data s => Data (TCEmb a s)
+deriving instance (Eq a, Eq s) => Eq (TCEmb a s)
+deriving instance (Show s, Show a) => Show (TCEmb a s)
+deriving instance (Data s, Eq a, Data a, Hashable a) => Data (TCEmb a s)
 
 data TCArgs = WithArgs | NoArgs 
   deriving (Eq, Ord, Show, Data, Typeable, Generic) 

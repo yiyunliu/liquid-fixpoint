@@ -246,7 +246,7 @@ checkedText x
 -- | Located Symbols -----------------------------------------------------
 ---------------------------------------------------------------------------
 
-type LocSymbol = Located Symbol
+type LocSymbol s = Located s
 type LocText   = Located T.Text
 
 isDummy :: (Symbolic a Symbol) => a -> Bool
