@@ -59,7 +59,7 @@ instConstants = F.fromListSEnv . filter notLit . F.toListSEnv . F.gLits
     notLit    = not . F.isLitSymbol . fst
 
 
-refineK :: Bool -> F.SEnv F.Sort -> [F.Qualifier] -> (F.Symbol, F.Sort, F.KVar) -> (F.KVar, Sol.QBind)
+refineK :: Bool -> F.SEnv F.Sort -> [F.Qualifier] -> (F.FixSymbol, F.Sort, F.KVar) -> (F.KVar, Sol.QBind)
 refineK ho env qs (v, t, k) = (k, eqs')
    where
     eqs                     = instK ho env v t qs
@@ -68,7 +68,7 @@ refineK ho env qs (v, t, k) = (k, eqs')
 --------------------------------------------------------------------------------
 instK :: Bool
       -> F.SEnv F.Sort
-      -> F.Symbol
+      -> F.FixSymbol
       -> F.Sort
       -> [F.Qualifier]
       -> Sol.QBind
@@ -79,7 +79,7 @@ instK ho env v t = Sol.qb . unique . concatMap (instKQ ho env v t)
 
 instKQ :: Bool
        -> F.SEnv F.Sort
-       -> F.Symbol
+       -> F.FixSymbol
        -> F.Sort
        -> F.Qualifier
        -> [Sol.EQual]
@@ -92,14 +92,14 @@ instKQ ho env v t q
        tyss       = instCands ho env
        senv       = (`F.lookupSEnvWithDistance` env)
 
-instCands :: Bool -> F.SEnv F.Sort -> [(F.Sort, [F.Symbol])]
+instCands :: Bool -> F.SEnv F.Sort -> [(F.Sort, [F.FixSymbol])]
 instCands ho env = filter isOk tyss
   where
     tyss      = groupList [(t, x) | (x, t) <- xts]
     isOk      = if ho then const True else isNothing . F.functionSort . fst
     xts       = F.toListSEnv env
 
-match :: So.Env -> [(F.Sort, [F.Symbol])] -> [F.Symbol] -> [F.Sort] -> [[F.Symbol]]
+match :: So.Env -> [(F.Sort, [F.FixSymbol])] -> [F.FixSymbol] -> [F.Sort] -> [[F.FixSymbol]]
 match env tyss xs (t : ts)
   = do (su, x) <- candidates env tyss t
        match env tyss (x : xs) (So.apply su <$> ts)
@@ -107,7 +107,7 @@ match _   _   xs []
   = return xs
 
 --------------------------------------------------------------------------------
-candidates :: So.Env -> [(F.Sort, [F.Symbol])] -> F.Sort -> [(So.TVSubst, F.Symbol)]
+candidates :: So.Env -> [(F.Sort, [F.FixSymbol])] -> F.Sort -> [(So.TVSubst, F.FixSymbol)]
 --------------------------------------------------------------------------------
 candidates env tyss tx = 
     [(su, y) | (t, ys) <- tyss
@@ -117,7 +117,7 @@ candidates env tyss tx =
     mono = So.isMono tx
 
 --------------------------------------------------------------------------------
-okInst :: F.SEnv F.Sort -> F.Symbol -> F.Sort -> Sol.EQual -> Bool
+okInst :: F.SEnv F.Sort -> F.FixSymbol -> F.Sort -> Sol.EQual -> Bool
 --------------------------------------------------------------------------------
 okInst env v t eq = isNothing tc
   where

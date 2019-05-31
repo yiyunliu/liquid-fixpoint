@@ -124,7 +124,7 @@ instance Visitable Reft where
 instance Visitable SortedReft where
   visit v c (RR t r) = RR t <$> visit v c r
 
-instance Visitable (Symbol, SortedReft) where
+instance Visitable (FixSymbol, SortedReft) where
   visit v c (sym, sr) = (sym, ) <$> visit v c sr
 
 instance Visitable BindEnv where
@@ -345,9 +345,9 @@ stripCasts = trans (defaultVisitor { txExpr = const go }) () ()
 --------------------------------------------------------------------------------
 -- | @CoSub@ is a map from (coercion) ty-vars represented as 'FObj s'
 --   to the ty-vars that they should be substituted with. Note the
---   domain and range are both Symbol and not the Int used for real ty-vars.
+--   domain and range are both FixSymbol and not the Int used for real ty-vars.
 --------------------------------------------------------------------------------
-type CoSub = M.HashMap Symbol Sort 
+type CoSub = M.HashMap FixSymbol Sort 
 
 applyCoSub :: CoSub -> Expr -> Expr
 applyCoSub coSub      = mapExpr fE
@@ -393,7 +393,7 @@ dataCtorSorts = map dfSort . dcFields
 -- | String Constants -----------------------------------------
 ---------------------------------------------------------------
 
--- symConstLits    :: FInfo a -> [(Symbol, Sort)]
+-- symConstLits    :: FInfo a -> [(FixSymbol, Sort)]
 -- symConstLits fi = [(symbol c, strSort) | c <- symConsts fi]
 
 class SymConsts a where

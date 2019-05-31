@@ -39,7 +39,7 @@ import           System.Process
 -- | Types ---------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
--- symbolBuilder :: Symbol -> LT.Builder
+-- symbolBuilder :: FixSymbol -> LT.Builder
 -- symbolBuilder = LT.fromText . symbolSafeText
 
 -- | Commands issued to SMT engine
@@ -47,12 +47,12 @@ data Command      = Push
                   | Pop
                   | CheckSat
                   | DeclData ![DataDecl]
-                  | Declare  !Symbol [SmtSort] !SmtSort
+                  | Declare  !FixSymbol [SmtSort] !SmtSort
                   | Define   !Sort
                   | Assert   !(Maybe Int) !Expr
                   | AssertAx !(Triggered Expr)
                   | Distinct [Expr] -- {v:[Expr] | 2 <= len v}
-                  | GetValue [Symbol]
+                  | GetValue [FixSymbol]
                   | CMany    [Command]
                   deriving (Eq, Show)
 
@@ -78,7 +78,7 @@ data Response     = Ok
                   | Sat
                   | Unsat
                   | Unknown
-                  | Values [(Symbol, T.Text)]
+                  | Values [(FixSymbol, T.Text)]
                   | Error !T.Text
                   deriving (Eq, Show)
 

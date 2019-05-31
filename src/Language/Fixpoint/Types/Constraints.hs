@@ -117,18 +117,18 @@ import qualified Data.HashSet              as S
 type Tag           = [Int]
 
 data WfC a  =  WfC  { wenv  :: !IBindEnv
-                    , wrft  :: (Symbol, Sort, KVar)
+                    , wrft  :: (FixSymbol, Sort, KVar)
                     , winfo :: !a
                     }
              | GWfC { wenv  :: !IBindEnv
-                    , wrft  :: !(Symbol, Sort, KVar)
+                    , wrft  :: !(FixSymbol, Sort, KVar)
                     , winfo :: !a
                     , wexpr :: !Expr
                     , wloc  :: !GradInfo
                     }
               deriving (Eq, Generic, Functor)
 
-data GWInfo = GWInfo { gsym  :: Symbol
+data GWInfo = GWInfo { gsym  :: FixSymbol
                      , gsort :: Sort
                      , gexpr :: Expr
                      , ginfo :: GradInfo
@@ -216,7 +216,7 @@ class TaggedC c a where
   sid   :: c a -> Maybe Integer
   stag  :: c a -> Tag
   sinfo :: c a -> a
-  clhs  :: BindEnv -> c a -> [(Symbol, SortedReft)]
+  clhs  :: BindEnv -> c a -> [(FixSymbol, SortedReft)]
   crhs  :: c a -> Expr
 
 instance TaggedC SimpC a where
@@ -235,7 +235,7 @@ instance TaggedC SubC a where
   crhs      = reftPred . sr_reft . srhs
   clhs be c = sortedReftBind (slhs c) : envCs be (senv c)
 
-sortedReftBind :: SortedReft -> (Symbol, SortedReft)
+sortedReftBind :: SortedReft -> (FixSymbol, SortedReft)
 sortedReftBind sr = (x, sr)
   where
     Reft (x, _)   = sr_reft sr
@@ -428,11 +428,11 @@ subC γ sr1 sr2 i y z = [SubC γ sr1' (sr2' r2') i y z | r2' <- reftConjuncts r2
      sr2' r2'          = RR t2 $ shiftVV r2' vv'
      vv'               = mkVV i
 
-mkVV :: Maybe Integer -> Symbol
+mkVV :: Maybe Integer -> FixSymbol
 mkVV (Just i)  = vv $ Just i
 mkVV Nothing   = vvCon
 
-shiftVV :: Reft -> Symbol -> Reft
+shiftVV :: Reft -> FixSymbol -> Reft
 shiftVV r@(Reft (v, ras)) v'
    | v == v'   = r
    | otherwise = Reft (v', subst1 ras (v, EVar v'))
@@ -450,7 +450,7 @@ addIds = zipWith (\i c -> (i, shiftId i $ c {_sid = Just i})) [1..]
 -- | Qualifiers ----------------------------------------------------------------
 --------------------------------------------------------------------------------
 data Qualifier = Q 
-  { qName   :: !Symbol     -- ^ Name
+  { qName   :: !FixSymbol     -- ^ Name
   , qParams :: [QualParam] -- ^ Parameters
   , qBody   :: !Expr       -- ^ Predicate
   , qPos    :: !SourcePos  -- ^ Source Location
@@ -458,7 +458,7 @@ data Qualifier = Q
   deriving (Eq, Show, Data, Typeable, Generic)
 
 data QualParam = QP 
-  { qpSym  :: !Symbol
+  { qpSym  :: !FixSymbol
   , qpPat  :: !QualPattern 
   , qpSort :: !Sort
   } 
@@ -466,9 +466,9 @@ data QualParam = QP
 
 data QualPattern 
   = PatNone                 -- ^ match everything 
-  | PatPrefix !Symbol !Int  -- ^ str . $i  i.e. match prefix 'str' with suffix bound to $i
-  | PatSuffix !Int !Symbol  -- ^ $i . str  i.e. match suffix 'str' with prefix bound to $i
-  | PatExact  !Symbol       -- ^ str       i.e. exactly match 'str'
+  | PatPrefix !FixSymbol !Int  -- ^ str . $i  i.e. match prefix 'str' with suffix bound to $i
+  | PatSuffix !Int !FixSymbol  -- ^ $i . str  i.e. match suffix 'str' with prefix bound to $i
+  | PatExact  !FixSymbol       -- ^ str       i.e. exactly match 'str'
   deriving (Eq, Show, Data, Typeable, Generic)
 
 trueQual :: Qualifier
@@ -488,7 +488,7 @@ instance Subable Qualifier where
 mapQualBody :: (Expr -> Expr) -> Qualifier -> Qualifier
 mapQualBody f q = q { qBody = f (qBody q) }
   
-qualFreeSymbols :: Qualifier -> [Symbol]
+qualFreeSymbols :: Qualifier -> [FixSymbol]
 qualFreeSymbols q = filter (not . isPrim) xs 
   where
     xs            = syms (qBody q) L.\\ syms (qpSym <$> qParams q) 
@@ -516,22 +516,22 @@ pprQual (Q n xts p l) = text "qualif" <+> text (symbolString n) <-> parens args 
   where
     args              = intersperse comma (toFix <$> xts)
 
-qualifier :: SEnv Sort -> SourcePos -> SEnv Sort -> Symbol -> Sort -> Expr -> Qualifier
+qualifier :: SEnv Sort -> SourcePos -> SEnv Sort -> FixSymbol -> Sort -> Expr -> Qualifier
 qualifier lEnv l γ v so p   = mkQ "Auto" ((v, so) : xts) p l
   where
     xs  = L.delete v $ L.nub $ syms p
     xts = catMaybes $ zipWith (envSort l lEnv γ) xs [0..]
 
-mkQ :: Symbol -> [(Symbol, Sort)] -> Expr -> SourcePos -> Qualifier 
+mkQ :: FixSymbol -> [(FixSymbol, Sort)] -> Expr -> SourcePos -> Qualifier 
 mkQ n = Q n . qualParams
 
-qualParams :: [(Symbol, Sort)] -> [QualParam]
+qualParams :: [(FixSymbol, Sort)] -> [QualParam]
 qualParams xts = [ QP x PatNone t | (x, t) <- xts]
 
-qualBinds   :: Qualifier -> [(Symbol, Sort)]
+qualBinds   :: Qualifier -> [(FixSymbol, Sort)]
 qualBinds q = [ (qpSym qp, qpSort qp) | qp <- qParams q ]
 
-envSort :: SourcePos -> SEnv Sort -> SEnv Sort -> Symbol -> Integer -> Maybe (Symbol, Sort)
+envSort :: SourcePos -> SEnv Sort -> SEnv Sort -> FixSymbol -> Integer -> Maybe (FixSymbol, Sort)
 envSort l lEnv tEnv x i
   | Just t <- lookupSEnv x tEnv = Just (x, t)
   | Just _ <- lookupSEnv x lEnv = Nothing
@@ -544,7 +544,7 @@ remakeQual :: Qualifier -> Qualifier
 remakeQual q = mkQual (qName q) (qParams q) (qBody q) (qPos q)
 
 -- | constructing qualifiers
-mkQual :: Symbol -> [QualParam] -> Expr -> SourcePos -> Qualifier
+mkQual :: FixSymbol -> [QualParam] -> Expr -> SourcePos -> Qualifier
 mkQual n qps p = Q n qps' p 
   where
     qps'       = zipWith (\qp t' -> qp { qpSort = t'}) qps ts'
@@ -555,14 +555,14 @@ gSorts ts = substVars su <$> ts
   where
     su    = (`zip` [0..]) . sortNub . concatMap sortVars $ ts
 
-substVars :: [(Symbol, Int)] -> Sort -> Sort
+substVars :: [(FixSymbol, Int)] -> Sort -> Sort
 substVars su = mapSort' tx
   where
     tx (FObj x)
       | Just i <- lookup x su = FVar i
     tx t                      = t
 
-sortVars :: Sort -> [Symbol]
+sortVars :: Sort -> [FixSymbol]
 sortVars = foldSort' go []
   where
     go b (FObj x) = x : b
@@ -672,7 +672,7 @@ allowHOquals = hoQuals . hoInfo
 data GInfo c a = FI 
   { cm       :: !(M.HashMap SubcId (c a))  -- ^ cst id |-> Horn Constraint
   , ws       :: !(M.HashMap KVar (WfC a))  -- ^ Kvar  |-> WfC defining its scope/args
-  , bs       :: !BindEnv                   -- ^ Bind  |-> (Symbol, SortedReft)
+  , bs       :: !BindEnv                   -- ^ Bind  |-> (FixSymbol, SortedReft)
   , ebinds   :: ![BindId]                  -- ^ Subset of existential binders
   , gLits    :: !(SEnv Sort)               -- ^ Global Constant symbols
   , dLits    :: !(SEnv Sort)               -- ^ Distinct Constant symbols
@@ -879,15 +879,15 @@ instance PPrint AxiomEnv where
   pprintTidy _ = text . show
 
 data Equation = Equ
-  { eqName :: !Symbol           -- ^ name of reflected function
-  , eqArgs :: [(Symbol, Sort)]  -- ^ names of parameters
+  { eqName :: !FixSymbol           -- ^ name of reflected function
+  , eqArgs :: [(FixSymbol, Sort)]  -- ^ names of parameters
   , eqBody :: !Expr             -- ^ definition of body
   , eqSort :: !Sort             -- ^ sort of body
   , eqRec  :: !Bool             -- ^ is this a recursive definition
   }
   deriving (Eq, Show, Generic)
 
-mkEquation :: Symbol -> [(Symbol, Sort)] -> Expr -> Sort -> Equation
+mkEquation :: FixSymbol -> [(FixSymbol, Sort)] -> Expr -> Sort -> Equation
 mkEquation f xts e out = Equ f xts e out (f `elem` syms e)
 
 instance Subable Equation where
@@ -908,9 +908,9 @@ ppArgs = parens . intersperse ", " . fmap pprint
 -- eg  SMeasure (f D [x1..xn] e)
 -- for f (D x1 .. xn) = e
 data Rewrite  = SMeasure
-  { smName  :: Symbol         -- eg. f
-  , smDC    :: Symbol         -- eg. D
-  , smArgs  :: [Symbol]       -- eg. xs
+  { smName  :: FixSymbol         -- eg. f
+  , smDC    :: FixSymbol         -- eg. D
+  , smArgs  :: [FixSymbol]       -- eg. xs
   , smBody  :: Expr           -- eg. e[xs]
   }
   deriving (Eq, Show, Generic)

@@ -127,7 +127,7 @@ update1 s (k, qs) = (change, updateK k qs s)
 -- | The `Solution` data type --------------------------------------------------
 --------------------------------------------------------------------------------
 type Solution  = Sol () QBind
-type GSolution = Sol (((Symbol, Sort), Expr), GBind) QBind
+type GSolution = Sol (((FixSymbol, Sort), Expr), GBind) QBind
 newtype QBind  = QB [EQual]   deriving (Show, Data, Typeable, Generic, Eq)
 newtype GBind  = GB [[EQual]] deriving (Show, Data, Typeable, Generic)
 
@@ -181,8 +181,8 @@ instance PPrint QBind where
 --   2. the solved out TERM that we should use in place of the ebind at USES.
 --------------------------------------------------------------------------------
 data EbindSol
-  = EbDef [SimpC ()] Symbol -- ^ The constraint whose HEAD "defines" the Ebind
-                             -- and the @Symbol@ for that EBind
+  = EbDef [SimpC ()] FixSymbol -- ^ The constraint whose HEAD "defines" the Ebind
+                             -- and the @FixSymbol@ for that EBind
   | EbSol Expr             -- ^ The solved out term that should be used at USES.
   | EbIncr                 -- ^ EBinds not to be solved for (because they're currently being solved for)
    deriving (Show, Generic, NFData)
@@ -323,7 +323,7 @@ lookupQBind s k = {- tracepp _msg $ -} Mb.fromMaybe (QB []) (lookupElab s k)
     _msg        = "lookupQB: k = " ++ show k
 
 --------------------------------------------------------------------------------
-glookup :: GSolution -> KVar -> Either Hyp (Either QBind (((Symbol, Sort), Expr), GBind))
+glookup :: GSolution -> KVar -> Either Hyp (Either QBind (((FixSymbol, Sort), Expr), GBind))
 --------------------------------------------------------------------------------
 glookup s k
   | Just gbs <- M.lookup k (gMap s)
@@ -386,7 +386,7 @@ instance PPrint EQual where
 instance NFData EQual
 
 {- EQL :: q:_ -> p:_ -> ListX F.Expr {q_params q} -> _ @-}
-eQual :: Qualifier -> [Symbol] -> EQual
+eQual :: Qualifier -> [FixSymbol] -> EQual
 eQual q xs = {- tracepp "eQual" $ -} EQL q p es
   where
     p      = subst su $  qBody q

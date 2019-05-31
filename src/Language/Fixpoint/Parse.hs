@@ -286,7 +286,7 @@ locParserP p = do l1 <- getPosition
 -- FIXME: we (LH) rely on this parser being dumb and *not* consuming trailing
 -- whitespace, in order to avoid some parsers spanning multiple lines..
 
-condIdP  :: Parser Char -> S.HashSet Char -> (String -> Bool) -> Parser Symbol
+condIdP  :: Parser Char -> S.HashSet Char -> (String -> Bool) -> Parser FixSymbol
 condIdP initP okChars p
   = do c    <- initP 
        cs   <- many (satisfy (`S.member` okChars))
@@ -294,7 +294,7 @@ condIdP initP okChars p
        let s = c:cs
        if p s then return (symbol s) else parserZero
 
--- upperIdP :: Parser Symbol
+-- upperIdP :: Parser FixSymbol
 -- upperIdP = do
 --  c  <- upper
 --  cs <- many (satisfy (`S.member` symChars))
@@ -310,16 +310,16 @@ condIdP initP okChars p
 -- because 'identifier' also chomps newlines which then make
 -- it hard to parse stuff like: "measure foo :: a -> b \n foo x = y"
 -- as the type parser thinks 'b \n foo` is a type. Sigh.
--- lowerIdP :: Parser Symbol
+-- lowerIdP :: Parser FixSymbol
 -- lowerIdP = symbol <$> (identifier <* blanks)
 
-upperIdP :: Parser Symbol
+upperIdP :: Parser FixSymbol
 upperIdP  = condIdP upper                  symChars (const True)
 
-lowerIdP :: Parser Symbol
+lowerIdP :: Parser FixSymbol
 lowerIdP  = condIdP (lower <|> char '_')   symChars isNotReserved
 
-symCharsP :: Parser Symbol
+symCharsP :: Parser FixSymbol
 symCharsP = condIdP (letter <|> char '_')  symChars isNotReserved
 
 isNotReserved :: String -> Bool
@@ -340,7 +340,7 @@ locUpperIdP = locParserP upperIdP
 locSymbolP  = locParserP symbolP
 
 -- | Arbitrary Symbols
-symbolP :: Parser Symbol
+symbolP :: Parser FixSymbol
 symbolP = symbol <$> symCharsP
 
 -- | (Integer) Constants
@@ -390,7 +390,7 @@ exprCastP
        so <- sortP
        return $ ECst e so
 
-charsExpr :: Symbol -> Expr
+charsExpr :: FixSymbol -> Expr
 charsExpr cs
   | isSmall (headSym cs) = expr cs
   | otherwise            = EVar cs
@@ -675,7 +675,7 @@ refaP =  try (pAnd <$> brackets (sepBy predP semi))
 
 
 -- | (Sorted) Refinements with configurable sub-parsers
-refBindP :: Parser Symbol -> Parser Expr -> Parser (Reft -> a) -> Parser a
+refBindP :: Parser FixSymbol -> Parser Expr -> Parser (Reft -> a) -> Parser a
 refBindP bp rp kindP
   = braces $ do
       x  <- bp
@@ -687,10 +687,10 @@ refBindP bp rp kindP
 
 -- bindP      = symbol    <$> (lowerIdP <* colon)
 -- | Binder (lowerIdP <* colon)
-bindP :: Parser Symbol
+bindP :: Parser FixSymbol
 bindP = symbolP <* colon
 
-optBindP :: Symbol -> Parser Symbol
+optBindP :: FixSymbol -> Parser FixSymbol
 optBindP x = try bindP <|> return x
 
 -- | (Sorted) Refinements
@@ -698,7 +698,7 @@ refP :: Parser (Reft -> a) -> Parser a
 refP       = refBindP bindP refaP
 
 -- | (Sorted) Refinements with default binder
-refDefP :: Symbol -> Parser Expr -> Parser (Reft -> a) -> Parser a
+refDefP :: FixSymbol -> Parser Expr -> Parser (Reft -> a) -> Parser a
 refDefP x  = refBindP (optBindP x)
 
 --------------------------------------------------------------------------------
@@ -753,7 +753,7 @@ qualStrPatP
 qpVarP :: Parser Int
 qpVarP = char '$' *> intP 
 
-symBindP :: Parser a -> Parser (Symbol, a)
+symBindP :: Parser a -> Parser (FixSymbol, a)
 symBindP = pairP symbolP colon
 
 pairP :: Parser a -> Parser z -> Parser b -> Parser (a, b)
@@ -786,13 +786,13 @@ data Def a
   | Axm !Expr
   | Cst !(SubC a)
   | Wfc !(WfC a)
-  | Con !Symbol !Sort
-  | Dis !Symbol !Sort
+  | Con !FixSymbol !Sort
+  | Dis !FixSymbol !Sort
   | Qul !Qualifier
   | Kut !KVar
   | Pack !KVar !Int
-  | IBind !Int !Symbol !SortedReft
-  | EBind !Int !Symbol !Sort 
+  | IBind !Int !FixSymbol !SortedReft
+  | EBind !Int !FixSymbol !Sort 
   | Opt !String
   | Def !Equation
   | Mat !Rewrite
@@ -926,7 +926,7 @@ crashP pp = do
 predSolP :: Parser Expr
 predSolP = parens (predP  <* (comma >> iQualP))
 
-iQualP :: Parser [Symbol]
+iQualP :: Parser [FixSymbol]
 iQualP = upperIdP >> parens (sepBy symbolP comma)
 
 solution1P :: Parser (KVar, Expr)
@@ -1014,7 +1014,7 @@ class Inputable a where
   rr' _ = rr
   rr    = rr' ""
 
-instance Inputable Symbol where
+instance Inputable FixSymbol where
   rr' = doParse' symbolP
 
 instance Inputable Constant where
@@ -1134,7 +1134,7 @@ b13 = rr "x:(Int, [Bool]) -> [(String, String)]"
 m1 = ["len :: [a] -> Int", "len (Nil) = 0", "len (Cons x xs) = 1 + len(xs)"]
 m2 = ["tog :: LL a -> Int", "tog (Nil) = 100", "tog (Cons y ys) = 200"]
 
-me1, me2 :: Measure.Measure BareType Symbol
+me1, me2 :: Measure.Measure BareType FixSymbol
 me1 = (rr $ intercalate "\n" m1)
 me2 = (rr $ intercalate "\n" m2)
 -}

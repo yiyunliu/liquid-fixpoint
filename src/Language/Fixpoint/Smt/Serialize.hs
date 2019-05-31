@@ -23,7 +23,7 @@ import           Data.Text.Format
 import           Language.Fixpoint.Misc (sortNub, errorstar)
 -- import Debug.Trace (trace)
 
-instance SMTLIB2 (Symbol, Sort) where
+instance SMTLIB2 (FixSymbol, Sort) where
   smt2 env c@(sym, t) = build "({} {})" (smt2 env sym, smt2SortMono c env t)
 
 smt2SortMono, smt2SortPoly :: (PPrint a) => a -> SymEnv -> Sort -> Builder.Builder
@@ -107,7 +107,7 @@ declUsedVars = sortNub . Vis.foldDataDecl go []
     go is (FVar i) = i : is
     go is _        = is
 
-instance SMTLIB2 Symbol where
+instance SMTLIB2 FixSymbol where
   smt2 env s
     | Just t <- Thy.smt2Symbol env s = t
   smt2 _ s                           = symbolBuilder s
@@ -180,20 +180,20 @@ smt2Cast :: SymEnv -> Expr -> Sort -> Builder.Builder
 smt2Cast env (EVar x) t = smt2Var env x t
 smt2Cast env e        _ = smt2    env e
 
-smt2Var :: SymEnv -> Symbol -> Sort -> Builder.Builder
+smt2Var :: SymEnv -> FixSymbol -> Sort -> Builder.Builder
 smt2Var env x t
   | isLamArgSymbol x            = smtLamArg env x t
   | Just s <- symEnvSort x env
   , isPolyInst s t              = smt2VarAs env x t
   | otherwise                   = smt2 env x
 
-smtLamArg :: SymEnv -> Symbol -> Sort -> Builder.Builder
+smtLamArg :: SymEnv -> FixSymbol -> Sort -> Builder.Builder
 smtLamArg env x t = symbolBuilder $ symbolAtName x env () (FFunc t FInt)
 
-smt2VarAs :: SymEnv -> Symbol -> Sort -> Builder.Builder
+smt2VarAs :: SymEnv -> FixSymbol -> Sort -> Builder.Builder
 smt2VarAs env x t = build "(as {} {})" (smt2 env x, smt2SortMono x env t)
 
-smt2Lam :: SymEnv -> (Symbol, Sort) -> Expr -> Builder.Builder
+smt2Lam :: SymEnv -> (FixSymbol, Sort) -> Expr -> Builder.Builder
 smt2Lam env (x, xT) (ECst e eT) = build "({} {} {})" (smt2 env lambda, x', smt2 env e)
   where
     x'                          = smtLamArg env x xT

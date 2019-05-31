@@ -19,7 +19,7 @@ data Templates
   deriving Show
 
 
-type Template = ([Symbol], Expr)
+type Template = ([FixSymbol], Expr)
 
 
 class HasTemplates a where 
@@ -80,7 +80,7 @@ matchesTemplate (_, t) e
 
 
 
-makeTemplates :: [([Symbol], Expr)] -> Templates
+makeTemplates :: [([FixSymbol], Expr)] -> Templates
 makeTemplates = TExprs 
 
 

@@ -145,7 +145,7 @@ skipElabExpr msg env e = case elabExprE msg env e of
   Left _   -> e 
   Right e' ->  elabNumeric . elabApply env $ e'
 
-instance Elaborate (Symbol, Sort) where
+instance Elaborate (FixSymbol, Sort) where
   elaborate msg env (x, s) = (x, elaborate msg env s)
 
 instance Elaborate a => Elaborate [a]  where
@@ -279,12 +279,12 @@ type CheckM   = StateT ChState (Either ChError)
 type ChError  = Located String
 data ChState  = ChS { chCount :: Int, chSpan :: SrcSpan }
 
-type Env      = Symbol -> SESearch Sort
+type Env      = FixSymbol -> SESearch Sort
 type ElabEnv  = (SymEnv, Env)
 
 
 --------------------------------------------------------------------------------
-mkSearchEnv :: SEnv a -> Symbol -> SESearch a 
+mkSearchEnv :: SEnv a -> FixSymbol -> SESearch a 
 --------------------------------------------------------------------------------
 mkSearchEnv env x = lookupSEnvWithDistance x env  
 
@@ -306,7 +306,7 @@ fresh = do
 --------------------------------------------------------------------------------
 -- | Checking Refinements ------------------------------------------------------
 --------------------------------------------------------------------------------
-checkSortedReft :: SEnv SortedReft -> [Symbol] -> SortedReft -> Maybe Doc
+checkSortedReft :: SEnv SortedReft -> [FixSymbol] -> SortedReft -> Maybe Doc
 checkSortedReft env xs sr = applyNonNull Nothing oops unknowns
   where
     oops                  = Just . (text "Unknown symbols:" <+>) . toFix
@@ -797,7 +797,7 @@ throwErrorAt err = do
   throwError (atLoc sp err)
 
 -- | Helper for checking symbol occurrences
-checkSym :: Env -> Symbol -> CheckM Sort
+checkSym :: Env -> FixSymbol -> CheckM Sort
 checkSym f x = case f x of
   Found s -> instantiate s
   Alts xs -> throwErrorAt (errUnboundAlts x xs)
@@ -905,7 +905,7 @@ checkNumeric f s@(FObj l)
 checkNumeric _ s
   = unless (isNumeric s) (throwErrorAt $ errNonNumeric s)
 
-checkEqConstr :: Env -> Maybe Expr -> TVSubst -> Symbol -> Sort -> CheckM TVSubst 
+checkEqConstr :: Env -> Maybe Expr -> TVSubst -> FixSymbol -> Sort -> CheckM TVSubst 
 checkEqConstr _ _  θ a (FObj b)
   | a == b
   = return θ
@@ -1165,7 +1165,7 @@ applyExpr (Just θ) e = Vis.mapExpr f e
     f e          = e
 
 --------------------------------------------------------------------------------
-_applyCoercion :: Symbol -> Sort -> Sort -> Sort
+_applyCoercion :: FixSymbol -> Sort -> Sort -> Sort
 --------------------------------------------------------------------------------
 _applyCoercion a t = Vis.mapSort f
   where
@@ -1251,7 +1251,7 @@ errCast :: Expr -> Sort -> Sort -> String
 errCast e t' t       = printf "Cannot cast %s of sort %s to incompatible sort %s"
                          (showpp e) (showpp t') (showpp t)
 
-errUnboundAlts :: Symbol -> [Symbol] -> String
+errUnboundAlts :: FixSymbol -> [FixSymbol] -> String
 errUnboundAlts x xs  = printf "Unbound symbol %s --- perhaps you meant: %s ?"
                          (showpp x) (L.intercalate ", " (showpp <$> xs))
 
@@ -1261,7 +1261,7 @@ errNonFunction i t   = printf "The sort %s is not a function with at least %s ar
 errNonNumeric :: Sort -> String
 errNonNumeric  l     = printf "The sort %s is not numeric" (showpp l)
 
-errNonNumerics :: Symbol -> Symbol -> String
+errNonNumerics :: FixSymbol -> FixSymbol -> String
 errNonNumerics l l'  = printf "FObj sort %s and %s are different and not numeric" (showpp l) (showpp l')
 
 errNonFractional :: Sort -> String

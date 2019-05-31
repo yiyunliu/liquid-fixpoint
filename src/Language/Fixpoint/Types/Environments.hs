@@ -85,7 +85,7 @@ newtype IBindEnv   = FB (S.HashSet BindId) deriving (Eq, Data, Typeable, Generic
 instance PPrint IBindEnv where
   pprintTidy _ = pprint . L.sort . elemsIBindEnv
 
-newtype SEnv a     = SE { seBinds :: M.HashMap Symbol a }
+newtype SEnv a     = SE { seBinds :: M.HashMap FixSymbol a }
                      deriving (Eq, Data, Typeable, Generic, Foldable, Traversable)
 
 data SizedEnv a    = BE { _beSize  :: !Int
@@ -96,7 +96,7 @@ instance PPrint a => PPrint (SizedEnv a) where
   pprintTidy k (BE _ m) = pprintTidy k m
 
 -- Invariant: All BindIds in the map are less than beSize
-type BindEnv       = SizedEnv (Symbol, SortedReft)
+type BindEnv       = SizedEnv (FixSymbol, SortedReft)
 newtype EBindEnv   = EB BindEnv
 
 splitByQuantifiers :: BindEnv -> [BindId] -> (BindEnv, EBindEnv)
@@ -110,13 +110,13 @@ splitByQuantifiers (BE i bs) ebs = ( BE i $ M.filterWithKey (\k _ -> not (elem k
 instance PPrint a => PPrint (SEnv a) where
   pprintTidy k = pprintKVs k . L.sortBy (compare `on` fst) . toListSEnv
 
-toListSEnv              ::  SEnv a -> [(Symbol, a)]
+toListSEnv              ::  SEnv a -> [(FixSymbol, a)]
 toListSEnv (SE env)     = M.toList env
 
-fromListSEnv            ::  [(Symbol, a)] -> SEnv a
+fromListSEnv            ::  [(FixSymbol, a)] -> SEnv a
 fromListSEnv            = SE . M.fromList
 
-fromMapSEnv             ::  M.HashMap Symbol a -> SEnv a
+fromMapSEnv             ::  M.HashMap FixSymbol a -> SEnv a
 fromMapSEnv             = SE
 
 mapSEnv                 :: (a -> b) -> SEnv a -> SEnv b
@@ -125,22 +125,22 @@ mapSEnv f (SE env)      = SE (fmap f env)
 mapMSEnv                :: (Monad m) => (a -> m b) -> SEnv a -> m (SEnv b)
 mapMSEnv f env          = fromListSEnv <$> mapM (secondM f) (toListSEnv env)
 
-mapSEnvWithKey          :: ((Symbol, a) -> (Symbol, b)) -> SEnv a -> SEnv b
+mapSEnvWithKey          :: ((FixSymbol, a) -> (FixSymbol, b)) -> SEnv a -> SEnv b
 mapSEnvWithKey f        = fromListSEnv . fmap f . toListSEnv
 
-deleteSEnv :: Symbol -> SEnv a -> SEnv a
+deleteSEnv :: FixSymbol -> SEnv a -> SEnv a
 deleteSEnv x (SE env)   = SE (M.delete x env)
 
-insertSEnv :: Symbol -> a -> SEnv a -> SEnv a
+insertSEnv :: FixSymbol -> a -> SEnv a -> SEnv a
 insertSEnv x v (SE env) = SE (M.insert x v env)
 
-lookupSEnv :: Symbol -> SEnv a -> Maybe a
+lookupSEnv :: FixSymbol -> SEnv a -> Maybe a
 lookupSEnv x (SE env)   = M.lookup x env
 
 emptySEnv :: SEnv a
 emptySEnv               = SE M.empty
 
-memberSEnv :: Symbol -> SEnv a -> Bool
+memberSEnv :: FixSymbol -> SEnv a -> Bool
 memberSEnv x (SE env)   = M.member x env
 
 intersectWithSEnv :: (v1 -> v2 -> a) -> SEnv v1 -> SEnv v2 -> SEnv a
@@ -152,13 +152,13 @@ differenceSEnv (SE m1) (SE m2) = SE (M.difference m1 m2)
 filterSEnv :: (a -> Bool) -> SEnv a -> SEnv a
 filterSEnv f (SE m)     = SE (M.filter f m)
 
-unionSEnv :: SEnv a -> M.HashMap Symbol a -> SEnv a
+unionSEnv :: SEnv a -> M.HashMap FixSymbol a -> SEnv a
 unionSEnv (SE m1) m2    = SE (M.union m1 m2)
 
 unionSEnv' :: SEnv a -> SEnv a -> SEnv a
 unionSEnv' (SE m1) (SE m2)    = SE (M.union m1 m2)
 
-lookupSEnvWithDistance :: Symbol -> SEnv a -> SESearch a
+lookupSEnvWithDistance :: FixSymbol -> SEnv a -> SESearch a
 lookupSEnvWithDistance x (SE env)
   = case M.lookup x env of
      Just z  -> Found z
@@ -171,7 +171,7 @@ lookupSEnvWithDistance x (SE env)
     getMin     = minimum . (fst <$>)
 
 
-data SESearch a = Found a | Alts [Symbol]
+data SESearch a = Found a | Alts [FixSymbol]
 
 -- | Functions for Indexed Bind Environment
 
@@ -201,16 +201,16 @@ fromListIBindEnv :: [BindId] -> IBindEnv
 fromListIBindEnv = FB . S.fromList
 
 -- | Functions for Global Binder Environment
-insertBindEnv :: Symbol -> SortedReft -> BindEnv -> (BindId, BindEnv)
+insertBindEnv :: FixSymbol -> SortedReft -> BindEnv -> (BindId, BindEnv)
 insertBindEnv x r (BE n m) = (n, BE (n + 1) (M.insert n (x, r) m))
 
 emptyBindEnv :: BindEnv
 emptyBindEnv = BE 0 M.empty
 
-filterBindEnv   :: (BindId -> Symbol -> SortedReft -> Bool) -> BindEnv -> BindEnv
+filterBindEnv   :: (BindId -> FixSymbol -> SortedReft -> Bool) -> BindEnv -> BindEnv
 filterBindEnv f (BE n be) = BE n (M.filterWithKey (\ n (x, r) -> f n x r) be)
 
-bindEnvFromList :: [(BindId, Symbol, SortedReft)] -> BindEnv
+bindEnvFromList :: [(BindId, FixSymbol, SortedReft)] -> BindEnv
 bindEnvFromList [] = emptyBindEnv
 bindEnvFromList bs = BE (1 + maxId) be
   where
@@ -220,19 +220,19 @@ bindEnvFromList bs = BE (1 + maxId) be
 elemsBindEnv :: BindEnv -> [BindId]
 elemsBindEnv be = fst3 <$> bindEnvToList be
 
-bindEnvToList :: BindEnv -> [(BindId, Symbol, SortedReft)]
+bindEnvToList :: BindEnv -> [(BindId, FixSymbol, SortedReft)]
 bindEnvToList (BE _ be) = [(n, x, r) | (n, (x, r)) <- M.toList be]
 
-mapBindEnv :: (BindId -> (Symbol, SortedReft) -> (Symbol, SortedReft)) -> BindEnv -> BindEnv
+mapBindEnv :: (BindId -> (FixSymbol, SortedReft) -> (FixSymbol, SortedReft)) -> BindEnv -> BindEnv
 mapBindEnv f (BE n m) = BE n $ M.mapWithKey f m
 -- (\i z -> tracepp (msg i z) $ f z) m
 --  where
 --    msg i z = "beMap " ++ show i ++ " " ++ show z
 
-mapWithKeyMBindEnv :: (Monad m) => ((BindId, (Symbol, SortedReft)) -> m (BindId, (Symbol, SortedReft))) -> BindEnv -> m BindEnv
+mapWithKeyMBindEnv :: (Monad m) => ((BindId, (FixSymbol, SortedReft)) -> m (BindId, (FixSymbol, SortedReft))) -> BindEnv -> m BindEnv
 mapWithKeyMBindEnv f (BE n m) = (BE n . M.fromList) <$> mapM f (M.toList m)
 
-lookupBindEnv :: BindId -> BindEnv -> (Symbol, SortedReft)
+lookupBindEnv :: BindId -> BindEnv -> (FixSymbol, SortedReft)
 lookupBindEnv k (BE _ m) = fromMaybe err (M.lookup k m)
   where
     err                  = errorstar $ "lookupBindEnv: cannot find binder" ++ show k
@@ -252,7 +252,7 @@ nullIBindEnv (FB m) = S.null m
 diffIBindEnv :: IBindEnv -> IBindEnv -> IBindEnv
 diffIBindEnv (FB m1) (FB m2) = FB $ m1 `S.difference` m2
 
-adjustBindEnv :: ((Symbol, SortedReft) -> (Symbol, SortedReft)) -> BindId -> BindEnv -> BindEnv
+adjustBindEnv :: ((FixSymbol, SortedReft) -> (FixSymbol, SortedReft)) -> BindId -> BindEnv -> BindEnv
 adjustBindEnv f i (BE n m) = BE n $ M.adjust f i m
 
 instance Functor SEnv where
@@ -289,7 +289,7 @@ instance Monoid BindEnv where
   mempty  = BE 0 M.empty
   mappend = (<>)
 
-envCs :: BindEnv -> IBindEnv -> [(Symbol, SortedReft)]
+envCs :: BindEnv -> IBindEnv -> [(FixSymbol, SortedReft)]
 envCs be env = [lookupBindEnv i be | i <- elemsIBindEnv env]
 
 instance Fixpoint (IBindEnv) where

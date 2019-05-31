@@ -24,11 +24,11 @@ import           Language.Fixpoint.Types.Constraints
 --------------------------------------------------------------------------------
 -- | Compute the domain of a kvar
 --------------------------------------------------------------------------------
-kvarDomain :: SInfo a -> KVar -> [Symbol]
+kvarDomain :: SInfo a -> KVar -> [FixSymbol]
 --------------------------------------------------------------------------------
 kvarDomain si k = domain (bs si) (getWfC si k)
 
-domain :: BindEnv -> WfC a -> [Symbol]
+domain :: BindEnv -> WfC a -> [FixSymbol]
 domain be wfc = fst3 (wrft wfc) : map fst (envCs be $ wenv wfc)
 
 getWfC :: SInfo a -> KVar -> WfC a
@@ -38,13 +38,13 @@ getWfC si k = ws si M.! k
 -- | Free variables of a refinement
 --------------------------------------------------------------------------------
 --TODO deduplicate (also in Solver/UniqifyBinds)
-reftFreeVars :: Reft -> S.HashSet Symbol
+reftFreeVars :: Reft -> S.HashSet FixSymbol
 reftFreeVars r@(Reft (v, _)) = S.delete v $ S.fromList $ syms r
 
 --------------------------------------------------------------------------------
 -- | Split a SortedReft into its concrete and KVar components
 --------------------------------------------------------------------------------
-sortedReftConcKVars :: Symbol -> SortedReft -> ([Pred], [KVSub], [KVSub])
+sortedReftConcKVars :: FixSymbol -> SortedReft -> ([Pred], [KVSub], [KVSub])
 sortedReftConcKVars x sr = go [] [] [] ves
   where
     ves                  = [(v, p `subst1` (v, eVar x)) | Reft (v, p) <- rs ]

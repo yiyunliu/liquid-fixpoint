@@ -315,7 +315,7 @@ instSimpC cfg ctx bds aenv sid sub
 isPleCstr :: AxiomEnv -> SubcId -> SimpC a -> Bool
 isPleCstr aenv sid c = isTarget c && M.lookupDefault False sid (aenvExpand aenv) 
 
-cstrExprs :: BindEnv -> SimpC a -> ([(Symbol, SortedReft)], [Expr])
+cstrExprs :: BindEnv -> SimpC a -> ([(FixSymbol, SortedReft)], [Expr])
 cstrExprs bds sub = (unElab <$> binds, unElab <$> es)
   where
     es            = (crhs sub) : (expr <$> binds)
@@ -335,7 +335,7 @@ unApply = Vis.trans (Vis.defaultVisitor { Vis.txExpr = const go }) () ()
 -- | Symbolic Evaluation with SMT
 --------------------------------------------------------------------------------
 evaluate :: Config -> SMT.Context -> AxiomEnv -- ^ Definitions
-         -> [(Symbol, SortedReft)]            -- ^ Environment of "true" facts 
+         -> [(FixSymbol, SortedReft)]            -- ^ Environment of "true" facts 
          -> [Expr]                            -- ^ Candidates for unfolding 
          -> SubcId                            -- ^ Constraint Id
          -> IO [(Expr, Expr)]                 -- ^ Newly unfolded equalities
@@ -395,7 +395,7 @@ evalOne γ s0 e = do
   -}
 
 data Recur  = Ok | Stop deriving (Eq, Show)
-type CStack = ([Symbol], Recur)
+type CStack = ([FixSymbol], Recur)
 
 instance PPrint Recur where 
   pprintTidy _ = Misc.tshow 
@@ -403,10 +403,10 @@ instance PPrint Recur where
 initCS :: CStack 
 initCS = ([], Ok)
 
-pushCS :: CStack -> Symbol -> CStack 
+pushCS :: CStack -> FixSymbol -> CStack 
 pushCS (fs, r) f = (f:fs, r)
 
-recurCS :: CStack -> Symbol -> Bool 
+recurCS :: CStack -> FixSymbol -> Bool 
 recurCS (_,  Ok) _ = True 
 -- recurCS (_,  _ ) _ = False -- not (f `elem` fs) 
 recurCS (fs, _) f  = not (f `elem` fs) 
@@ -571,7 +571,7 @@ mkCoSub env eTs xTs = M.fromList [ (x, unite ys) | (x, ys) <- Misc.groupList xys
     xys         = mytracepp "mkCoSubXXX" $ Misc.sortNub $ concat $ zipWith matchSorts _xTs _eTs
     (_xTs,_eTs) = mytracepp "mkCoSub:MATCH" $ (xTs, eTs)
 
-matchSorts :: Sort -> Sort -> [(Symbol, Sort)]
+matchSorts :: Sort -> Sort -> [(FixSymbol, Sort)]
 matchSorts s1 s2 = mytracepp  ("matchSorts :" ++ showpp (s1, s2)) $ go s1 s2
   where
     go (FObj x)      {-FObj-} y    = [(x, y)]
@@ -599,10 +599,10 @@ getEqBodyPred (PAnd ((PAtom Eq fxs e):_))
 getEqBodyPred _
   = Nothing
 
-eqArgNames :: Equation -> [Symbol]
+eqArgNames :: Equation -> [FixSymbol]
 eqArgNames = map fst . eqArgs
 
-substPopIf :: [(Symbol, Expr)] -> Expr -> Expr
+substPopIf :: [(FixSymbol, Expr)] -> Expr -> Expr
 substPopIf xes e = L.foldl' go e xes
   where
     go e (x, EIte b e1 e2) = EIte b (subst1 e (x, e1)) (subst1 e (x, e2))
@@ -662,7 +662,7 @@ evalIte' γ stk _ b e1 e2 _ _
   = EIte b <$> eval γ stk' e1 <*> eval γ stk' e2 
     where stk' = mytracepp "evalIte'" $ noRecurCS stk 
 
-instance Expression (Symbol, SortedReft) where
+instance Expression (FixSymbol, SortedReft) where
   expr (x, RR _ (Reft (v, r))) = subst1 (expr r) (v, EVar x)
 
 --------------------------------------------------------------------------------
@@ -672,8 +672,8 @@ data Knowledge = KN
   { knSims    :: ![Rewrite]           -- ^ Measure info, asserted for each new Ctor ('assertSelectors')
   , knAms     :: ![Equation]          -- ^ (Recursive) function definitions, used for PLE
   , knContext :: SMT.Context
-  , knPreds   :: SMT.Context -> [(Symbol, Sort)] -> Expr -> IO Bool
-  , knLams    :: [(Symbol, Sort)]
+  , knPreds   :: SMT.Context -> [(FixSymbol, Sort)] -> Expr -> IO Bool
+  , knLams    :: [(FixSymbol, Sort)]
   }
 
 isValid :: Knowledge -> Expr -> IO Bool
@@ -695,7 +695,7 @@ knowledge cfg ctx aenv = KN
 -- | This creates the rewrite rule e1 -> e2, applied when:
 -- 1. when e2 is a DataCon and can lead to further reductions
 -- 2. when size e2 < size e1
-initEqualities :: SMT.Context -> AxiomEnv -> [(Symbol, SortedReft)] -> [(Expr, Expr)]
+initEqualities :: SMT.Context -> AxiomEnv -> [(FixSymbol, SortedReft)] -> [(Expr, Expr)]
 initEqualities ctx aenv es = concatMap (makeSimplifications (aenvSimpl aenv)) dcEqs
   where
     dcEqs                  = Misc.hashNub (Mb.catMaybes [getDCEquality senv e1 e2 | EEq e1 e2 <- atoms])
@@ -706,7 +706,7 @@ initEqualities ctx aenv es = concatMap (makeSimplifications (aenvSimpl aenv)) dc
 -- totality-effecting one.
 -- RJ: What does "totality effecting" mean? 
 
-askSMT :: Config -> SMT.Context -> [(Symbol, Sort)] -> Expr -> IO Bool
+askSMT :: Config -> SMT.Context -> [(FixSymbol, Sort)] -> Expr -> IO Bool
 askSMT cfg ctx bs e
   | isTautoPred  e     = return True
   | null (Vis.kvars e) = SMT.checkValidWithContext ctx [] PTrue e'
@@ -714,13 +714,13 @@ askSMT cfg ctx bs e
   where 
     e'                 = toSMT cfg ctx bs e 
 
-toSMT :: Config -> SMT.Context -> [(Symbol, Sort)] -> Expr -> Pred
+toSMT :: Config -> SMT.Context -> [(FixSymbol, Sort)] -> Expr -> Pred
 toSMT cfg ctx bs = defuncAny cfg senv . elaborate "makeKnowledge" (elabEnv bs)
   where
     elabEnv      = insertsSymEnv senv -- L.foldl' (\env (x, s) -> insertSymEnv x s env) senv
     senv         = SMT.ctxSymEnv ctx
 
-makeSimplifications :: [Rewrite] -> (Symbol, [Expr], Expr) -> [(Expr, Expr)]
+makeSimplifications :: [Rewrite] -> (FixSymbol, [Expr], Expr) -> [(Expr, Expr)]
 makeSimplifications sis (dc, es, e)
      = go =<< sis
  where
@@ -730,7 +730,7 @@ makeSimplifications sis (dc, es, e)
    go _
      = []
 
-getDCEquality :: SymEnv -> Expr -> Expr -> Maybe (Symbol, [Expr], Expr)
+getDCEquality :: SymEnv -> Expr -> Expr -> Maybe (FixSymbol, [Expr], Expr)
 getDCEquality senv e1 e2
   | Just dc1 <- f1
   , Just dc2 <- f2
@@ -748,17 +748,17 @@ getDCEquality senv e1 e2
     (f2, es2) = Misc.mapFst (getDC senv) (splitEApp e2)
 
 -- TODO: Stringy hacks
-getDC :: SymEnv -> Expr -> Maybe Symbol
+getDC :: SymEnv -> Expr -> Maybe FixSymbol
 getDC senv (EVar x)
   | isUpperSymbol x && Mb.isNothing (symEnvTheory x senv)
   = Just x
 getDC _ _
   = Nothing
 
-isUpperSymbol :: Symbol -> Bool
+isUpperSymbol :: FixSymbol -> Bool
 isUpperSymbol = isUpper . headSym . dropModuleNames
 
-dropModuleNames :: Symbol -> Symbol
+dropModuleNames :: FixSymbol -> FixSymbol
 dropModuleNames = mungeNames (symbol . last) "."
   where
     mungeNames _ _ ""  = ""

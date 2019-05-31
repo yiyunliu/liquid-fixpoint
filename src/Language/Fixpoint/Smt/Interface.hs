@@ -116,19 +116,19 @@ runCommands cmds
        return zs
 -}
 
-checkValidWithContext :: Context -> [(Symbol, Sort)] -> Expr -> Expr -> IO Bool
+checkValidWithContext :: Context -> [(FixSymbol, Sort)] -> Expr -> Expr -> IO Bool
 checkValidWithContext me xts p q =
   smtBracket me "checkValidWithContext" $
     checkValid' me xts p q
 
 -- | type ClosedPred E = {v:Pred | subset (vars v) (keys E) }
 -- checkValid :: e:Env -> ClosedPred e -> ClosedPred e -> IO Bool
-checkValid :: Config -> FilePath -> [(Symbol, Sort)] -> Expr -> Expr -> IO Bool
+checkValid :: Config -> FilePath -> [(FixSymbol, Sort)] -> Expr -> Expr -> IO Bool
 checkValid cfg f xts p q = do
   me <- makeContext cfg f
   checkValid' me xts p q
 
-checkValid' :: Context -> [(Symbol, Sort)] -> Expr -> Expr -> IO Bool
+checkValid' :: Context -> [(FixSymbol, Sort)] -> Expr -> Expr -> IO Bool
 checkValid' me xts p q = do
   smtDecls me xts
   smtAssert me $ pAnd [p, PNot q]
@@ -138,7 +138,7 @@ checkValid' me xts p q = do
 --   (e.g. if you want to make MANY repeated Queries)
 
 -- checkValid :: e:Env -> [ClosedPred e] -> IO [Bool]
-checkValids :: Config -> FilePath -> [(Symbol, Sort)] -> [Expr] -> IO [Bool]
+checkValids :: Config -> FilePath -> [(FixSymbol, Sort)] -> [Expr] -> IO [Bool]
 checkValids cfg f xts ps
   = do me <- makeContext cfg f
        smtDecls me xts
@@ -195,10 +195,10 @@ sexpP = {-# SCC "sexpP" #-} A.string "error" *> (Error <$> errorP)
 errorP :: SmtParser T.Text
 errorP = A.skipSpace *> A.char '"' *> A.takeWhile1 (/='"') <* A.string "\")"
 
-valuesP :: SmtParser [(Symbol, T.Text)]
+valuesP :: SmtParser [(FixSymbol, T.Text)]
 valuesP = A.many1' pairP <* A.char ')'
 
-pairP :: SmtParser (Symbol, T.Text)
+pairP :: SmtParser (FixSymbol, T.Text)
 pairP = {-# SCC "pairP" #-}
   do A.skipSpace
      A.char '('
@@ -208,7 +208,7 @@ pairP = {-# SCC "pairP" #-}
      A.char ')'
      return (x,v)
 
-symbolP :: SmtParser Symbol
+symbolP :: SmtParser FixSymbol
 symbolP = {-# SCC "symbolP" #-} symbol <$> A.takeWhile1 (not . isSpace)
 
 valueP :: SmtParser T.Text
@@ -343,10 +343,10 @@ smtPush, smtPop   :: Context -> IO ()
 smtPush me        = interact' me Push
 smtPop me         = interact' me Pop
 
-smtDecls :: Context -> [(Symbol, Sort)] -> IO ()
+smtDecls :: Context -> [(FixSymbol, Sort)] -> IO ()
 smtDecls = mapM_ . uncurry . smtDecl
 
-smtDecl :: Context -> Symbol -> Sort -> IO ()
+smtDecl :: Context -> FixSymbol -> Sort -> IO ()
 smtDecl me x t = interact' me ({- notracepp msg $ -} Declare x ins' out')
   where
     ins'       = sortSmtSort False env <$> ins
@@ -355,7 +355,7 @@ smtDecl me x t = interact' me ({- notracepp msg $ -} Declare x ins' out')
     _msg        = "smtDecl: " ++ showpp (x, t, ins, out)
     env        = seData (ctxSymEnv me)
 
-smtFuncDecl :: Context -> Symbol -> ([SmtSort],  SmtSort) -> IO ()
+smtFuncDecl :: Context -> FixSymbol -> ([SmtSort],  SmtSort) -> IO ()
 smtFuncDecl me x (ts, t) = interact' me (Declare x ts t)
 
 smtDataDecl :: Context -> [DataDecl] -> IO ()
@@ -455,7 +455,7 @@ declare me = do
     tx         = elaborate    "declare" env
     ats        = funcSortVars env
 
-symbolSorts :: F.SEnv F.Sort -> [(F.Symbol, F.Sort)]
+symbolSorts :: F.SEnv F.Sort -> [(F.FixSymbol, F.Sort)]
 symbolSorts env = [(x, tx t) | (x, t) <- F.toListSEnv env ]
  where
   tx t@(FObj a) = fromMaybe t (F.lookupSEnv a env)
@@ -464,7 +464,7 @@ symbolSorts env = [(x, tx t) | (x, t) <- F.toListSEnv env ]
 dataDeclarations :: SymEnv -> [[DataDecl]]
 dataDeclarations = orderDeclarations . map snd . F.toListSEnv . F.seData
 
-funcSortVars :: F.SymEnv -> [(F.Symbol, ([F.SmtSort], F.SmtSort))]
+funcSortVars :: F.SymEnv -> [(F.FixSymbol, ([F.SmtSort], F.SmtSort))]
 funcSortVars env  = [(var applyName  t       , appSort t) | t <- ts]
                  ++ [(var coerceName t       , ([t1],t2)) | t@(t1, t2) <- ts]
                  ++ [(var lambdaName t       , lamSort t) | t <- ts]
@@ -481,7 +481,7 @@ funcSortVars env  = [(var applyName  t       , appSort t) | t <- ts]
 --   1 = Theory-Declaration,
 --   2 = Query-Binder
 
-symKind :: F.SymEnv -> F.Symbol -> Int
+symKind :: F.SymEnv -> F.FixSymbol -> Int
 symKind env x = case F.tsInterp <$> F.symEnvTheory x env of
                   Just F.Theory   -> 0
                   Just F.Ctor     -> 0
@@ -499,7 +499,7 @@ symKind env x = case F.tsInterp <$> F.symEnvTheory x env of
 --   (of each sort) that are *disequal* to each other, e.g. EQ, LT, GT,
 --   or string literals "cat", "dog", "mouse". These should only include
 --   non-function sorted values.
-distinctLiterals :: [(F.Symbol, F.Sort)] -> [[F.Expr]]
+distinctLiterals :: [(F.FixSymbol, F.Sort)] -> [[F.Expr]]
 distinctLiterals xts = [ es | (_, es) <- tess ]
    where
     tess             = Misc.groupList [(t, F.expr x) | (x, t) <- xts, notFun t]

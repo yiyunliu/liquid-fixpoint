@@ -9,7 +9,7 @@ module Language.Fixpoint.Types.Theories (
     -- * Serialized Representation
       Raw
 
-    -- * Theory Symbol
+    -- * Theory FixSymbol
     , TheorySymbol (..)
     , Sem (..)
 
@@ -18,7 +18,7 @@ module Language.Fixpoint.Types.Theories (
     , sortSmtSort
     , isIntSmtSort
 
-    -- * Symbol Environments
+    -- * FixSymbol Environments
     , SymEnv (..)
     , symEnv
     , symEnvSort
@@ -57,7 +57,7 @@ import qualified Language.Fixpoint.Misc   as Misc
 type Raw          = LT.Text
 
 --------------------------------------------------------------------------------
--- | 'SymEnv' is used to resolve the 'Sort' and 'Sem' of each 'Symbol'
+-- | 'SymEnv' is used to resolve the 'Sort' and 'Sem' of each 'FixSymbol'
 --------------------------------------------------------------------------------
 data SymEnv = SymEnv
   { seSort    :: !(SEnv Sort)              -- ^ Sorts of *all* defined symbols
@@ -99,7 +99,7 @@ symEnv xEnv fEnv ds ls ts = SymEnv xEnv' fEnv dEnv ls sortMap
 --   UNININTERPRETED but POLYMORPHIC, hence need to go through
 --   the apply-defunc stuff.
 
-wiredInEnv :: M.HashMap Symbol Sort
+wiredInEnv :: M.HashMap FixSymbol Sort
 wiredInEnv = M.fromList [(toIntName, mkFFunc 1 [FVar 0, FInt])]
 
 
@@ -133,22 +133,22 @@ funcSorts dEnv ts = [ (t1, t2) | t1 <- smts, t2 <- smts]
     tx           = applySmtSort dEnv
 
 
-symEnvTheory :: Symbol -> SymEnv -> Maybe TheorySymbol
+symEnvTheory :: FixSymbol -> SymEnv -> Maybe TheorySymbol
 symEnvTheory x env = lookupSEnv x (seTheory env)
 
-symEnvSort :: Symbol -> SymEnv -> Maybe Sort
+symEnvSort :: FixSymbol -> SymEnv -> Maybe Sort
 symEnvSort   x env = lookupSEnv x (seSort env)
 
-insertSymEnv :: Symbol -> Sort -> SymEnv -> SymEnv
+insertSymEnv :: FixSymbol -> Sort -> SymEnv -> SymEnv
 insertSymEnv x t env = env { seSort = insertSEnv x t (seSort env) }
 
-insertsSymEnv :: SymEnv -> [(Symbol, Sort)] -> SymEnv
+insertsSymEnv :: SymEnv -> [(FixSymbol, Sort)] -> SymEnv
 insertsSymEnv = L.foldl' (\env (x, s) -> insertSymEnv x s env) 
 
-symbolAtName :: (PPrint a) => Symbol -> SymEnv -> a -> Sort -> Symbol
+symbolAtName :: (PPrint a) => FixSymbol -> SymEnv -> a -> Sort -> FixSymbol
 symbolAtName mkSym env e = symbolAtSmtName mkSym env e . ffuncSort env
 
-symbolAtSmtName :: (PPrint a) => Symbol -> SymEnv -> a -> FuncSort -> Symbol
+symbolAtSmtName :: (PPrint a) => FixSymbol -> SymEnv -> a -> FuncSort -> FixSymbol
 symbolAtSmtName mkSym env e = intSymbol mkSym . funcSortIndex env e
 
 funcSortIndex :: (PPrint a) => SymEnv -> a -> FuncSort -> Int
@@ -171,10 +171,10 @@ isIntSmtSort :: SEnv DataDecl -> Sort -> Bool
 isIntSmtSort env s = SInt == applySmtSort env s
 
 --------------------------------------------------------------------------------
--- | 'TheorySymbol' represents the information about each interpreted 'Symbol'
+-- | 'TheorySymbol' represents the information about each interpreted 'FixSymbol'
 --------------------------------------------------------------------------------
 data TheorySymbol  = Thy
-  { tsSym    :: !Symbol          -- ^ name
+  { tsSym    :: !FixSymbol          -- ^ name
   , tsRaw    :: !Raw             -- ^ serialized SMTLIB2 name
   , tsSort   :: !Sort            -- ^ sort
   , tsInterp :: !Sem             -- ^ TRUE = defined (interpreted), FALSE = declared (uninterpreted)

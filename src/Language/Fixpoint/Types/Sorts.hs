@@ -156,7 +156,7 @@ sizeBv tc
   where
     s               = val $ fTyconSymbol tc
 
-fTyconSymbol :: FTycon -> Located Symbol
+fTyconSymbol :: FTycon -> Located FixSymbol
 fTyconSymbol (TC s _) = s
 
 symbolNumInfoFTyCon :: LocSymbol -> Bool -> Bool -> FTycon
@@ -226,7 +226,7 @@ data Sort = FInt
           | FReal
           | FNum                 -- ^ numeric kind for Num tyvars
           | FFrac                -- ^ numeric kind for Fractional tyvars
-          | FObj  !Symbol        -- ^ uninterpreted type
+          | FObj  !FixSymbol        -- ^ uninterpreted type
           | FVar  !Int           -- ^ fixpoint type variable
           | FFunc !Sort !Sort    -- ^ function
           | FAbs  !Int !Sort     -- ^ type-abstraction
@@ -432,7 +432,7 @@ bitVecSort = FApp (FTC $ symbolFTycon' bitVecName) (FTC $ symbolFTycon' size32Na
 mapSort :: Sort -> Sort -> Sort
 mapSort = FApp . FApp (FTC (symbolFTycon' mapConName))
 
-symbolFTycon' :: Symbol -> FTycon
+symbolFTycon' :: FixSymbol -> FTycon
 symbolFTycon' = symbolFTycon . dummyLoc
 
 fTyconSort :: FTycon -> Sort
@@ -446,7 +446,7 @@ basicSorts :: [Sort]
 basicSorts = [FInt, boolSort] 
 
 ------------------------------------------------------------------------
-sortSubst                  :: M.HashMap Symbol Sort -> Sort -> Sort
+sortSubst                  :: M.HashMap FixSymbol Sort -> Sort -> Sort
 ------------------------------------------------------------------------
 sortSubst θ t@(FObj x)    = fromMaybe t (M.lookup x θ)
 sortSubst θ (FFunc t1 t2) = FFunc (sortSubst θ t1) (sortSubst θ t2)

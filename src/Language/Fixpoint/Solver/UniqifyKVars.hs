@@ -53,7 +53,7 @@ remakeSubsts fi = mapKVarSubsts (remakeSubst fi) fi
 remakeSubst :: SInfo a -> KVar -> Subst -> Subst
 remakeSubst fi k su = foldl' (updateSubst k) su (kvarDomain fi k)
 
-updateSubst :: KVar -> Subst -> Symbol -> Subst
+updateSubst :: KVar -> Subst -> FixSymbol -> Subst
 updateSubst k (Su su) sym
   = case M.lookup sym su of
       Just z  -> Su $ M.delete sym $ M.insert ksym z          su
@@ -96,7 +96,7 @@ accumBinds k (fi, ids) i = (fi', i' : ids)
 
 -- | `newTopBind` ignores the actual refinements as they are not relevant
 --   in the kvar parameters (as suggested by BLC.)
-newTopBind :: Symbol -> SortedReft -> SInfo a -> (BindId, SInfo a)
+newTopBind :: FixSymbol -> SortedReft -> SInfo a -> (BindId, SInfo a)
 newTopBind x sr fi = (i', fi {bs = be'})
   where
     (i', be')   = insertBindEnv x (top sr) (bs fi)

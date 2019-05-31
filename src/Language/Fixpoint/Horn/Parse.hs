@@ -34,8 +34,8 @@ data HThing a
   | HCstr !(H.Cstr a)
   
   -- for uninterpred functions and ADT constructors
-  | HCon  F.Symbol F.Sort
-  | HDis  F.Symbol F.Sort
+  | HCon  F.FixSymbol F.Sort
+  | HDis  F.FixSymbol F.Sort
 
   | HOpt !String
   deriving (Functor)
@@ -75,7 +75,7 @@ hPredP = parens body
         <|> H.PAnd <$> (reserved "and" *> many1 hPredP)
         <|> H.Reft <$> predP 
 
-kvSymP :: Parser F.Symbol 
+kvSymP :: Parser F.FixSymbol 
 kvSymP = char '$' *> symbolP 
 
 -------------------------------------------------------------------------------
@@ -89,7 +89,7 @@ hQualifierP = do
   body   <- parens predP
   return  $ F.mkQual n (mkParam <$> params) body pos
 
-mkParam :: (F.Symbol, F.Sort) -> F.QualParam 
+mkParam :: (F.FixSymbol, F.Sort) -> F.QualParam 
 mkParam (x, t) = F.QP x F.PatNone t
 
 -------------------------------------------------------------------------------
@@ -103,7 +103,7 @@ hVarP = H.HVar <$> kvSymP <*> parens (many1 (parens sortP)) <*> pure ()
 -- | Helpers 
 -------------------------------------------------------------------------------
 
-symSortP :: Parser (F.Symbol, F.Sort)
+symSortP :: Parser (F.FixSymbol, F.Sort)
 symSortP = parens ((,) <$> symbolP <*> sortP)
 
 

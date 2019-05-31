@@ -66,7 +66,7 @@ import GHC.Stack
 
 data CVertex = KVar  !KVar    -- ^ real kvar vertex
              | DKVar !KVar    -- ^ dummy to ensure each kvar has a successor
-             | EBind !F.Symbol  -- ^ existentially bound "ghost paramter" to solve for
+             | EBind !F.FixSymbol  -- ^ existentially bound "ghost paramter" to solve for
              | Cstr  !Integer -- ^ constraint-id which creates a dependency
                deriving (Eq, Ord, Show, Generic)
 

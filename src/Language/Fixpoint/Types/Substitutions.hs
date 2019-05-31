@@ -30,7 +30,7 @@ instance Monoid Subst where
   mempty  = emptySubst
   mappend = (<>)
 
-filterSubst :: (Symbol -> Expr -> Bool) -> Subst -> Subst
+filterSubst :: (FixSymbol -> Expr -> Bool) -> Subst -> Subst
 filterSubst f (Su m) = Su (M.filterWithKey f m)
 
 emptySubst :: Subst
@@ -41,7 +41,7 @@ catSubst (Su s1) θ2@(Su s2) = Su $ M.union s1' s2
   where
     s1'                     = subst θ2 <$> s1
 
-mkSubst :: [(Symbol, Expr)] -> Subst
+mkSubst :: [(FixSymbol, Expr)] -> Subst
 mkSubst = Su . M.fromList . reverse . filter notTrivial
   where
     notTrivial (x, EVar y) = x /= y
@@ -50,7 +50,7 @@ mkSubst = Su . M.fromList . reverse . filter notTrivial
 isEmptySubst :: Subst -> Bool
 isEmptySubst (Su xes) = M.null xes
 
-targetSubstSyms :: Subst -> [Symbol]
+targetSubstSyms :: Subst -> [FixSymbol]
 targetSubstSyms (Su ms) = syms $ M.elems ms
 
 
@@ -86,33 +86,33 @@ instance Subable a => Subable (M.HashMap k a) where
   substf = M.map . substf
   substa = M.map . substa
 
-subst1Except :: (Subable a) => [Symbol] -> a -> (Symbol, Expr) -> a
+subst1Except :: (Subable a) => [FixSymbol] -> a -> (FixSymbol, Expr) -> a
 subst1Except xs z su@(x, _)
   | x `elem` xs = z
   | otherwise   = subst1 z su
 
-substfExcept :: (Symbol -> Expr) -> [Symbol] -> Symbol -> Expr
+substfExcept :: (FixSymbol -> Expr) -> [FixSymbol] -> FixSymbol -> Expr
 substfExcept f xs y = if y `elem` xs then EVar y else f y
 
-substExcept  :: Subst -> [Symbol] -> Subst
+substExcept  :: Subst -> [FixSymbol] -> Subst
 -- substExcept  (Su m) xs = Su (foldr M.delete m xs)
 substExcept (Su xes) xs = Su $ M.filterWithKey (const . not . (`elem` xs)) xes
 
-instance Subable Symbol where
+instance Subable FixSymbol where
   substa f                 = f
   substf f x               = subSymbol (Just (f x)) x
   subst su x               = subSymbol (Just $ appSubst su x) x -- subSymbol (M.lookup x s) x
   syms x                   = [x]
 
-appSubst :: Subst -> Symbol -> Expr
+appSubst :: Subst -> FixSymbol -> Expr
 appSubst (Su s) x = fromMaybe (EVar x) (M.lookup x s)
 
-subSymbol :: Maybe Expr -> Symbol -> Symbol
+subSymbol :: Maybe Expr -> FixSymbol -> FixSymbol
 subSymbol (Just (EVar y)) _ = y
 subSymbol Nothing         x = x
 subSymbol a               b = errorstar (printf "Cannot substitute symbol %s with expression %s" (showFix b) (showFix a))
 
-substfLam :: (Symbol -> Expr) -> (Symbol, Sort) -> Expr -> Expr
+substfLam :: (FixSymbol -> Expr) -> (FixSymbol, Sort) -> Expr -> Expr
 substfLam f s@(x, _) e =  ELam s (substf (\y -> if y == x then EVar x else f y) e)
 
 instance Subable Expr where
@@ -162,10 +162,10 @@ instance Subable Expr where
           | otherwise      = errorstar ("subst: EXISTS (without disjoint binds)" ++ show (bs, su, p))
   subst _  p               = p
 
-removeSubst :: Subst -> Symbol -> Subst
+removeSubst :: Subst -> FixSymbol -> Subst
 removeSubst (Su su) x = Su $ M.delete x su
 
-disjoint :: Subst -> [(Symbol, Sort)] -> Bool
+disjoint :: Subst -> [(FixSymbol, Sort)] -> Bool
 disjoint (Su su) bs = S.null $ suSyms `S.intersection` bsSyms
   where
     suSyms = S.fromList $ syms (M.elems su) ++ syms (M.keys su)
@@ -285,7 +285,7 @@ ppRas = cat . punctuate comma . map toFix . flattenRefas
 --------------------------------------------------------------------------------
 -- | TODO: Rewrite using visitor -----------------------------------------------
 --------------------------------------------------------------------------------
--- exprSymbols :: Expr -> [Symbol]
+-- exprSymbols :: Expr -> [FixSymbol]
 -- exprSymbols = go
   -- where
     -- go (EVar x)           = [x]
@@ -306,7 +306,7 @@ ppRas = cat . punctuate comma . map toFix . flattenRefas
     -- go (PAll xts p)       = (fst <$> xts) ++ go p
     -- go _                  = []
 
-exprSymbols :: Expr -> [Symbol]
+exprSymbols :: Expr -> [FixSymbol]
 exprSymbols = S.toList . go 
   where
     gos es                = S.unions (go <$> es)
