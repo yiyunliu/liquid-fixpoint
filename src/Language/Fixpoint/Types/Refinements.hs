@@ -262,31 +262,31 @@ data Bop  = Plus | Minus | Times | Div | Mod | RTimes | RDiv
             deriving (Eq, Ord, Show, Data, Typeable, Generic)
             -- NOTE: For "Mod" 2nd expr should be a constant or a var *)
 
-data Expr = ESym !SymConst
-          | ECon !Constant
-          | EVar !FixSymbol
-          | EApp !Expr !Expr
-          | ENeg !Expr
-          | EBin !Bop !Expr !Expr
-          | EIte !Expr !Expr !Expr
-          | ECst !Expr !Sort
-          | ELam !(FixSymbol, Sort)   !Expr
-          | ETApp !Expr !Sort
-          | ETAbs !Expr !FixSymbol
-          | PAnd   ![Expr]
-          | POr    ![Expr]
-          | PNot   !Expr
-          | PImp   !Expr !Expr
-          | PIff   !Expr !Expr
-          | PAtom  !Brel  !Expr !Expr
-          | PKVar  !KVar !Subst
-          | PAll   ![(FixSymbol, Sort)] !Expr
-          | PExist ![(FixSymbol, Sort)] !Expr
-          | PGrad  !KVar !Subst !GradInfo !Expr
-          | ECoerc !Sort !Sort !Expr  
-          deriving (Eq, Show, Data, Typeable, Generic)
+data Expr s = ESym !SymConst
+            | ECon !Constant
+            | EVar !(Symbol s)
+            | EApp !(Expr s) !(Expr s)
+            | ENeg !(Expr s)
+            | EBin !Bop !(Expr s) !(Expr s)
+            | EIte !(Expr s) !(Expr s) !(Expr s)
+            | ECst !(Expr s) !Sort
+            | ELam !(Symbol s, Sort)   !(Expr s)
+            | ETApp !(Expr s) !Sort
+            | ETAbs !(Expr s) !(Symbol s)
+            | PAnd   ![(Expr s)]
+            | POr    ![(Expr s)]
+            | PNot   !(Expr s)
+            | PImp   !(Expr s) !(Expr s)
+            | PIff   !(Expr s) !(Expr s)
+            | PAtom  !Brel  !(Expr s) !(Expr s)
+            | PKVar  !KVar !Subst
+            | PAll   ![(Symbol s, Sort)] !(Expr s)
+            | PExist ![(Symbol s, Sort)] !(Expr s)
+            | PGrad  !KVar !Subst !GradInfo !(Expr s)
+            | ECoerc !Sort !Sort !(Expr s)  
+            deriving (Eq, Show, Data, Typeable, Generic)
 
-type Pred = Expr
+type Pred s = Expr s
 
 pattern PTrue         = PAnd []
 pattern PTop          = PAnd []
