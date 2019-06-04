@@ -167,10 +167,10 @@ data FixSymbol
       , symbolEncoded :: !T.Text
       } deriving (Data, Typeable, Generic)
 
-
 data Symbol s
   = FS FixSymbol
-  | AS {abstractSymbol :: s}
+  -- | 's' represents an abstract symbol from the source language.
+  | AS s
   deriving (Data, Typeable, Generic)
 
 
