@@ -168,13 +168,16 @@ data FixSymbol
       , symbolEncoded :: !T.Text
       } deriving (Data, Typeable, Generic)
 
+data AbstractSymbol s
+  = PS { abstractSymbol :: s
+       , abstractSymbolEncoded :: !T.Text
+       } deriving (Data, Typeable, Generic)
+
 data Symbol s
   = FS FixSymbol
   -- | 's' represents an abstract symbol from the source language.
-  | AS s
+  | AS (AbstractSymbol s)
   deriving (Data, Typeable, Generic)
-
-
 
 instance Eq FixSymbol where
   S i _ _ == S j _ _ = i == j
