@@ -92,15 +92,15 @@ import           Text.PrettyPrint.HughesPJ.Compat
 import qualified Data.HashMap.Strict       as M
 import qualified Data.List                 as L
 
-data FTycon   = TC LocSymbol TCInfo deriving (Ord, Show, Data, Typeable, Generic)
+data FTycon s  = TC (LocSymbol s) TCInfo deriving (Ord, Show, Data, Typeable, Generic)
 
 -- instance Show FTycon where
 --   show (TC s _) = show (val s)
 
-instance Symbolic FTycon where
+instance Symbolic (FTycon s) where
   symbol (TC s _) = symbol s
 
-instance Eq FTycon where
+instance Eq (FTycon s) where
   (TC s _) == (TC s' _) = val s == val s'
 
 data TCInfo = TCInfo { tc_isNum :: Bool, tc_isReal :: Bool, tc_isString :: Bool }
@@ -222,41 +222,41 @@ functionSort s
 --------------------------------------------------------------------------------
 -- | Sorts ---------------------------------------------------------------------
 --------------------------------------------------------------------------------
-data Sort = FInt
-          | FReal
-          | FNum                 -- ^ numeric kind for Num tyvars
-          | FFrac                -- ^ numeric kind for Fractional tyvars
-          | FObj  !FixSymbol        -- ^ uninterpreted type
-          | FVar  !Int           -- ^ fixpoint type variable
-          | FFunc !Sort !Sort    -- ^ function
-          | FAbs  !Int !Sort     -- ^ type-abstraction
-          | FTC   !FTycon
-          | FApp  !Sort !Sort    -- ^ constructed type
-            deriving (Eq, Ord, Show, Data, Typeable, Generic)
+data Sort s = FInt
+            | FReal
+            | FNum                 -- ^ numeric kind for Num tyvars
+            | FFrac                -- ^ numeric kind for Fractional tyvars
+            | FObj  !(Symbol s)        -- ^ uninterpreted type
+            | FVar  !Int           -- ^ fixpoint type variable
+            | FFunc !(Sort s) !(Sort s)    -- ^ function
+            | FAbs  !Int !(Sort s)     -- ^ type-abstraction
+            | FTC   !(FTycon s)
+            | FApp  !(Sort s) !(Sort s)    -- ^ constructed type
+              deriving (Eq, Ord, Show, Data, Typeable, Generic)
 
-data DataField = DField
-  { dfName :: !LocSymbol          -- ^ Field Name
-  , dfSort :: !Sort               -- ^ Field Sort
+data DataField s = DField
+  { dfName :: !(LocSymbol s)          -- ^ Field Name
+  , dfSort :: !(Sort s)               -- ^ Field Sort
   } deriving (Eq, Ord, Show, Data, Typeable, Generic)
 
-data DataCtor = DCtor
-  { dcName   :: !LocSymbol        -- ^ Ctor Name
-  , dcFields :: ![DataField]      -- ^ Ctor Fields
+data DataCtor s = DCtor
+  { dcName   :: !(LocSymbol s)        -- ^ Ctor Name
+  , dcFields :: ![DataField s]      -- ^ Ctor Fields
   } deriving (Eq, Ord, Show, Data, Typeable, Generic)
 
-data DataDecl = DDecl
-  { ddTyCon :: !FTycon            -- ^ Name of defined datatype
+data DataDecl s = DDecl
+  { ddTyCon :: !(FTycon s)            -- ^ Name of defined datatype
   , ddVars  :: !Int               -- ^ Number of type variables
-  , ddCtors :: [DataCtor]         -- ^ Datatype Ctors
+  , ddCtors :: [DataCtor s]         -- ^ Datatype Ctors
   } deriving (Eq, Ord, Show, Data, Typeable, Generic)
 
-instance Symbolic DataDecl where
+instance Symbolic (DataDecl s) where
   symbol = symbol . ddTyCon
 
-instance Symbolic DataField where
+instance Symbolic (DataField s) where
   symbol = val . dfName
 
-instance Symbolic DataCtor where
+instance Symbolic (DataCtor s) where
   symbol = val . dcName
 
 

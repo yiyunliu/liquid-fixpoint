@@ -280,8 +280,8 @@ data Expr s = ESym !SymConst
             | PIff   !(Expr s) !(Expr s)
             | PAtom  !Brel  !(Expr s) !(Expr s)
             | PKVar  !KVar !Subst
-            | PAll   ![(Symbol s, Sort)] !(Expr s)
-            | PExist ![(Symbol s, Sort)] !(Expr s)
+            | PAll   ![(FixSymbol, Sort)] !(Expr s)
+            | PExist ![(FixSymbol, Sort)] !(Expr s)
             | PGrad  !KVar !Subst !GradInfo !(Expr s)
             | ECoerc !Sort !Sort !(Expr s)  
             deriving (Eq, Show, Data, Typeable, Generic)
