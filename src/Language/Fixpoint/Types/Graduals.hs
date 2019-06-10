@@ -129,10 +129,10 @@ instance Unique BindId where
               return i'
       else return i
 
-instance Unique SortedReft where
+instance Unique (SortedReft s) where
   uniq (RR s r) = RR s <$> uniq r
 
-instance Unique Reft where
+instance Unique (Reft s) where
   uniq (Reft (x,e)) = (Reft . (x,)) <$> uniq e
 
 instance Unique (Expr s) where
@@ -240,10 +240,10 @@ instance Gradual (Expr s) where
       mknew k = So.elaborate "initBGind.mkPred" env $ fst <$> M.lookup k m
       err   k = errorstar ("gradual substitution: Cannot find " ++ showpp k)
 
-instance Gradual Reft where
+instance Gradual (Reft s) where
   gsubst su (Reft (x, e)) = Reft (x, gsubst su e)
 
-instance Gradual SortedReft where
+instance Gradual (SortedReft s) where
   gsubst su r = r {sr_reft = gsubst su (sr_reft r)}
 
 instance Gradual (SimpC a) where

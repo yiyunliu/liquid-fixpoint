@@ -258,7 +258,7 @@ type Hyp      = ListNE Cube
 
 data Cube = Cube
   { cuBinds :: IBindEnv  -- ^ Binders       from defining Env
-  , cuSubst :: Subst     -- ^ Substitutions from cstrs    Rhs
+  , cuSubst :: Subst s     -- ^ Substitutions from cstrs    Rhs
   , cuId    :: SubcId    -- ^ Id            of   defining Cstr
   , cuTag   :: Tag       -- ^ Tag           of   defining Cstr (DEBUG)
   } deriving (Generic, NFData)
@@ -303,7 +303,7 @@ fromList env kGs kXs kYs z ebs xbs
     ebm = M.fromList ebs
 
 --------------------------------------------------------------------------------
-qbPreds :: String -> Sol a QBind -> Subst -> QBind -> [(Pred s, EQual)]
+qbPreds :: String -> Sol a QBind -> Subst s -> QBind -> [(Pred s, EQual)]
 --------------------------------------------------------------------------------
 qbPreds msg s su (QB eqs) = [ (elabPred eq, eq) | eq <- eqs ]
   where

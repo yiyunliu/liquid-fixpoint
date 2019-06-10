@@ -101,7 +101,7 @@ hornSubCs be kve c = (be', ebs, M.fromList (F.addIds cs))
 -- | @goS@ recursively traverses the NNF constraint to build up a list 
 --   of the vanilla @SubC@ constraints.
 
-goS :: KVEnv a -> F.IBindEnv -> F.SortedReft -> F.BindEnv -> H.Cstr a 
+goS :: KVEnv a -> F.IBindEnv -> F.SortedReft s -> F.BindEnv -> H.Cstr a 
     -> (F.BindEnv, [F.BindId], [F.SubC a])
 
 goS kve env lhs be c = (be', mEbs, subcs)
@@ -109,7 +109,7 @@ goS kve env lhs be c = (be', mEbs, subcs)
     (be', ecs) = goS' kve env lhs be c
     (mEbs, subcs) = partitionEithers ecs
 
-goS' :: KVEnv a -> F.IBindEnv -> F.SortedReft -> F.BindEnv -> H.Cstr a 
+goS' :: KVEnv a -> F.IBindEnv -> F.SortedReft s -> F.BindEnv -> H.Cstr a 
     -> (F.BindEnv, [Either F.BindId (F.SubC a)])
 goS' kve env lhs be (H.Head p l) = (be, [Right subc])
   where 
@@ -134,10 +134,10 @@ goS' kve env _   be (H.Any b c)  = (be'', Left bId : subcs)
     bSR                         = bindSortedReft kve b 
     env'                        = F.insertsIBindEnv [bId] env 
 
-bindSortedReft :: KVEnv a -> H.Bind -> F.SortedReft 
+bindSortedReft :: KVEnv a -> H.Bind -> F.SortedReft s 
 bindSortedReft kve (H.Bind x t p) = F.RR t (F.Reft (x, predExpr kve p))
 
-updSortedReft :: KVEnv a -> F.SortedReft -> H.Pred -> F.SortedReft 
+updSortedReft :: KVEnv a -> F.SortedReft s -> H.Pred -> F.SortedReft s 
 updSortedReft kve (F.RR s (F.Reft (v, _))) p = F.RR s (F.Reft (v, predExpr kve p))  
 
 predExpr :: KVEnv a -> H.Pred -> F.Expr s 

@@ -315,7 +315,7 @@ instSimpC cfg ctx bds aenv sid sub
 isPleCstr :: AxiomEnv -> SubcId -> SimpC a -> Bool
 isPleCstr aenv sid c = isTarget c && M.lookupDefault False sid (aenvExpand aenv) 
 
-cstrExprs :: BindEnv -> SimpC a -> ([(FixSymbol, SortedReft)], [Expr])
+cstrExprs :: BindEnv -> SimpC a -> ([(FixSymbol, SortedReft s)], [Expr s])
 cstrExprs bds sub = (unElab <$> binds, unElab <$> es)
   where
     es            = (crhs sub) : (expr <$> binds)
@@ -335,7 +335,7 @@ unApply = Vis.trans (Vis.defaultVisitor { Vis.txExpr = const go }) () ()
 -- | Symbolic Evaluation with SMT
 --------------------------------------------------------------------------------
 evaluate :: Config -> SMT.Context -> AxiomEnv -- ^ Definitions
-         -> [(FixSymbol, SortedReft)]            -- ^ Environment of "true" facts 
+         -> [(FixSymbol, SortedReft s)]            -- ^ Environment of "true" facts 
          -> [Expr]                            -- ^ Candidates for unfolding 
          -> SubcId                            -- ^ Constraint Id
          -> IO [(Expr, Expr)]                 -- ^ Newly unfolded equalities
@@ -662,7 +662,7 @@ evalIte' γ stk _ b e1 e2 _ _
   = EIte b <$> eval γ stk' e1 <*> eval γ stk' e2 
     where stk' = mytracepp "evalIte'" $ noRecurCS stk 
 
-instance Expression (FixSymbol, SortedReft) where
+instance Expression (FixSymbol, SortedReft s) where
   expr (x, RR _ (Reft (v, r))) = subst1 (expr r) (v, EVar x)
 
 --------------------------------------------------------------------------------
@@ -680,7 +680,7 @@ isValid :: Knowledge -> Expr s -> IO Bool
 isValid γ e = mytracepp ("isValid: " ++ showpp e) <$> 
                 knPreds γ (knContext γ) (knLams γ) e
 
-isProof :: (a, SortedReft) -> Bool 
+isProof :: (a, SortedReft s) -> Bool 
 isProof (_, RR s _) = showpp s == "Tuple"
 
 knowledge :: Config -> SMT.Context -> AxiomEnv -> Knowledge
@@ -695,7 +695,7 @@ knowledge cfg ctx aenv = KN
 -- | This creates the rewrite rule e1 -> e2, applied when:
 -- 1. when e2 is a DataCon and can lead to further reductions
 -- 2. when size e2 < size e1
-initEqualities :: SMT.Context -> AxiomEnv -> [(FixSymbol, SortedReft)] -> [(Expr, Expr)]
+initEqualities :: SMT.Context -> AxiomEnv -> [(FixSymbol, SortedReft s)] -> [(Expr, Expr)]
 initEqualities ctx aenv es = concatMap (makeSimplifications (aenvSimpl aenv)) dcEqs
   where
     dcEqs                  = Misc.hashNub (Mb.catMaybes [getDCEquality senv e1 e2 | EEq e1 e2 <- atoms])

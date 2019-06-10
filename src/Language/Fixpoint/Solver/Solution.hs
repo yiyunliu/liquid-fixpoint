@@ -203,7 +203,7 @@ envConcKVars g s bs = (concat pss, concat kss, L.nubBy (\x y -> F.ksuKVar x == F
     xrs             = lookupBindEnvExt g s <$> is
     is              = F.elemsIBindEnv bs
 
-lookupBindEnvExt :: CombinedEnv -> Sol.Sol a Sol.QBind -> F.BindId -> (F.FixSymbol, F.SortedReft)
+lookupBindEnvExt :: CombinedEnv -> Sol.Sol a Sol.QBind -> F.BindId -> (F.FixSymbol, F.SortedReft s)
 lookupBindEnvExt g s i 
   | Just p <- ebSol g s i = (x, sr { F.sr_reft = F.Reft (x, p) }) 
   | otherwise             = (x, sr)
@@ -334,7 +334,7 @@ cubePredExc g s ksu c bs' = (cubeP, extendKInfo kI (Sol.cuTag c))
      2. are binders corresponding to sorts (e.g. `a : num`, currently used
         to hack typeclasses current.)
  -}
-substElim :: F.SymEnv -> F.SEnv (F.Sort s) -> CombinedEnv -> F.KVar -> F.Subst -> ([(F.FixSymbol, F.Sort s)], F.Pred s)
+substElim :: F.SymEnv -> F.SEnv (F.Sort s) -> CombinedEnv -> F.KVar -> F.Subst s -> ([(F.FixSymbol, F.Sort s)], F.Pred s)
 substElim syEnv sEnv g _ (F.Su m) = (xts, p)
   where
     p      = F.pAnd [ mkSubst sp syEnv x (substSort sEnv frees x t) e t | (x, e, t) <- xets  ]
@@ -381,7 +381,7 @@ isClass _       = False
               -- ++ " in env \n"
               -- ++ show (combinedSEnv g)
 
--- substPred :: F.Subst -> F.Pred s
+-- substPred :: F.Subst s -> F.Pred s
 -- substPred (F.Su m) = F.pAnd [ F.PAtom F.Eq (F.eVar x) e | (x, e) <- M.toList m]
 
 combinedSEnv :: CombinedEnv -> F.SEnv (F.Sort s)

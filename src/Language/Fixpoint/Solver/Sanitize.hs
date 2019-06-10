@@ -200,9 +200,9 @@ badArg :: S.HashSet F.FixSymbol -> F.Expr s -> Bool
 badArg sEnv (F.EVar y) = not (y `S.member` sEnv)
 badArg _    _          = True
 
-type KSub = (Maybe F.FixSymbol, F.KVar, F.Subst)
+type KSub s = (Maybe F.FixSymbol, F.KVar, F.Subst s)
 
-subcKSubs :: [(F.FixSymbol, F.SortedReft)] -> F.SimpC a -> [KSub]
+subcKSubs :: [(F.FixSymbol, F.SortedReft s)] -> F.SimpC a -> [KSub]
 subcKSubs xsrs c = rhs ++ lhs
   where
     lhs          = [ (Just v, k, su) | (_, sr) <- xsrs

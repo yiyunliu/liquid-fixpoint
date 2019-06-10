@@ -156,8 +156,8 @@ type SubcId = Integer
 
 data SubC a = SubC
   { _senv  :: !IBindEnv
-  , slhs   :: !SortedReft
-  , srhs   :: !SortedReft
+  , slhs   :: !(SortedReft s)
+  , srhs   :: !(SortedReft s)
   , _sid   :: !(Maybe SubcId)
   , _stag  :: !Tag
   , _sinfo :: !a
@@ -197,7 +197,7 @@ strengthenBinds si m = si { bs = mapBindEnv f (bs si) }
                          Nothing -> (x, sr)
                          Just e  -> (x, strengthenSortedReft sr e)
 
-strengthenSortedReft :: SortedReft -> Expr s -> SortedReft
+strengthenSortedReft :: SortedReft s -> Expr s -> SortedReft s
 strengthenSortedReft (RR s (Reft (v, r))) e = RR s (Reft (v, pAnd [r, e]))
 
 
@@ -216,7 +216,7 @@ class TaggedC c a where
   sid   :: c a -> Maybe Integer
   stag  :: c a -> Tag
   sinfo :: c a -> a
-  clhs  :: BindEnv -> c a -> [(FixSymbol, SortedReft)]
+  clhs  :: BindEnv -> c a -> [(FixSymbol, SortedReft s)]
   crhs  :: c a -> Expr s
 
 instance TaggedC SimpC a where
@@ -235,7 +235,7 @@ instance TaggedC SubC a where
   crhs      = reftPred . sr_reft . srhs
   clhs be c = sortedReftBind (slhs c) : envCs be (senv c)
 
-sortedReftBind :: SortedReft -> (FixSymbol, SortedReft)
+sortedReftBind :: SortedReft s -> (FixSymbol, SortedReft s)
 sortedReftBind sr = (x, sr)
   where
     Reft (x, _)   = sr_reft sr
@@ -395,7 +395,7 @@ instance (NFData a) => NFData (Result a)
 -- | "Smart Constructors" for Constraints ---------------------------------
 ---------------------------------------------------------------------------
 
-wfC :: (Fixpoint a) => IBindEnv -> SortedReft -> a -> [WfC a]
+wfC :: (Fixpoint a) => IBindEnv -> SortedReft s -> a -> [WfC a]
 wfC be sr x = if all isEmptySubst sus -- ++ gsus)
                  -- NV TO RJ This tests fails with [LT:=GHC.Types.LT][EQ:=GHC.Types.EQ][GT:=GHC.Types.GT]]
                  -- NV TO RJ looks like a resolution issue
@@ -416,10 +416,10 @@ wfC be sr x = if all isEmptySubst sus -- ++ gsus)
     go' (PAnd es)      = concatMap go' es
     go' _              = []
 
-mkSubC :: IBindEnv -> SortedReft -> SortedReft -> Maybe Integer -> Tag -> a -> SubC a
+mkSubC :: IBindEnv -> SortedReft s -> SortedReft s -> Maybe Integer -> Tag -> a -> SubC a
 mkSubC = SubC
 
-subC :: IBindEnv -> SortedReft -> SortedReft -> Maybe Integer -> Tag -> a -> [SubC a]
+subC :: IBindEnv -> SortedReft s -> SortedReft s -> Maybe Integer -> Tag -> a -> [SubC a]
 subC γ sr1 sr2 i y z = [SubC γ sr1' (sr2' r2') i y z | r2' <- reftConjuncts r2]
    where
      RR t1 r1          = sr1
@@ -432,7 +432,7 @@ mkVV :: Maybe Integer -> FixSymbol
 mkVV (Just i)  = vv $ Just i
 mkVV Nothing   = vvCon
 
-shiftVV :: Reft -> FixSymbol -> Reft
+shiftVV :: Reft s -> FixSymbol -> Reft s
 shiftVV r@(Reft (v, ras)) v'
    | v == v'   = r
    | otherwise = Reft (v', subst1 ras (v, EVar v'))
@@ -672,7 +672,7 @@ allowHOquals = hoQuals . hoInfo
 data GInfo c a = FI 
   { cm       :: !(M.HashMap SubcId (c a))  -- ^ cst id |-> Horn Constraint
   , ws       :: !(M.HashMap KVar (WfC a))  -- ^ Kvar  |-> WfC defining its scope/args
-  , bs       :: !BindEnv                   -- ^ Bind  |-> (FixSymbol, SortedReft)
+  , bs       :: !BindEnv                   -- ^ Bind  |-> (FixSymbol, SortedReft s)
   , ebinds   :: ![BindId]                  -- ^ Subset of existential binders
   , gLits    :: !(SEnv (Sort s))               -- ^ Global Constant symbols
   , dLits    :: !(SEnv (Sort s))               -- ^ Distinct Constant symbols

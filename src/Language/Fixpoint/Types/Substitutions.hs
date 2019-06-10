@@ -23,34 +23,34 @@ import           Language.Fixpoint.Misc
 import           Text.PrettyPrint.HughesPJ.Compat
 import           Text.Printf               (printf)
 
-instance Semigroup Subst where
+instance Semigroup (Subst s) where
   (<>) = catSubst
 
-instance Monoid Subst where
+instance Monoid (Subst s) where
   mempty  = emptySubst
   mappend = (<>)
 
-filterSubst :: (FixSymbol -> Expr s -> Bool) -> Subst -> Subst
+filterSubst :: (FixSymbol -> Expr s -> Bool) -> Subst s -> Subst s
 filterSubst f (Su m) = Su (M.filterWithKey f m)
 
-emptySubst :: Subst
+emptySubst :: Subst s
 emptySubst = Su M.empty
 
-catSubst :: Subst -> Subst -> Subst
+catSubst :: Subst s -> Subst s -> Subst s
 catSubst (Su s1) θ2@(Su s2) = Su $ M.union s1' s2
   where
     s1'                     = subst θ2 <$> s1
 
-mkSubst :: [(FixSymbol, Expr)] -> Subst
+mkSubst :: [(FixSymbol, Expr s)] -> Subst s
 mkSubst = Su . M.fromList . reverse . filter notTrivial
   where
     notTrivial (x, EVar y) = x /= y
     notTrivial _           = True
 
-isEmptySubst :: Subst -> Bool
+isEmptySubst :: Subst s -> Bool
 isEmptySubst (Su xes) = M.null xes
 
-targetSubstSyms :: Subst -> [FixSymbol]
+targetSubstSyms :: Subst s -> [FixSymbol]
 targetSubstSyms (Su ms) = syms $ M.elems ms
 
 
@@ -94,7 +94,7 @@ subst1Except xs z su@(x, _)
 substfExcept :: (FixSymbol -> Expr s) -> [FixSymbol] -> FixSymbol -> Expr s
 substfExcept f xs y = if y `elem` xs then EVar y else f y
 
-substExcept  :: Subst -> [FixSymbol] -> Subst
+substExcept  :: Subst s -> [FixSymbol] -> Subst s
 -- substExcept  (Su m) xs = Su (foldr M.delete m xs)
 substExcept (Su xes) xs = Su $ M.filterWithKey (const . not . (`elem` xs)) xes
 
@@ -104,7 +104,7 @@ instance Subable FixSymbol where
   subst su x               = subSymbol (Just $ appSubst su x) x -- subSymbol (M.lookup x s) x
   syms x                   = [x]
 
-appSubst :: Subst -> FixSymbol -> Expr s
+appSubst :: Subst s -> FixSymbol -> Expr s
 appSubst (Su s) x = fromMaybe (EVar x) (M.lookup x s)
 
 subSymbol :: Maybe (Expr s) -> FixSymbol -> FixSymbol
@@ -162,10 +162,10 @@ instance Subable (Expr s) where
           | otherwise      = errorstar ("subst: EXISTS (without disjoint binds)" ++ show (bs, su, p))
   subst _  p               = p
 
-removeSubst :: Subst -> FixSymbol -> Subst
+removeSubst :: Subst s -> FixSymbol -> Subst s
 removeSubst (Su su) x = Su $ M.delete x su
 
-disjoint :: Subst -> [(FixSymbol, Sort s)] -> Bool
+disjoint :: Subst s -> [(FixSymbol, Sort s)] -> Bool
 disjoint (Su su) bs = S.null $ suSyms `S.intersection` bsSyms
   where
     suSyms = S.fromList $ syms (M.elems su) ++ syms (M.keys su)
@@ -179,34 +179,34 @@ instance Monoid (Expr s) where
   mappend = (<>)
   mconcat = pAnd
 
-instance Semigroup Reft where
+instance Semigroup (Reft s) where
   (<>) = meetReft
 
-instance Monoid Reft where
+instance Monoid (Reft s) where
   mempty  = trueReft
   mappend = (<>)
 
-meetReft :: Reft -> Reft -> Reft
+meetReft :: Reft s -> Reft s -> Reft s
 meetReft (Reft (v, ra)) (Reft (v', ra'))
   | v == v'          = Reft (v , ra  `mappend` ra')
   | v == dummySymbol = Reft (v', ra' `mappend` (ra `subst1`  (v , EVar v')))
   | otherwise        = Reft (v , ra  `mappend` (ra' `subst1` (v', EVar v )))
 
-instance Semigroup SortedReft where
+instance Semigroup (SortedReft s) where
   t1 <> t2 = RR (mappend (sr_sort t1) (sr_sort t2)) (mappend (sr_reft t1) (sr_reft t2))
 
-instance Monoid SortedReft where
+instance Monoid (SortedReft s) where
   mempty  = RR mempty mempty
   mappend = (<>)
 
-instance Subable Reft where
+instance Subable (Reft s) where
   syms (Reft (v, ras))      = v : syms ras
   substa f (Reft (v, ras))  = Reft (f v, substa f ras)
   subst su (Reft (v, ras))  = Reft (v, subst (substExcept su [v]) ras)
   substf f (Reft (v, ras))  = Reft (v, substf (substfExcept f [v]) ras)
   subst1 (Reft (v, ras)) su = Reft (v, subst1Except [v] ras su)
 
-instance Subable SortedReft where
+instance Subable (SortedReft s) where
   syms               = syms . sr_reft
   subst su (RR so r) = RR so $ subst su r
   substf f (RR so r) = RR so $ substf f r
@@ -222,7 +222,7 @@ instance Reftable () where
   ofReft _  = mempty
   params _  = []
 
-instance Reftable Reft where
+instance Reftable (Reft s) where
   isTauto  = all isTautoPred . conjuncts . reftPred
   ppTy     = pprReft
   toReft   = id
@@ -231,14 +231,14 @@ instance Reftable Reft where
   bot    _        = falseReft
   top (Reft(v,_)) = Reft (v, mempty)
 
-pprReft :: Reft -> Doc -> Doc
+pprReft :: Reft s -> Doc -> Doc
 pprReft (Reft (v, p)) d
   | isTautoPred p
   = d
   | otherwise
   = braces (toFix v <+> colon <+> d <+> text "|" <+> ppRas [p])
 
-instance Reftable SortedReft where
+instance Reftable (SortedReft s) where
   isTauto  = isTauto . toReft
   ppTy     = ppTy . toReft
   toReft   = sr_reft
@@ -248,31 +248,31 @@ instance Reftable SortedReft where
   top s    = s { sr_reft = trueReft }
 
 -- RJ: this depends on `isTauto` hence, here.
-instance PPrint Reft where
+instance PPrint (Reft s) where
   pprintTidy k r
     | isTauto r        = text "true"
     | otherwise        = pprintReft k r
 
-instance PPrint SortedReft where
+instance PPrint (SortedReft s) where
   pprintTidy k (RR so (Reft (v, ras)))
     = braces
     $ pprintTidy k v <+> text ":" <+> toFix so <+> text "|" <+> pprintTidy k ras
 
-instance Fixpoint Reft where
+instance Fixpoint (Reft s) where
   toFix = pprReftPred
 
-instance Fixpoint SortedReft where
+instance Fixpoint (SortedReft s) where
   toFix (RR so (Reft (v, ra)))
     = braces
     $ toFix v <+> text ":" <+> toFix so <+> text "|" <+> toFix (conjuncts ra)
 
-instance Show Reft where
+instance Show (Reft s) where
   show = showFix
 
-instance Show SortedReft where
+instance Show (SortedReft s) where
   show  = showFix
 
-pprReftPred :: Reft -> Doc
+pprReftPred :: Reft s -> Doc
 pprReftPred (Reft (_, p))
   | isTautoPred p
   = text "true"

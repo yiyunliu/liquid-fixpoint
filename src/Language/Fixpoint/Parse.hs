@@ -675,7 +675,7 @@ refaP =  try (pAnd <$> brackets (sepBy predP semi))
 
 
 -- | (Sorted) Refinements with configurable sub-parsers
-refBindP :: Parser FixSymbol -> Parser (Expr s) -> Parser (Reft -> a) -> Parser a
+refBindP :: Parser FixSymbol -> Parser (Expr s) -> Parser (Reft s -> a) -> Parser a
 refBindP bp rp kindP
   = braces $ do
       x  <- bp
@@ -694,11 +694,11 @@ optBindP :: FixSymbol -> Parser FixSymbol
 optBindP x = try bindP <|> return x
 
 -- | (Sorted) Refinements
-refP :: Parser (Reft -> a) -> Parser a
+refP :: Parser (Reft s -> a) -> Parser a
 refP       = refBindP bindP refaP
 
 -- | (Sorted) Refinements with default binder
-refDefP :: FixSymbol -> Parser (Expr s) -> Parser (Reft -> a) -> Parser a
+refDefP :: FixSymbol -> Parser (Expr s) -> Parser (Reft s -> a) -> Parser a
 refDefP x  = refBindP (optBindP x)
 
 --------------------------------------------------------------------------------
@@ -791,7 +791,7 @@ data Def a
   | Qul !Qualifier
   | Kut !KVar
   | Pack !KVar !Int
-  | IBind !Int !FixSymbol !SortedReft
+  | IBind !Int !FixSymbol !(SortedReft s)
   | EBind !Int !FixSymbol !(Sort s) 
   | Opt !String
   | Def !Equation
@@ -854,8 +854,8 @@ subCP = do pos <- getPosition
            return $ subC' env lhs rhs i tag pos pos'
 
 subC' :: IBindEnv
-      -> SortedReft
-      -> SortedReft
+      -> SortedReft s
+      -> SortedReft s
       -> Integer
       -> Tag
       -> SourcePos

@@ -239,16 +239,16 @@ instance Defunc (WfC a)   where
     e' <- defunc $ wexpr wf
     return $ wf { wrft = (x, t', k), wexpr = e' }
 
-instance Defunc SortedReft where
+instance Defunc (SortedReft s) where
   defunc (RR s r) = RR s <$> defunc r
 
-instance Defunc (FixSymbol, SortedReft) where
+instance Defunc (FixSymbol, SortedReft s) where
   defunc (x, sr) = (x,) <$> defunc sr
 
 instance Defunc (FixSymbol, Sort s) where
   defunc (x, t) = (x,) <$> defunc t
 
-instance Defunc Reft where
+instance Defunc (Reft s) where
   defunc (Reft (x, e)) = Reft . (x,) <$> defunc e
 
 instance Defunc (Expr s) where

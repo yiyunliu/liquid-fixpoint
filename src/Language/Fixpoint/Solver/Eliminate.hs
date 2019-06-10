@@ -85,7 +85,7 @@ nonCutHyp kI si k = nonCutCube <$> cs
 nonCutCube :: SimpC a -> Sol.Cube
 nonCutCube c = Sol.Cube (senv c) (rhsSubst c) (subcId c) (stag c)
 
-rhsSubst :: SimpC a -> Subst
+rhsSubst :: SimpC a -> Subst s
 rhsSubst             = rsu . crhs
   where
     rsu (PKVar _ su) = su

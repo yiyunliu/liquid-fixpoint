@@ -118,13 +118,13 @@ class Visitable t where
 instance Visitable (Expr s) where
   visit = visitExpr
 
-instance Visitable Reft where
+instance Visitable (Reft s) where
   visit v c (Reft (x, ra)) = (Reft . (x, )) <$> visit v c ra
 
-instance Visitable SortedReft where
+instance Visitable (SortedReft s) where
   visit v c (RR t r) = RR t <$> visit v c r
 
-instance Visitable (FixSymbol, SortedReft) where
+instance Visitable (FixSymbol, SortedReft s) where
   visit v c (sym, sr) = (sym, ) <$> visit v c sr
 
 instance Visitable BindEnv where
@@ -204,7 +204,7 @@ mapKVars f = mapKVars' f'
   where
     f' (kv', _) = f kv'
 
-mapKVars' :: Visitable t => ((KVar, Subst) -> Maybe Expr) -> t -> t
+mapKVars' :: Visitable t => ((KVar, Subst s) -> Maybe (Expr s)) -> t -> t
 mapKVars' f            = trans kvVis () ()
   where
     kvVis              = defaultVisitor { txExpr = txK }
@@ -216,7 +216,7 @@ mapKVars' f            = trans kvVis () ()
 
 
 
-mapGVars' :: Visitable t => ((KVar, Subst) -> Maybe Expr) -> t -> t
+mapGVars' :: Visitable t => ((KVar, Subst s) -> Maybe (Expr s)) -> t -> t
 mapGVars' f            = trans kvVis () ()
   where
     kvVis              = defaultVisitor { txExpr = txK }
@@ -254,7 +254,7 @@ mapMExpr f = go
     go (PAnd  ps)      = f =<< (PAnd        <$> (go <$$> ps)              )
     go (POr  ps)       = f =<< (POr         <$> (go <$$> ps)              )
 
-mapKVarSubsts :: Visitable t => (KVar -> Subst -> Subst) -> t -> t
+mapKVarSubsts :: Visitable t => (KVar -> Subst s -> Subst s) -> t -> t
 mapKVarSubsts f          = trans kvVis () ()
   where
     kvVis                = defaultVisitor { txExpr = txK }
@@ -417,10 +417,10 @@ instance SymConsts (SubC a) where
 instance SymConsts (SimpC a) where
   symConsts c  = symConsts (crhs c)
 
-instance SymConsts SortedReft where
+instance SymConsts (SortedReft s) where
   symConsts = symConsts . sr_reft
 
-instance SymConsts Reft where
+instance SymConsts (Reft s) where
   symConsts (Reft (_, ra)) = getSymConsts ra
 
 

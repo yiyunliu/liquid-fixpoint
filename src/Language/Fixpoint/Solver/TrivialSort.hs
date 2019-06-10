@@ -90,11 +90,11 @@ updTIBinds be ti = foldl' (flip (updTI Lhs)) ti ts
     ts           = [t | (_,_,t) <- bindEnvToList be]
 
 --------------------------------------------------------------------
-updTI :: Polarity -> SortedReft -> TrivInfo -> TrivInfo
+updTI :: Polarity -> SortedReft s -> TrivInfo -> TrivInfo
 --------------------------------------------------------------------
 updTI p (RR t r) = addKVs t (kvars r) . addNTS p r t
 
-addNTS :: Polarity -> Reft -> Sort s -> TrivInfo -> TrivInfo
+addNTS :: Polarity -> Reft s -> Sort s -> TrivInfo -> TrivInfo
 addNTS p r t ti
   | isNTR p r = addSort t ti
   | otherwise = ti
@@ -108,15 +108,15 @@ addSort :: Sort s -> TrivInfo -> TrivInfo
 addSort t (ts, m) = (S.insert t ts, m)
 
 --------------------------------------------------------------------
-isNTR :: Polarity -> Reft -> Bool
+isNTR :: Polarity -> Reft s -> Bool
 --------------------------------------------------------------------
 isNTR Rhs = not . trivR
 isNTR Lhs = not . trivOrSingR
 
-trivR :: Reft -> Bool
+trivR :: Reft s -> Bool
 trivR = all trivP . conjuncts . reftPred
 
-trivOrSingR :: Reft -> Bool
+trivOrSingR :: Reft s -> Bool
 trivOrSingR (Reft (v, p)) = all trivOrSingP $ conjuncts p
   where
     trivOrSingP p         = trivP p || singP v p
@@ -165,7 +165,7 @@ simplifySubC tm (i, c)
     slhs'             = simplifySortedReft tm (slhs c)
     srhs'             = simplifySortedReft tm (srhs c)
 
-simplifySortedReft :: NonTrivSorts -> SortedReft -> SortedReft
+simplifySortedReft :: NonTrivSorts -> SortedReft s -> SortedReft s
 simplifySortedReft tm sr
   | nonTrivial = sr
   | otherwise  = sr { sr_reft = mempty }

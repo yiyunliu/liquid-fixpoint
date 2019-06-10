@@ -152,7 +152,7 @@ rhsCands s c    = (fst <$> ks, kqs)
     cnd k su    = Sol.qbPreds msg s su (Sol.lookupQBind s k)
     msg         = "rhsCands: " ++ show (F.sid c)
 
-predKs :: F.Expr s -> [(F.KVar, F.Subst)]
+predKs :: F.Expr s -> [(F.KVar, F.Subst s)]
 predKs (F.PAnd ps)    = concatMap predKs ps
 predKs (F.PKVar k su) = [(k, su)]
 predKs _              = []

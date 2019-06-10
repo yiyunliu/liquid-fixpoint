@@ -38,7 +38,7 @@ getWfC si k = ws si M.! k
 -- | Free variables of a refinement
 --------------------------------------------------------------------------------
 --TODO deduplicate (also in Solver/UniqifyBinds)
-reftFreeVars :: Reft -> S.HashSet FixSymbol
+reftFreeVars :: Reft s -> S.HashSet FixSymbol
 reftFreeVars r@(Reft (v, _)) = S.delete v $ S.fromList $ syms r
 
 --------------------------------------------------------------------------------

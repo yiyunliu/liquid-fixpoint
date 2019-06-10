@@ -15,11 +15,11 @@ import Text.PrettyPrint.HughesPJ.Compat
 
 data Templates 
   = TAll 
-  | TExprs [Template] 
+  | TExprs [Template s] 
   deriving Show
 
 
-type Template = ([FixSymbol], Expr)
+type Template s = ([FixSymbol], Expr s)
 
 
 class HasTemplates a where 
@@ -29,7 +29,7 @@ class HasTemplates a where
 instance HasTemplates (Expr s) where
   filterUnMatched temps e = pAnd $ filter (not . matchesTemplates temps) $ conjuncts e 
 
-instance HasTemplates Reft where
+instance HasTemplates (Reft s) where
   filterUnMatched temps (Reft (x,e)) = Reft (x, filterUnMatched temps e)
 
 matchesTemplates :: Templates -> Expr s -> Bool 

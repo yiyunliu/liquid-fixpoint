@@ -165,7 +165,7 @@ elabNumeric = Vis.mapExpr go
     go e
       = e
 
-instance Elaborate SortedReft where
+instance Elaborate (SortedReft s) where
   elaborate x env (RR s (Reft (v, e))) = RR s (Reft (v, e'))
     where
       e'   = elaborate x env' e
@@ -306,14 +306,14 @@ fresh = do
 --------------------------------------------------------------------------------
 -- | Checking Refinements ------------------------------------------------------
 --------------------------------------------------------------------------------
-checkSortedReft :: SEnv SortedReft -> [FixSymbol] -> SortedReft -> Maybe Doc
+checkSortedReft :: SEnv (SortedReft s) -> [FixSymbol] -> SortedReft s -> Maybe Doc
 checkSortedReft env xs sr = applyNonNull Nothing oops unknowns
   where
     oops                  = Just . (text "Unknown symbols:" <+>) . toFix
     unknowns              = [ x | x <- syms sr, x `notElem` v : xs, not (x `memberSEnv` env)]
     Reft (v,_)            = sr_reft sr
 
-checkSortedReftFull :: Checkable a => SrcSpan -> SEnv SortedReft -> a -> Maybe Doc
+checkSortedReftFull :: Checkable a => SrcSpan -> SEnv (SortedReft s) -> a -> Maybe Doc
 checkSortedReftFull sp γ t = 
   case runCM0 sp (check γ' t) of
     Left e  -> Just (text (val e))
@@ -321,7 +321,7 @@ checkSortedReftFull sp γ t =
   where
     γ' = sr_sort <$> γ
 
-checkSortFull :: Checkable a => SrcSpan -> SEnv SortedReft -> Sort s -> a -> Maybe Doc
+checkSortFull :: Checkable a => SrcSpan -> SEnv (SortedReft s) -> Sort s -> a -> Maybe Doc
 checkSortFull sp γ s t = 
   case runCM0 sp (checkSort γ' s t) of
     Left e  -> Just (text (val e))
@@ -335,7 +335,7 @@ checkSorted sp γ t =
     Left e   -> Just (text (val e))
     Right _  -> Nothing
 
-pruneUnsortedReft :: SEnv (Sort s) -> Templates -> SortedReft -> SortedReft
+pruneUnsortedReft :: SEnv (Sort s) -> Templates -> SortedReft s -> SortedReft s
 pruneUnsortedReft _ t r 
   | isEmptyTemplates t 
   = r 
@@ -374,7 +374,7 @@ instance Checkable (Expr s) where
     where
       f           =  (`lookupSEnvWithDistance` γ)
 
-instance Checkable SortedReft where
+instance Checkable (SortedReft s) where
   check γ (RR s (Reft (v, ra))) = check γ' ra
    where
      γ' = insertSEnv v s γ

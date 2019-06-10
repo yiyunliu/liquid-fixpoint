@@ -50,10 +50,10 @@ remakeSubsts :: SInfo a -> SInfo a
 --------------------------------------------------------------------------------
 remakeSubsts fi = mapKVarSubsts (remakeSubst fi) fi
 
-remakeSubst :: SInfo a -> KVar -> Subst -> Subst
+remakeSubst :: SInfo a -> KVar -> Subst s -> Subst s
 remakeSubst fi k su = foldl' (updateSubst k) su (kvarDomain fi k)
 
-updateSubst :: KVar -> Subst -> FixSymbol -> Subst
+updateSubst :: KVar -> Subst s -> FixSymbol -> Subst s
 updateSubst k (Su su) sym
   = case M.lookup sym su of
       Just z  -> Su $ M.delete sym $ M.insert ksym z          su
@@ -96,7 +96,7 @@ accumBinds k (fi, ids) i = (fi', i' : ids)
 
 -- | `newTopBind` ignores the actual refinements as they are not relevant
 --   in the kvar parameters (as suggested by BLC.)
-newTopBind :: FixSymbol -> SortedReft -> SInfo a -> (BindId, SInfo a)
+newTopBind :: FixSymbol -> SortedReft s -> SInfo a -> (BindId, SInfo a)
 newTopBind x sr fi = (i', fi {bs = be'})
   where
     (i', be')   = insertBindEnv x (top sr) (bs fi)

@@ -198,7 +198,7 @@ instance F.Subable Pred where
   subst1 (PAnd  ps) su = PAnd  [F.subst1 p su | p <- ps]
   subst1 (Var k xs) su = Var k [F.subst1 x su | x <- xs]
 
--- substP :: F.Subst -> Pred -> Pred
+-- substP :: F.Subst s -> Pred -> Pred
 -- substP su (Reft e)   = Reft (F.subst su e)
 -- substP su (PAnd ps)  = PAnd (substP su <$> ps)
 -- substP su (Var k xs) = Var k (F.subst su xs)

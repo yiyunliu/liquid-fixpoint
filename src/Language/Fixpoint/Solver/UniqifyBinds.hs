@@ -130,7 +130,7 @@ mkSubUsing m (sym, t) = do
   newName <- fromJust $ L.lookup t $ mlookup m sym
   return (sym, eVar newName)
 
-applySub :: Subst -> SInfo a -> Ref -> SInfo a
+applySub :: Subst s -> SInfo a -> Ref -> SInfo a
 applySub sub fi (RB i) = fi { bs = adjustBindEnv go i (bs fi) }
   where
     go (sym, sr)       = (sym, subst sub sr)
@@ -146,7 +146,7 @@ renameBinds fi m = fi { bs = bindEnvFromList $ renameBind m <$> beList }
   where
     beList       = bindEnvToList $ bs fi
 
-renameBind :: RenameMap -> (BindId, FixSymbol, SortedReft) -> (BindId, FixSymbol, SortedReft)
+renameBind :: RenameMap -> (BindId, FixSymbol, SortedReft s) -> (BindId, FixSymbol, SortedReft s)
 renameBind m (i, sym, sr)
   | Just newSym <- mnewSym = (i, newSym, sr)
   | otherwise              = (i, sym,    sr)
