@@ -32,8 +32,8 @@ simplify' _ fi = simplifyFInfo (mkNonTrivSorts fi) fi
 --------------------------------------------------------------------
 -- | The main data types
 --------------------------------------------------------------------
-type NonTrivSorts = S.HashSet Sort
-type KVarMap      = M.HashMap KVar [Sort]
+type NonTrivSorts = S.HashSet (Sort s)
+type KVarMap      = M.HashMap KVar [Sort s]
 data Polarity     = Lhs | Rhs
 type TrivInfo     = (NonTrivSorts, KVarMap)
 --------------------------------------------------------------------
@@ -66,7 +66,7 @@ type NTG = [(NTV, NTV, [NTV])]
 
 data NTV = NTV
          | K !KVar
-         | S !Sort
+         | S !(Sort s)
          deriving (Eq, Ord, Show, Generic)
 
 instance Hashable NTV
@@ -94,17 +94,17 @@ updTI :: Polarity -> SortedReft -> TrivInfo -> TrivInfo
 --------------------------------------------------------------------
 updTI p (RR t r) = addKVs t (kvars r) . addNTS p r t
 
-addNTS :: Polarity -> Reft -> Sort -> TrivInfo -> TrivInfo
+addNTS :: Polarity -> Reft -> Sort s -> TrivInfo -> TrivInfo
 addNTS p r t ti
   | isNTR p r = addSort t ti
   | otherwise = ti
 
-addKVs :: Sort -> [KVar] -> TrivInfo -> TrivInfo
+addKVs :: Sort s -> [KVar] -> TrivInfo -> TrivInfo
 addKVs t ks ti     = foldl' addK ti ks
   where
     addK (ts, m) k = (ts, inserts k t m)
 
-addSort :: Sort -> TrivInfo -> TrivInfo
+addSort :: Sort s -> TrivInfo -> TrivInfo
 addSort t (ts, m) = (S.insert t ts, m)
 
 --------------------------------------------------------------------
@@ -121,11 +121,11 @@ trivOrSingR (Reft (v, p)) = all trivOrSingP $ conjuncts p
   where
     trivOrSingP p         = trivP p || singP v p
 
-trivP :: Expr -> Bool
+trivP :: Expr s -> Bool
 trivP (PKVar {}) = True
 trivP p          = isTautoPred p
 
-singP :: FixSymbol -> Expr -> Bool
+singP :: FixSymbol -> Expr s -> Bool
 singP v (PAtom Eq (EVar x) _)
   | v == x                    = True
 singP v (PAtom Eq _ (EVar x))
@@ -172,5 +172,5 @@ simplifySortedReft tm sr
   where
     nonTrivial = isNonTrivialSort tm (sr_sort sr)
 
-isNonTrivialSort :: NonTrivSorts -> Sort -> Bool
+isNonTrivialSort :: NonTrivSorts -> Sort s -> Bool
 isNonTrivialSort tm t = S.member t tm

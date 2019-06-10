@@ -54,7 +54,7 @@ data Var a = HVar
 -- | @HPred@ is a Horn predicate that appears as LHS (body) or RHS (head) of constraints 
 -------------------------------------------------------------------------------
 data Pred 
-  = Reft  !F.Expr                               -- ^ r 
+  = Reft  !(F.Expr s)                               -- ^ r 
   | Var   !F.FixSymbol ![F.FixSymbol]                 -- ^ $k(y1..yn) 
   | PAnd  ![Pred]                               -- ^ p1 /\ .../\ pn 
   deriving (Data, Typeable, Generic, Eq)
@@ -64,7 +64,7 @@ quals :: Cstr a -> [F.Qualifier]
 -------------------------------------------------------------------------------
 quals = F.tracepp "horn.quals" . cstrQuals F.emptySEnv F.vv_  
 
-cstrQuals :: F.SEnv F.Sort -> F.FixSymbol -> Cstr a -> [F.Qualifier] 
+cstrQuals :: F.SEnv (F.Sort s) -> F.FixSymbol -> Cstr a -> [F.Qualifier] 
 cstrQuals = go 
   where
     go env v (Head p _)  = predQuals env v p
@@ -72,22 +72,22 @@ cstrQuals = go
     go env _ (All  b c)  = bindQuals env b c 
     go env _ (Any  b c)  = bindQuals env b c
 
-bindQuals  :: F.SEnv F.Sort -> Bind -> Cstr a -> [F.Qualifier] 
+bindQuals  :: F.SEnv (F.Sort s) -> Bind -> Cstr a -> [F.Qualifier] 
 bindQuals env b c = predQuals env' bx (bPred b) ++ cstrQuals env' bx c 
   where 
     env'          = F.insertSEnv bx bt env
     bx            = bSym b
     bt            = bSort b
 
-predQuals :: F.SEnv F.Sort -> F.FixSymbol -> Pred -> [F.Qualifier]
+predQuals :: F.SEnv (F.Sort s) -> F.FixSymbol -> Pred -> [F.Qualifier]
 predQuals env v (Reft p)  = exprQuals env v p
 predQuals env v (PAnd ps) = concatMap (predQuals env v) ps
 predQuals _   _ _         = [] 
 
-exprQuals :: F.SEnv F.Sort -> F.FixSymbol -> F.Expr -> [F.Qualifier]
+exprQuals :: F.SEnv (F.Sort s) -> F.FixSymbol -> F.Expr s -> [F.Qualifier]
 exprQuals env v e = mkQual env v <$> F.conjuncts e
 
-mkQual :: F.SEnv F.Sort -> F.FixSymbol -> F.Expr -> F.Qualifier
+mkQual :: F.SEnv (F.Sort s) -> F.FixSymbol -> F.Expr s -> F.Qualifier
 mkQual env v p = case envSort env <$> (v:xs) of
                    (_,so):xts -> F.mkQ "Auto" ((v, so) : xts) p junk 
                    _          -> F.panic "impossible"
@@ -95,7 +95,7 @@ mkQual env v p = case envSort env <$> (v:xs) of
     xs         = L.delete v $ Misc.hashNub (F.syms p)
     junk       = F.dummyPos "mkQual" 
 
-envSort :: F.SEnv F.Sort -> F.FixSymbol -> (F.FixSymbol, F.Sort)
+envSort :: F.SEnv (F.Sort s) -> F.FixSymbol -> (F.FixSymbol, F.Sort)
 envSort env x = case F.lookupSEnv x env of
                    Just t -> (x, t) 
                    _      -> F.panic $ "unbound symbol in scrape: " ++ F.showpp x
@@ -114,7 +114,7 @@ envSort env x = case F.lookupSEnv x env of
 -- Note that a @Bind@ is a simplified @F.SortedReft@ ...
 data Bind = Bind 
   { bSym  :: !F.FixSymbol 
-  , bSort :: !F.Sort 
+  , bSort :: !(F.Sort s) 
   , bPred :: !Pred 
   }
   deriving (Data, Typeable, Generic, Eq)

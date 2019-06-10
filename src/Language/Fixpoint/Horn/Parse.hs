@@ -34,8 +34,8 @@ data HThing a
   | HCstr !(H.Cstr a)
   
   -- for uninterpred functions and ADT constructors
-  | HCon  F.FixSymbol F.Sort
-  | HDis  F.FixSymbol F.Sort
+  | HCon  F.FixSymbol (F.Sort s)
+  | HDis  F.FixSymbol (F.Sort s)
 
   | HOpt !String
   deriving (Functor)

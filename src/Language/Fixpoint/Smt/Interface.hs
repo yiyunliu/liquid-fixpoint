@@ -116,19 +116,19 @@ runCommands cmds
        return zs
 -}
 
-checkValidWithContext :: Context -> [(FixSymbol, Sort)] -> Expr -> Expr -> IO Bool
+checkValidWithContext :: Context -> [(FixSymbol, Sort)] -> Expr s -> Expr s -> IO Bool
 checkValidWithContext me xts p q =
   smtBracket me "checkValidWithContext" $
     checkValid' me xts p q
 
 -- | type ClosedPred E = {v:Pred | subset (vars v) (keys E) }
 -- checkValid :: e:Env -> ClosedPred e -> ClosedPred e -> IO Bool
-checkValid :: Config -> FilePath -> [(FixSymbol, Sort)] -> Expr -> Expr -> IO Bool
+checkValid :: Config -> FilePath -> [(FixSymbol, Sort)] -> Expr s -> Expr s -> IO Bool
 checkValid cfg f xts p q = do
   me <- makeContext cfg f
   checkValid' me xts p q
 
-checkValid' :: Context -> [(FixSymbol, Sort)] -> Expr -> Expr -> IO Bool
+checkValid' :: Context -> [(FixSymbol, Sort)] -> Expr s -> Expr s -> IO Bool
 checkValid' me xts p q = do
   smtDecls me xts
   smtAssert me $ pAnd [p, PNot q]
@@ -346,7 +346,7 @@ smtPop me         = interact' me Pop
 smtDecls :: Context -> [(FixSymbol, Sort)] -> IO ()
 smtDecls = mapM_ . uncurry . smtDecl
 
-smtDecl :: Context -> FixSymbol -> Sort -> IO ()
+smtDecl :: Context -> FixSymbol -> Sort s -> IO ()
 smtDecl me x t = interact' me ({- notracepp msg $ -} Declare x ins' out')
   where
     ins'       = sortSmtSort False env <$> ins
@@ -361,23 +361,23 @@ smtFuncDecl me x (ts, t) = interact' me (Declare x ts t)
 smtDataDecl :: Context -> [DataDecl] -> IO ()
 smtDataDecl me ds = interact' me (DeclData ds)
 
-deconSort :: Sort -> ([Sort], Sort)
+deconSort :: Sort s -> ([Sort s], Sort s)
 deconSort t = case functionSort t of
                 Just (_, ins, out) -> (ins, out)
                 Nothing            -> ([] , t  )
 
 -- hack now this is used only for checking gradual condition.
-smtCheckSat :: Context -> Expr -> IO Bool
+smtCheckSat :: Context -> Expr s -> IO Bool
 smtCheckSat me p
  = smtAssert me p >> (ans <$> command me CheckSat)
  where
    ans Sat = True
    ans _   = False
 
-smtAssert :: Context -> Expr -> IO ()
+smtAssert :: Context -> Expr s -> IO ()
 smtAssert me p  = interact' me (Assert Nothing p)
 
-smtAssertAxiom :: Context -> Triggered Expr -> IO ()
+smtAssertAxiom :: Context -> Triggered (Expr s) -> IO ()
 smtAssertAxiom me p  = interact' me (AssertAx p)
 
 smtDistinct :: Context -> [Expr] -> IO ()
@@ -455,7 +455,7 @@ declare me = do
     tx         = elaborate    "declare" env
     ats        = funcSortVars env
 
-symbolSorts :: F.SEnv F.Sort -> [(F.FixSymbol, F.Sort)]
+symbolSorts :: F.SEnv (F.Sort s) -> [(F.FixSymbol, F.Sort s)]
 symbolSorts env = [(x, tx t) | (x, t) <- F.toListSEnv env ]
  where
   tx t@(FObj a) = fromMaybe t (F.lookupSEnv a env)
@@ -517,7 +517,7 @@ orderDeclarations ds = {- reverse -} (Misc.sccsWith f ds)
     dM               = M.fromList [(F.ddTyCon d, d) | d <- ds]
     f d              = (F.ddTyCon d, dataDeclDeps dM d)
 
-dataDeclDeps :: M.HashMap F.FTycon F.DataDecl -> F.DataDecl -> [F.FTycon]
+dataDeclDeps :: M.HashMap (F.FTycon s) (F.DataDecl s) -> F.DataDecl s -> [F.FTycon s]
 dataDeclDeps dM = filter (`M.member` dM) . Misc.sortNub . dataDeclFTycons
 
 dataDeclFTycons :: F.DataDecl -> [F.FTycon]
@@ -529,7 +529,7 @@ dataCtorFTycons = concatMap dataFieldFTycons . F.dcFields
 dataFieldFTycons :: F.DataField -> [F.FTycon]
 dataFieldFTycons = sortFTycons . F.dfSort
 
-sortFTycons :: Sort -> [FTycon]
+sortFTycons :: Sort s -> [FTycon]
 sortFTycons = Vis.foldSort go []
   where
     go cs (FTC c) = c : cs

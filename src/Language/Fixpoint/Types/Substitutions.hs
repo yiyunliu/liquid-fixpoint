@@ -30,7 +30,7 @@ instance Monoid Subst where
   mempty  = emptySubst
   mappend = (<>)
 
-filterSubst :: (FixSymbol -> Expr -> Bool) -> Subst -> Subst
+filterSubst :: (FixSymbol -> Expr s -> Bool) -> Subst -> Subst
 filterSubst f (Su m) = Su (M.filterWithKey f m)
 
 emptySubst :: Subst
@@ -91,7 +91,7 @@ subst1Except xs z su@(x, _)
   | x `elem` xs = z
   | otherwise   = subst1 z su
 
-substfExcept :: (FixSymbol -> Expr) -> [FixSymbol] -> FixSymbol -> Expr
+substfExcept :: (FixSymbol -> Expr s) -> [FixSymbol] -> FixSymbol -> Expr s
 substfExcept f xs y = if y `elem` xs then EVar y else f y
 
 substExcept  :: Subst -> [FixSymbol] -> Subst
@@ -104,18 +104,18 @@ instance Subable FixSymbol where
   subst su x               = subSymbol (Just $ appSubst su x) x -- subSymbol (M.lookup x s) x
   syms x                   = [x]
 
-appSubst :: Subst -> FixSymbol -> Expr
+appSubst :: Subst -> FixSymbol -> Expr s
 appSubst (Su s) x = fromMaybe (EVar x) (M.lookup x s)
 
-subSymbol :: Maybe Expr -> FixSymbol -> FixSymbol
+subSymbol :: Maybe (Expr s) -> FixSymbol -> FixSymbol
 subSymbol (Just (EVar y)) _ = y
 subSymbol Nothing         x = x
 subSymbol a               b = errorstar (printf "Cannot substitute symbol %s with expression %s" (showFix b) (showFix a))
 
-substfLam :: (FixSymbol -> Expr) -> (FixSymbol, Sort) -> Expr -> Expr
+substfLam :: (FixSymbol -> Expr s) -> (FixSymbol, Sort) -> Expr s -> Expr s
 substfLam f s@(x, _) e =  ELam s (substf (\y -> if y == x then EVar x else f y) e)
 
-instance Subable Expr where
+instance Subable (Expr s) where
   syms                     = exprSymbols
   substa f                 = substf (EVar . f)
   substf f (EApp s e)      = EApp (substf f s) (substf f e)
@@ -171,10 +171,10 @@ disjoint (Su su) bs = S.null $ suSyms `S.intersection` bsSyms
     suSyms = S.fromList $ syms (M.elems su) ++ syms (M.keys su)
     bsSyms = S.fromList $ syms $ fst <$> bs
 
-instance Semigroup Expr where
+instance Semigroup (Expr s) where
   p <> q = pAnd [p, q]
 
-instance Monoid Expr where
+instance Monoid (Expr s) where
   mempty  = PTrue
   mappend = (<>)
   mconcat = pAnd
@@ -285,7 +285,7 @@ ppRas = cat . punctuate comma . map toFix . flattenRefas
 --------------------------------------------------------------------------------
 -- | TODO: Rewrite using visitor -----------------------------------------------
 --------------------------------------------------------------------------------
--- exprSymbols :: Expr -> [FixSymbol]
+-- exprSymbols :: Expr s -> [FixSymbol]
 -- exprSymbols = go
   -- where
     -- go (EVar x)           = [x]
@@ -306,7 +306,7 @@ ppRas = cat . punctuate comma . map toFix . flattenRefas
     -- go (PAll xts p)       = (fst <$> xts) ++ go p
     -- go _                  = []
 
-exprSymbols :: Expr -> [FixSymbol]
+exprSymbols :: Expr s -> [FixSymbol]
 exprSymbols = S.toList . go 
   where
     gos es                = S.unions (go <$> es)

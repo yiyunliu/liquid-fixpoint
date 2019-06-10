@@ -42,24 +42,24 @@ init cfg si = map (elab . refineG si qs genv) gs `using` parList rdeepseq
 
 
 --------------------------------------------------------------------------------
-refineG :: F.SInfo a -> [F.Qualifier] -> F.SEnv F.Sort -> F.WfC a -> (F.KVar, (F.GWInfo, [F.Expr]))
+refineG :: F.SInfo a -> [F.Qualifier] -> F.SEnv (F.Sort s) -> F.WfC a -> (F.KVar, (F.GWInfo, [F.Expr]))
 refineG fi qs genv w = (k, (F.gwInfo w, Sol.qbExprs qb))
   where 
     (k, qb) = refine fi qs genv w 
 
-refine :: F.SInfo a -> [F.Qualifier] -> F.SEnv F.Sort -> F.WfC a -> (F.KVar, Sol.QBind)
+refine :: F.SInfo a -> [F.Qualifier] -> F.SEnv (F.Sort s) -> F.WfC a -> (F.KVar, Sol.QBind)
 refine fi qs genv w = refineK (allowHOquals fi) env qs $ F.wrft w
   where
     env             = wenv <> genv
     wenv            = F.sr_sort <$> F.fromListSEnv (F.envCs (F.bs fi) (F.wenv w))
 
-instConstants :: F.SInfo a -> F.SEnv F.Sort
+instConstants :: F.SInfo a -> F.SEnv (F.Sort s)
 instConstants = F.fromListSEnv . filter notLit . F.toListSEnv . F.gLits
   where
     notLit    = not . F.isLitSymbol . fst
 
 
-refineK :: Bool -> F.SEnv F.Sort -> [F.Qualifier] -> (F.FixSymbol, F.Sort, F.KVar) -> (F.KVar, Sol.QBind)
+refineK :: Bool -> F.SEnv (F.Sort s) -> [F.Qualifier] -> (F.FixSymbol, F.Sort, F.KVar) -> (F.KVar, Sol.QBind)
 refineK ho env qs (v, t, k) = (k, eqs')
    where
     eqs                     = instK ho env v t qs
@@ -67,9 +67,9 @@ refineK ho env qs (v, t, k) = (k, eqs')
 
 --------------------------------------------------------------------------------
 instK :: Bool
-      -> F.SEnv F.Sort
+      -> F.SEnv (F.Sort s)
       -> F.FixSymbol
-      -> F.Sort
+      -> F.Sort s
       -> [F.Qualifier]
       -> Sol.QBind
 --------------------------------------------------------------------------------
@@ -78,9 +78,9 @@ instK ho env v t = Sol.qb . unique . concatMap (instKQ ho env v t)
     unique       = L.nubBy ((. Sol.eqPred) . (==) . Sol.eqPred)
 
 instKQ :: Bool
-       -> F.SEnv F.Sort
+       -> F.SEnv (F.Sort s)
        -> F.FixSymbol
-       -> F.Sort
+       -> F.Sort s
        -> F.Qualifier
        -> [Sol.EQual]
 instKQ ho env v t q
@@ -92,7 +92,7 @@ instKQ ho env v t q
        tyss       = instCands ho env
        senv       = (`F.lookupSEnvWithDistance` env)
 
-instCands :: Bool -> F.SEnv F.Sort -> [(F.Sort, [F.FixSymbol])]
+instCands :: Bool -> F.SEnv (F.Sort s) -> [(F.Sort, [F.FixSymbol])]
 instCands ho env = filter isOk tyss
   where
     tyss      = groupList [(t, x) | (x, t) <- xts]
@@ -107,7 +107,7 @@ match _   _   xs []
   = return xs
 
 --------------------------------------------------------------------------------
-candidates :: So.Env -> [(F.Sort, [F.FixSymbol])] -> F.Sort -> [(So.TVSubst, F.FixSymbol)]
+candidates :: So.Env -> [(F.Sort s, [F.FixSymbol])] -> F.Sort s -> [(So.TVSubst, F.FixSymbol)]
 --------------------------------------------------------------------------------
 candidates env tyss tx = 
     [(su, y) | (t, ys) <- tyss
@@ -117,7 +117,7 @@ candidates env tyss tx =
     mono = So.isMono tx
 
 --------------------------------------------------------------------------------
-okInst :: F.SEnv F.Sort -> F.FixSymbol -> F.Sort -> Sol.EQual -> Bool
+okInst :: F.SEnv (F.Sort s) -> F.FixSymbol -> F.Sort s -> Sol.EQual -> Bool
 --------------------------------------------------------------------------------
 okInst env v t eq = isNothing tc
   where

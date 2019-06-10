@@ -26,11 +26,11 @@ import           Language.Fixpoint.Misc (sortNub, errorstar)
 instance SMTLIB2 (FixSymbol, Sort) where
   smt2 env c@(sym, t) = build "({} {})" (smt2 env sym, smt2SortMono c env t)
 
-smt2SortMono, smt2SortPoly :: (PPrint a) => a -> SymEnv -> Sort -> Builder.Builder
+smt2SortMono, smt2SortPoly :: (PPrint a) => a -> SymEnv -> Sort s -> Builder.Builder
 smt2SortMono = smt2Sort False
 smt2SortPoly = smt2Sort True
 
-smt2Sort :: (PPrint a) => Bool -> a -> SymEnv -> Sort -> Builder.Builder
+smt2Sort :: (PPrint a) => Bool -> a -> SymEnv -> Sort s -> Builder.Builder
 smt2Sort poly _ env t = smt2 env (Thy.sortSmtSort poly (seData env) t)
 
 smt2data :: SymEnv -> [DataDecl] -> Builder.Builder
@@ -95,7 +95,7 @@ padDataDecl d@(DDecl tc n cs)
     hasDead    = length usedVars < n
     usedVars   = declUsedVars d
 
-junkDataCtor :: FTycon -> Int -> DataCtor
+junkDataCtor :: FTycon s -> Int -> DataCtor
 junkDataCtor c n = DCtor (atLoc c junkc) [DField (junkFld i) (FVar i) | i <- [0..(n-1)]]
   where
     junkc        = suffixSymbol "junk" (symbol c)
@@ -144,7 +144,7 @@ instance SMTLIB2 Brel where
   smt2 _ _     = errorstar "SMTLIB2 Brel"
 
 -- NV TODO: change the way EApp is printed
-instance SMTLIB2 Expr where
+instance SMTLIB2 (Expr s) where
   smt2 env (ESym z)         = smt2 env z
   smt2 env (ECon c)         = smt2 env c
   smt2 env (EVar x)         = smt2 env x
@@ -176,24 +176,24 @@ instance SMTLIB2 Expr where
 -- | smt2Cast uses the 'as x T' pattern needed for polymorphic ADT constructors
 --   like Nil, see `tests/pos/adt_list_1.fq`
 
-smt2Cast :: SymEnv -> Expr -> Sort -> Builder.Builder
+smt2Cast :: SymEnv -> Expr s -> Sort s -> Builder.Builder
 smt2Cast env (EVar x) t = smt2Var env x t
 smt2Cast env e        _ = smt2    env e
 
-smt2Var :: SymEnv -> FixSymbol -> Sort -> Builder.Builder
+smt2Var :: SymEnv -> FixSymbol -> Sort s -> Builder.Builder
 smt2Var env x t
   | isLamArgSymbol x            = smtLamArg env x t
   | Just s <- symEnvSort x env
   , isPolyInst s t              = smt2VarAs env x t
   | otherwise                   = smt2 env x
 
-smtLamArg :: SymEnv -> FixSymbol -> Sort -> Builder.Builder
+smtLamArg :: SymEnv -> FixSymbol -> Sort s -> Builder.Builder
 smtLamArg env x t = symbolBuilder $ symbolAtName x env () (FFunc t FInt)
 
-smt2VarAs :: SymEnv -> FixSymbol -> Sort -> Builder.Builder
+smt2VarAs :: SymEnv -> FixSymbol -> Sort s -> Builder.Builder
 smt2VarAs env x t = build "(as {} {})" (smt2 env x, smt2SortMono x env t)
 
-smt2Lam :: SymEnv -> (FixSymbol, Sort) -> Expr -> Builder.Builder
+smt2Lam :: SymEnv -> (FixSymbol, Sort) -> Expr s -> Builder.Builder
 smt2Lam env (x, xT) (ECst e eT) = build "({} {} {})" (smt2 env lambda, x', smt2 env e)
   where
     x'                          = smtLamArg env x xT
@@ -202,7 +202,7 @@ smt2Lam env (x, xT) (ECst e eT) = build "({} {} {})" (smt2 env lambda, x', smt2 
 smt2Lam _ _ e
   = panic ("smtlib2: Cannot serialize unsorted lambda: " ++ showpp e)
 
-smt2App :: SymEnv -> Expr -> Builder.Builder
+smt2App :: SymEnv -> Expr s -> Builder.Builder
 smt2App env e@(EApp (EApp f e1) e2)
   | Just t <- unApplyAt f
   = build "({} {})" (symbolBuilder (symbolAtName applyName env e t), smt2s env [e1, e2])
@@ -214,7 +214,7 @@ smt2App env e
   where
     (f, es)   = splitEApp' e
 
-smt2Coerc :: SymEnv -> Sort -> Sort -> Expr -> Builder.Builder
+smt2Coerc :: SymEnv -> Sort s -> Sort s -> Expr s -> Builder.Builder
 smt2Coerc env t1 t2 e 
   | t1 == t2  = smt2 env e
   | otherwise = build "({} {})" (symbolBuilder coerceFn , smt2 env e)
@@ -222,23 +222,23 @@ smt2Coerc env t1 t2 e
     coerceFn  = symbolAtName coerceName env (ECoerc t1 t2 e) t
     t         = FFunc t1 t2
 
--- unCast :: Expr -> Expr
+-- unCast :: Expr s -> Expr s
 -- unCast (ECst e _) = unCast e
 -- unCast e          = e
 
-splitEApp' :: Expr -> (Expr, [Expr])
+splitEApp' :: Expr s -> (Expr s, [Expr s])
 splitEApp'            = go []
   where
     go acc (EApp f e) = go (e:acc) f
   --   go acc (ECst e _) = go acc e
     go acc e          = (e, acc)
 
-mkRel :: SymEnv -> Brel -> Expr -> Expr -> Builder.Builder
+mkRel :: SymEnv -> Brel -> Expr s -> Expr s -> Builder.Builder
 mkRel env Ne  e1 e2 = mkNe env e1 e2
 mkRel env Une e1 e2 = mkNe env e1 e2
 mkRel env r   e1 e2 = build "({} {} {})" (smt2 env r, smt2 env e1, smt2 env e2)
 
-mkNe :: SymEnv -> Expr -> Expr -> Builder.Builder
+mkNe :: SymEnv -> Expr s -> Expr s -> Builder.Builder
 mkNe env e1 e2      = build "(not (= {} {}))" (smt2 env e1, smt2 env e2)
 
 instance SMTLIB2 Command where

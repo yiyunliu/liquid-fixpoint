@@ -104,7 +104,7 @@ addId be m i
   where
     (sym, t)       = second sr_sort $ lookupBindEnv i be
 
-addDupId :: RenameMap -> FixSymbol -> Sort -> BindId -> RenameMap
+addDupId :: RenameMap -> FixSymbol -> Sort s -> BindId -> RenameMap
 addDupId m sym t i
   | isJust $ L.lookup t mapping = m
   | otherwise                   = M.insert sym ((t, Just $ renameSymbol sym i) : mapping) m

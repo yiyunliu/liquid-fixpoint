@@ -183,7 +183,7 @@ instance PPrint QBind where
 data EbindSol
   = EbDef [SimpC ()] FixSymbol -- ^ The constraint whose HEAD "defines" the Ebind
                              -- and the @FixSymbol@ for that EBind
-  | EbSol Expr             -- ^ The solved out term that should be used at USES.
+  | EbSol (Expr s)             -- ^ The solved out term that should be used at USES.
   | EbIncr                 -- ^ EBinds not to be solved for (because they're currently being solved for)
    deriving (Show, Generic, NFData)
 
@@ -269,7 +269,7 @@ instance PPrint Cube where
 instance Show Cube where
   show = showpp
 --------------------------------------------------------------------------------
-result :: Sol a QBind -> M.HashMap KVar Expr
+result :: Sol a QBind -> M.HashMap KVar (Expr s)
 --------------------------------------------------------------------------------
 result s = sMap $ (pAnd . fmap eqPred . qbEQuals) <$> s
 
@@ -370,7 +370,7 @@ type Cand a   = [(Expr, a)]
 --------------------------------------------------------------------------------
 data EQual = EQL
   { eqQual :: !Qualifier
-  , eqPred  :: !Expr
+  , eqPred  :: !(Expr s)
   , _eqArgs :: ![Expr]
   } deriving (Eq, Show, Data, Typeable, Generic)
 

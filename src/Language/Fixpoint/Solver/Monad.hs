@@ -149,7 +149,7 @@ modifyStats f = modify $ \s -> s { ssStats = f (ssStats s) }
 -- | `filterRequired [(x1, p1),...,(xn, pn)] q` returns a minimal list [xi] s.t.
 --   /\ [pi] => q
 --------------------------------------------------------------------------------
-filterRequired :: F.Cand a -> F.Expr -> SolveM [a]
+filterRequired :: F.Cand a -> F.Expr s -> SolveM [a]
 --------------------------------------------------------------------------------
 filterRequired = error "TBD:filterRequired"
 
@@ -175,7 +175,7 @@ filterRequired = error "TBD:filterRequired"
 --------------------------------------------------------------------------------
 -- | `filterValid p [(x1, q1),...,(xn, qn)]` returns the list `[ xi | p => qi]`
 --------------------------------------------------------------------------------
-filterValid :: F.SrcSpan -> F.Expr -> F.Cand a -> SolveM [a]
+filterValid :: F.SrcSpan -> F.Expr s -> F.Cand a -> SolveM [a]
 --------------------------------------------------------------------------------
 filterValid sp p qs = do
   qs' <- withContext $ \me ->
@@ -187,7 +187,7 @@ filterValid sp p qs = do
   incVald (length qs')
   return qs'
 
-filterValid_ :: F.SrcSpan -> F.Expr -> F.Cand a -> Context -> IO [a]
+filterValid_ :: F.SrcSpan -> F.Expr s -> F.Cand a -> Context -> IO [a]
 filterValid_ sp p qs me = catMaybes <$> do
   smtAssert me p
   forM qs $ \(q, x) ->
@@ -217,13 +217,13 @@ filterValidGradual_ :: [F.Expr] -> F.Cand a -> Context -> IO [a]
 filterValidGradual_ ps qs me
   = (map snd . fst) <$> foldM partitionCandidates ([], qs) ps
   where
-    partitionCandidates :: (F.Cand a, F.Cand a) -> F.Expr -> IO (F.Cand a, F.Cand a)
+    partitionCandidates :: (F.Cand a, F.Cand a) -> F.Expr s -> IO (F.Cand a, F.Cand a)
     partitionCandidates (ok, candidates) p = do
       (valids', invalids')  <- partition snd <$> filterValidOne_ p candidates me
       let (valids, invalids) = (fst <$> valids', fst <$> invalids')
       return (ok ++ valids, invalids)
 
-filterValidOne_ :: F.Expr -> F.Cand a -> Context -> IO [((F.Expr, a), Bool)]
+filterValidOne_ :: F.Expr s -> F.Cand a -> Context -> IO [((F.Expr s, a), Bool)]
 filterValidOne_ p qs me = do
   smtAssert me p
   forM qs $ \(q, x) ->
@@ -238,7 +238,7 @@ smtEnablembqi
       smtWrite me "(set-option :smt.mbqi true)"
 
 --------------------------------------------------------------------------------
-checkSat :: F.Expr -> SolveM  Bool
+checkSat :: F.Expr s -> SolveM  Bool
 --------------------------------------------------------------------------------
 checkSat p
   = withContext $ \me ->

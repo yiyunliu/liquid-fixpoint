@@ -140,14 +140,14 @@ bindSortedReft kve (H.Bind x t p) = F.RR t (F.Reft (x, predExpr kve p))
 updSortedReft :: KVEnv a -> F.SortedReft -> H.Pred -> F.SortedReft 
 updSortedReft kve (F.RR s (F.Reft (v, _))) p = F.RR s (F.Reft (v, predExpr kve p))  
 
-predExpr :: KVEnv a -> H.Pred -> F.Expr 
+predExpr :: KVEnv a -> H.Pred -> F.Expr s 
 predExpr kve        = go 
   where 
     go (H.Reft  e ) = e 
     go (H.Var k ys) = kvApp kve k ys
     go (H.PAnd  ps) = F.PAnd (go <$> ps)  
 
-kvApp :: KVEnv a -> F.FixSymbol -> [F.FixSymbol] -> F.Expr 
+kvApp :: KVEnv a -> F.FixSymbol -> [F.FixSymbol] -> F.Expr s 
 kvApp kve k ys = F.PKVar (F.KV k) su 
   where 
     su         = F.mkSubst (zip params (F.eVar <$> ys))

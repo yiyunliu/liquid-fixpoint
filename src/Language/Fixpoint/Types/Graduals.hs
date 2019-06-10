@@ -135,7 +135,7 @@ instance Unique SortedReft where
 instance Unique Reft where
   uniq (Reft (x,e)) = (Reft . (x,)) <$> uniq e
 
-instance Unique Expr where
+instance Unique (Expr s) where
   uniq = mapMExpr go
    where
     go (PGrad k su i e) = do
@@ -234,7 +234,7 @@ expandWF km ws
 class Gradual a where
   gsubst :: GSol -> a -> a
 
-instance Gradual Expr where
+instance Gradual (Expr s) where
   gsubst (GSol env m) e   = mapGVars' (\(k, _) -> Just (fromMaybe (err k) (mknew k))) e
     where
       mknew k = So.elaborate "initBGind.mkPred" env $ fst <$> M.lookup k m

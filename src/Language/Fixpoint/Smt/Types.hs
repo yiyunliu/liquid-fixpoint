@@ -48,8 +48,8 @@ data Command      = Push
                   | CheckSat
                   | DeclData ![DataDecl]
                   | Declare  !FixSymbol [SmtSort] !SmtSort
-                  | Define   !Sort
-                  | Assert   !(Maybe Int) !Expr
+                  | Define   !(Sort s)
+                  | Assert   !(Maybe Int) !(Expr s)
                   | AssertAx !(Triggered Expr)
                   | Distinct [Expr] -- {v:[Expr] | 2 <= len v}
                   | GetValue [FixSymbol]

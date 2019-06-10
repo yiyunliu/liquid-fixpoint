@@ -26,17 +26,17 @@ class HasTemplates a where
   filterUnMatched :: Templates -> a -> a 
 
 
-instance HasTemplates Expr where
+instance HasTemplates (Expr s) where
   filterUnMatched temps e = pAnd $ filter (not . matchesTemplates temps) $ conjuncts e 
 
 instance HasTemplates Reft where
   filterUnMatched temps (Reft (x,e)) = Reft (x, filterUnMatched temps e)
 
-matchesTemplates :: Templates -> Expr -> Bool 
+matchesTemplates :: Templates -> Expr s -> Bool 
 matchesTemplates TAll _ = True 
 matchesTemplates (TExprs ts) e = any (`matchesTemplate` e) ts
 
-matchesTemplate :: Template -> Expr -> Bool 
+matchesTemplate :: Template -> Expr s -> Bool 
 matchesTemplate (xs, t@(EVar x)) e
   = x `elem` xs || e == t  
 matchesTemplate (xs, EApp t1 t2) (EApp e1 e2) 

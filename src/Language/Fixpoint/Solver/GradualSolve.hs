@@ -80,11 +80,11 @@ tidySolution = fmap tidyPred
 gtidySolution :: F.GFixSolution -> F.GFixSolution
 gtidySolution = fmap tidyPred --  (\(e, es) -> (tidyPred e, tidyPred <$> es))
 
-tidyPred :: F.Expr -> F.Expr
+tidyPred :: F.Expr s -> F.Expr s
 tidyPred = F.substf (F.eVar . F.tidySymbol)
 
 
-predKs :: F.Expr -> [(F.KVar, F.Subst)]
+predKs :: F.Expr s -> [(F.KVar, F.Subst)]
 predKs (F.PAnd ps)    = concatMap predKs ps
 predKs (F.PKVar k su) = [(k, su)]
 predKs _              = []
@@ -92,14 +92,14 @@ predKs _              = []
 
 
 --------------------------------------------------------------------------------
-minimizeResult :: Config -> M.HashMap F.KVar F.Expr
+minimizeResult :: Config -> M.HashMap F.KVar F.Expr s
                -> SolveM (M.HashMap F.KVar F.Expr)
 --------------------------------------------------------------------------------
 minimizeResult cfg s
   | minimalSol cfg = mapM minimizeConjuncts s
   | otherwise      = return s
 
-minimizeConjuncts :: F.Expr -> SolveM F.Expr
+minimizeConjuncts :: F.Expr s -> SolveM (F.Expr s)
 minimizeConjuncts p = F.pAnd <$> go (F.conjuncts p) []
   where
     go []     acc   = return acc
@@ -118,13 +118,13 @@ showUnsat u i lP rP = {- when u $ -} do
 --------------------------------------------------------------------------------
 -- | Predicate corresponding to RHS of constraint in current solution
 --------------------------------------------------------------------------------
-rhsPred :: F.SimpC a -> F.Expr
+rhsPred :: F.SimpC a -> F.Expr s
 --------------------------------------------------------------------------------
 rhsPred c
   | isTarget c = F.crhs c
   | otherwise  = errorstar $ "rhsPred on non-target: " ++ show (F.sid c)
 
-isValid :: F.Expr -> F.Expr -> SolveM Bool
+isValid :: F.Expr s -> F.Expr s -> SolveM Bool
 isValid p q = (not . null) <$> filterValid p [(q, ())]
 
 
@@ -307,7 +307,7 @@ updateGradualSolution cs sol = foldM f (Sol.emptyGMap sol) cs
     return $ Sol.updateGMapWithKey gbs s
 
 
-firstValid :: Monoid a =>  F.Expr -> [(a, F.Expr)] -> SolveM a
+firstValid :: Monoid a =>  F.Expr s -> [(a, F.Expr s)] -> SolveM a
 firstValid _   [] = return mempty
 firstValid rhs ((y,lhs):xs) = do
   v <- isValid lhs rhs

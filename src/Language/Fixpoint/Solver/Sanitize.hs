@@ -196,7 +196,7 @@ badParams si c = Misc.group bads
     sEnv       = S.fromList (fst <$> xsrs)
     xsrs       = F.envCs (F.bs si) (F.senv c)
 
-badArg :: S.HashSet F.FixSymbol -> F.Expr -> Bool
+badArg :: S.HashSet F.FixSymbol -> F.Expr s -> Bool
 badArg sEnv (F.EVar y) = not (y `S.member` sEnv)
 badArg _    _          = True
 
@@ -321,12 +321,12 @@ symbolSorts' cfg fi  = (normalize . compact . (defs ++)) =<< bindSorts fi
       | allowHO cfg = id
       | otherwise   = defuncSort
 
-unShadow :: (F.Sort -> F.Sort) -> M.HashMap F.FixSymbol a -> (F.FixSymbol, F.Sort) -> (F.FixSymbol, F.Sort)
+unShadow :: (F.Sort s -> F.Sort s) -> M.HashMap F.FixSymbol a -> (F.FixSymbol, F.Sort s) -> (F.FixSymbol, F.Sort s)
 unShadow tx dm (x, t)
   | M.member x dm  = (x, t)
   | otherwise      = (x, tx t)
 
-defuncSort :: F.Sort -> F.Sort
+defuncSort :: F.Sort s -> F.Sort s
 defuncSort (F.FFunc {}) = F.funcSort
 defuncSort t            = t
 
@@ -435,8 +435,8 @@ dropBinders f g fi  = fi { F.bs    = bs'
     ws'             = deleteWfCBinds  discards   <$> F.ws fi
     lits'           = F.filterSEnv g (F.gLits fi)
 
-type KeepBindF = F.FixSymbol -> F.Sort -> Bool
-type KeepSortF = F.Sort -> Bool
+type KeepBindF = F.FixSymbol -> F.Sort s -> Bool
+type KeepSortF = F.Sort s -> Bool
 
 deleteSubCBinds :: [F.BindId] -> F.SimpC a -> F.SimpC a
 deleteSubCBinds bs sc = sc { F._cenv = foldr F.deleteIBindEnv (F.senv sc) bs }

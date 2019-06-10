@@ -487,13 +487,13 @@ defs x (All _ c) = defs x c
 defs _ (Head _ _) = Nothing
 defs _ (Any _ _) =  error "defs should be run only after noside and poke"
 
-cstrToExpr :: Cstr a -> F.Expr
+cstrToExpr :: Cstr a -> F.Expr s
 cstrToExpr (Head p _) = predToExpr p
 cstrToExpr (CAnd cs) = F.PAnd $ cstrToExpr <$> cs
 cstrToExpr (All (Bind x t p) c) = F.PAll [(x,t)] $ F.PImp (predToExpr p) $ cstrToExpr c
 cstrToExpr (Any (Bind x t p) c) = F.PExist [(x,t)] $ F.PImp (predToExpr p) $ cstrToExpr c
 
-predToExpr :: Pred -> F.Expr
+predToExpr :: Pred -> F.Expr s
 predToExpr (Reft e) = e
 predToExpr (Var k xs) = F.PKVar (F.KV k) (F.Su $ M.fromList su)
   where su = zip (kargs k) (F.EVar <$> xs)
@@ -636,28 +636,28 @@ instance V.Visitable (Cstr a) where
 --     store it
 --   return it
 
-qe :: M.HashMap F.FixSymbol Integer -> Cstr a -> State (Sol a) F.Expr
+qe :: M.HashMap F.FixSymbol Integer -> Cstr a -> State (Sol a) F.Expr s
 qe m c = do
  c' <- qe' m c
  pure $ trace (show c ++ " =[qe]=>  " ++ show c') c'
 
-qe' :: M.HashMap F.FixSymbol Integer -> Cstr a -> State (Sol a) F.Expr
+qe' :: M.HashMap F.FixSymbol Integer -> Cstr a -> State (Sol a) F.Expr s
 qe' m (Head p l)           = lookupSol l m p
 qe' m (CAnd cs)            = F.PAnd <$> mapM (qe m) cs
 qe' m (All (Bind x _ p) c) = forallElim x <$> lookupSol (cLabel c) m p <*> qe m c
 qe' _ Any{}                = error "QE for Any????"
 
-forallElim :: (F.Subable t, Visitable t) => F.FixSymbol -> t -> F.Expr -> F.Expr
+forallElim :: (F.Subable t, Visitable t) => F.FixSymbol -> t -> F.Expr s -> F.Expr s
 forallElim x p e = forallElim' x eqs p e
   where
   eqs = fold eqVis () [] p
-  eqVis             = (defaultVisitor :: Visitor F.Expr t) { accExpr = kv' }
+  eqVis             = (defaultVisitor :: Visitor (F.Expr s) t) { accExpr = kv' }
   kv' _ e@(F.PAtom F.Eq a b)
     | F.EVar x == a || F.EVar x == b
     = [e]
   kv' _ _                    = []
 
-forallElim' :: F.Subable a => F.FixSymbol -> [F.Expr] -> a -> F.Expr -> F.Expr
+forallElim' :: F.Subable a => F.FixSymbol -> [F.Expr s] -> a -> F.Expr s -> F.Expr s
 forallElim' x (F.PAtom F.Eq a b : _) _ e
   | F.EVar x == a
   = F.subst1 e (x,b)
@@ -670,12 +670,12 @@ forallElim' x _ _ e = runIdentity $ flip mapMExpr e $ \case
    -- TODO: where else might this appear? App, KVar?
     p -> pure p
 
-lookupSol :: a -> M.HashMap F.FixSymbol Integer -> Pred -> State (Sol a) F.Expr
+lookupSol :: a -> M.HashMap F.FixSymbol Integer -> Pred -> State (Sol a) F.Expr s
 lookupSol l m c = do
  c' <- lookupSol' l m c
  pure $ trace (show m ++ show c ++ " =[l]=> " ++ show c')  c'
 
-lookupSol' :: a -> M.HashMap F.FixSymbol Integer -> Pred -> State (Sol a) F.Expr
+lookupSol' :: a -> M.HashMap F.FixSymbol Integer -> Pred -> State (Sol a) F.Expr s
 lookupSol' l m (Var x xs) =
   let n = M.lookupDefault 0 x m in
   if n > 0 then pure $ predToExpr (Var x xs) else
@@ -694,12 +694,12 @@ lookupSol' l m (Var x xs) =
 lookupSol' _ _ (Reft e) = pure e
 lookupSol' l m (PAnd ps) = F.PAnd <$> mapM (lookupSol l m) ps
 
-findSolP :: F.FixSymbol -> Pred -> Maybe F.Expr
+findSolP :: F.FixSymbol -> Pred -> Maybe (F.Expr s)
 findSolP x (Reft e) = findSolE x e
 findSolP x (PAnd (p:ps)) = findSolP x p <> findSolP x (PAnd ps)
 findSolP _ _ = error "findSolP KVar"
 
-findSolE :: F.FixSymbol -> F.Expr -> Maybe F.Expr
+findSolE :: F.FixSymbol -> F.Expr s -> Maybe (F.Expr s)
 findSolE x (F.PAtom F.Eq (F.EVar y) e) | x == y = Just e
 findSolE x (F.PAtom F.Eq e (F.EVar y)) | x == y = Just e
 findSolE x (F.PAnd (e:es)) = findSolE x e <> findSolE x (F.PAnd es)

@@ -123,14 +123,14 @@ data WfC a  =  WfC  { wenv  :: !IBindEnv
              | GWfC { wenv  :: !IBindEnv
                     , wrft  :: !(FixSymbol, Sort, KVar)
                     , winfo :: !a
-                    , wexpr :: !Expr
+                    , wexpr :: !(Expr s)
                     , wloc  :: !GradInfo
                     }
               deriving (Eq, Generic, Functor)
 
 data GWInfo = GWInfo { gsym  :: FixSymbol
-                     , gsort :: Sort
-                     , gexpr :: Expr
+                     , gsort :: Sort s
+                     , gexpr :: Expr s
                      , ginfo :: GradInfo
                      }
               deriving (Eq, Generic)
@@ -141,7 +141,7 @@ gwInfo (GWfC _ (x,s,_) _ e i)
 gwInfo _
   = errorstar "gwInfo"
 
-updateWfCExpr :: (Expr -> Expr) -> WfC a -> WfC a
+updateWfCExpr :: (Expr s -> Expr s) -> WfC a -> WfC a
 updateWfCExpr _ w@(WfC {})  = w
 updateWfCExpr f w@(GWfC {}) = w{wexpr = f (wexpr w)}
 
@@ -166,7 +166,7 @@ data SubC a = SubC
 
 data SimpC a = SimpC
   { _cenv  :: !IBindEnv
-  , _crhs  :: !Expr
+  , _crhs  :: !(Expr s)
   , _cid   :: !(Maybe Integer)
   , cbind  :: !BindId               -- ^ Id of lhs/rhs binder
   , _ctag  :: !Tag
@@ -190,14 +190,14 @@ subcBind si i
   = errorstar $ "Unknown subcId in subcBind: " ++ show i
 
 
-strengthenBinds :: SInfo a -> M.HashMap BindId Expr -> SInfo a
+strengthenBinds :: SInfo a -> M.HashMap BindId (Expr s) -> SInfo a
 strengthenBinds si m = si { bs = mapBindEnv f (bs si) }
   where
     f i (x, sr)      = case M.lookup i m of
                          Nothing -> (x, sr)
                          Just e  -> (x, strengthenSortedReft sr e)
 
-strengthenSortedReft :: SortedReft -> Expr -> SortedReft
+strengthenSortedReft :: SortedReft -> Expr s -> SortedReft
 strengthenSortedReft (RR s (Reft (v, r))) e = RR s (Reft (v, pAnd [r, e]))
 
 
@@ -206,7 +206,7 @@ strengthenSortedReft (RR s (Reft (v, r))) e = RR s (Reft (v, pAnd [r, e]))
 
  -}
 
--- strengthenLhs :: Expr -> SubC a -> SubC a
+-- strengthenLhs :: Expr s -> SubC a -> SubC a
 -- strengthenLhs e subc = subc {slhs = go (slhs subc)}
 --  where
 --    go (RR s (Reft(v, r))) = RR s (Reft (v, pAnd [r, e]))
@@ -217,7 +217,7 @@ class TaggedC c a where
   stag  :: c a -> Tag
   sinfo :: c a -> a
   clhs  :: BindEnv -> c a -> [(FixSymbol, SortedReft)]
-  crhs  :: c a -> Expr
+  crhs  :: c a -> Expr s
 
 instance TaggedC SimpC a where
   senv      = _cenv
@@ -247,9 +247,9 @@ subcId = mfromJust "subCId" . sid
 -- | Solutions and Results
 ---------------------------------------------------------------------------
 
-type GFixSolution = GFixSol Expr
+type GFixSolution = GFixSol (Expr s)
 
-type FixSolution  = M.HashMap KVar Expr
+type FixSolution  = M.HashMap KVar (Expr s)
 
 newtype GFixSol e = GSol (M.HashMap KVar (e, [e]))
   deriving (Generic, Semigroup, Monoid, Functor)
@@ -356,7 +356,7 @@ pprintTidyGradual _ (x, (e, es)) = ppLocOfKVar x <+> text ":=" <+> (ppNonTauto "
 ppLocOfKVar :: KVar -> Doc
 ppLocOfKVar = text. dropWhile (/='(') . symbolString .kv
 
-ppNonTauto :: Doc -> Expr -> Doc
+ppNonTauto :: Doc -> Expr s -> Doc
 ppNonTauto d e
   | isTautoPred e = mempty
   | otherwise     = pprint e <-> d
@@ -452,7 +452,7 @@ addIds = zipWith (\i c -> (i, shiftId i $ c {_sid = Just i})) [1..]
 data Qualifier = Q 
   { qName   :: !FixSymbol     -- ^ Name
   , qParams :: [QualParam] -- ^ Parameters
-  , qBody   :: !Expr       -- ^ Predicate
+  , qBody   :: !(Expr s)       -- ^ Predicate
   , qPos    :: !SourcePos  -- ^ Source Location
   }
   deriving (Eq, Show, Data, Typeable, Generic)
@@ -460,7 +460,7 @@ data Qualifier = Q
 data QualParam = QP 
   { qpSym  :: !FixSymbol
   , qpPat  :: !QualPattern 
-  , qpSort :: !Sort
+  , qpSort :: !(Sort s)
   } 
   deriving (Eq, Show, Data, Typeable, Generic)
 
@@ -485,7 +485,7 @@ instance Subable Qualifier where
   substf = mapQualBody . substf
   substa = mapQualBody . substa
 
-mapQualBody :: (Expr -> Expr) -> Qualifier -> Qualifier
+mapQualBody :: (Expr s -> Expr s) -> Qualifier -> Qualifier
 mapQualBody f q = q { qBody = f (qBody q) }
   
 qualFreeSymbols :: Qualifier -> [FixSymbol]
@@ -516,13 +516,13 @@ pprQual (Q n xts p l) = text "qualif" <+> text (symbolString n) <-> parens args 
   where
     args              = intersperse comma (toFix <$> xts)
 
-qualifier :: SEnv Sort -> SourcePos -> SEnv Sort -> FixSymbol -> Sort -> Expr -> Qualifier
+qualifier :: SEnv (Sort s) -> SourcePos -> SEnv (Sort s) -> FixSymbol -> Sort s -> Expr s -> Qualifier
 qualifier lEnv l γ v so p   = mkQ "Auto" ((v, so) : xts) p l
   where
     xs  = L.delete v $ L.nub $ syms p
     xts = catMaybes $ zipWith (envSort l lEnv γ) xs [0..]
 
-mkQ :: FixSymbol -> [(FixSymbol, Sort)] -> Expr -> SourcePos -> Qualifier 
+mkQ :: FixSymbol -> [(FixSymbol, Sort)] -> Expr s -> SourcePos -> Qualifier 
 mkQ n = Q n . qualParams
 
 qualParams :: [(FixSymbol, Sort)] -> [QualParam]
@@ -531,7 +531,7 @@ qualParams xts = [ QP x PatNone t | (x, t) <- xts]
 qualBinds   :: Qualifier -> [(FixSymbol, Sort)]
 qualBinds q = [ (qpSym qp, qpSort qp) | qp <- qParams q ]
 
-envSort :: SourcePos -> SEnv Sort -> SEnv Sort -> FixSymbol -> Integer -> Maybe (FixSymbol, Sort)
+envSort :: SourcePos -> SEnv (Sort s) -> SEnv (Sort s) -> FixSymbol -> Integer -> Maybe (FixSymbol, Sort s)
 envSort l lEnv tEnv x i
   | Just t <- lookupSEnv x tEnv = Just (x, t)
   | Just _ <- lookupSEnv x lEnv = Nothing
@@ -544,7 +544,7 @@ remakeQual :: Qualifier -> Qualifier
 remakeQual q = mkQual (qName q) (qParams q) (qBody q) (qPos q)
 
 -- | constructing qualifiers
-mkQual :: FixSymbol -> [QualParam] -> Expr -> SourcePos -> Qualifier
+mkQual :: FixSymbol -> [QualParam] -> Expr s -> SourcePos -> Qualifier
 mkQual n qps p = Q n qps' p 
   where
     qps'       = zipWith (\qp t' -> qp { qpSort = t'}) qps ts'
@@ -555,21 +555,21 @@ gSorts ts = substVars su <$> ts
   where
     su    = (`zip` [0..]) . sortNub . concatMap sortVars $ ts
 
-substVars :: [(FixSymbol, Int)] -> Sort -> Sort
+substVars :: [(FixSymbol, Int)] -> Sort s -> Sort s
 substVars su = mapSort' tx
   where
     tx (FObj x)
       | Just i <- lookup x su = FVar i
     tx t                      = t
 
-sortVars :: Sort -> [FixSymbol]
+sortVars :: Sort s -> [FixSymbol]
 sortVars = foldSort' go []
   where
     go b (FObj x) = x : b
     go b _        = b
 
 -- COPIED from Visitor due to cyclic deps
-mapSort' :: (Sort -> Sort) -> Sort -> Sort
+mapSort' :: (Sort s -> Sort s) -> Sort s -> Sort s
 mapSort' f = step
   where
     step             = go . f
@@ -579,7 +579,7 @@ mapSort' f = step
     go t             = t
 
 -- COPIED from Visitor due to cyclic deps
-foldSort' :: (a -> Sort -> a) -> a -> Sort -> a
+foldSort' :: (a -> Sort s -> a) -> a -> Sort s -> a
 foldSort' f = step
   where
     step b t           = go (f b t) t
@@ -615,8 +615,8 @@ instance Monoid Kuts where
 fi :: [SubC a]
    -> [WfC a]
    -> BindEnv
-   -> SEnv Sort
-   -> SEnv Sort
+   -> SEnv (Sort s)
+   -> SEnv (Sort s)
    -> Kuts
    -> [Qualifier]
    -> M.HashMap BindId a
@@ -776,7 +776,7 @@ toFixpoint cfg x' =    cfgDoc   cfg
 ($++$) :: Doc -> Doc -> Doc
 x $++$ y = x $+$ text "\n" $+$ y
 
-sEnvDoc :: Doc -> SEnv Sort -> Doc
+sEnvDoc :: Doc -> SEnv (Sort s) -> Doc
 sEnvDoc d       = vcat . map kvD . toListSEnv
   where
     kvD (c, so) = d <+> toFix c <+> ":" <+> parens (toFix so)
@@ -881,13 +881,13 @@ instance PPrint AxiomEnv where
 data Equation = Equ
   { eqName :: !FixSymbol           -- ^ name of reflected function
   , eqArgs :: [(FixSymbol, Sort)]  -- ^ names of parameters
-  , eqBody :: !Expr             -- ^ definition of body
-  , eqSort :: !Sort             -- ^ sort of body
+  , eqBody :: !(Expr s)             -- ^ definition of body
+  , eqSort :: !(Sort s)             -- ^ sort of body
   , eqRec  :: !Bool             -- ^ is this a recursive definition
   }
   deriving (Eq, Show, Generic)
 
-mkEquation :: FixSymbol -> [(FixSymbol, Sort)] -> Expr -> Sort -> Equation
+mkEquation :: FixSymbol -> [(FixSymbol, Sort s)] -> Expr s -> Sort s -> Equation
 mkEquation f xts e out = Equ f xts e out (f `elem` syms e)
 
 instance Subable Equation where
@@ -896,7 +896,7 @@ instance Subable Equation where
   substf f = mapEqBody (substf f)
   substa f = mapEqBody (substa f)
 
-mapEqBody :: (Expr -> Expr) -> Equation -> Equation
+mapEqBody :: (Expr s -> Expr s) -> Equation -> Equation
 mapEqBody f a = a { eqBody = f (eqBody a) }
 
 instance PPrint Equation where
@@ -911,7 +911,7 @@ data Rewrite  = SMeasure
   { smName  :: FixSymbol         -- eg. f
   , smDC    :: FixSymbol         -- eg. D
   , smArgs  :: [FixSymbol]       -- eg. xs
-  , smBody  :: Expr           -- eg. e[xs]
+  , smBody  :: Expr s           -- eg. e[xs]
   }
   deriving (Eq, Show, Generic)
 

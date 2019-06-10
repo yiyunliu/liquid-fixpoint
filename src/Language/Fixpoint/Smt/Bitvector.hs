@@ -38,13 +38,13 @@ data BvOp   = BvAnd | BvOr
               deriving (Eq, Ord, Show, Data, Typeable, Generic)
 
 -- | Construct the bitvector `Sort` from its `BvSize`
-mkSort :: BvSize -> Sort
+mkSort :: BvSize -> Sort s
 mkSort s = fApp (fTyconSort bvTyCon) [ fTyconSort (sizeTyCon s) ]
 
-bvTyCon :: FTycon
+bvTyCon :: FTycon s
 bvTyCon = symbolFTycon $ dummyLoc bitVecName
 
-sizeTyCon    :: BvSize -> FTycon
+sizeTyCon    :: BvSize -> FTycon s
 sizeTyCon    = symbolFTycon . dummyLoc . sizeName
 
 sizeName :: BvSize -> FixSymbol
@@ -56,7 +56,7 @@ instance Expression Bv where
   expr (Bv sz v) = ECon $ L (T.pack v) (mkSort sz)
 
 -- | Apply some bitvector operator to a list of arguments
-eOp :: BvOp -> [Expr] -> Expr
+eOp :: BvOp -> [Expr s] -> Expr s
 eOp b es = foldl EApp (EVar $ opName b) es
 
 opName :: BvOp -> FixSymbol

@@ -69,7 +69,7 @@ data SymEnv = SymEnv
   }
   deriving (Eq, Show, Data, Typeable, Generic)
 
-{- type FuncSort = {v:Sort | isFFunc v} @-}
+{- type FuncSort = {v:Sort s | isFFunc v} @-}
 type FuncSort = (SmtSort, SmtSort)
 
 instance NFData   SymEnv
@@ -87,7 +87,7 @@ instance Monoid SymEnv where
   mempty        = SymEnv emptySEnv emptySEnv emptySEnv emptySEnv mempty
   mappend       = (<>)
 
-symEnv :: SEnv Sort -> SEnv TheorySymbol -> [DataDecl] -> SEnv Sort -> [Sort] -> SymEnv
+symEnv :: SEnv (Sort s) -> SEnv TheorySymbol -> [DataDecl] -> SEnv (Sort s) -> [Sort s] -> SymEnv
 symEnv xEnv fEnv ds ls ts = SymEnv xEnv' fEnv dEnv ls sortMap
   where
     xEnv'                 = unionSEnv xEnv wiredInEnv
@@ -99,7 +99,7 @@ symEnv xEnv fEnv ds ls ts = SymEnv xEnv' fEnv dEnv ls sortMap
 --   UNININTERPRETED but POLYMORPHIC, hence need to go through
 --   the apply-defunc stuff.
 
-wiredInEnv :: M.HashMap FixSymbol Sort
+wiredInEnv :: M.HashMap FixSymbol (Sort s)
 wiredInEnv = M.fromList [(toIntName, mkFFunc 1 [FVar 0, FInt])]
 
 
@@ -136,16 +136,16 @@ funcSorts dEnv ts = [ (t1, t2) | t1 <- smts, t2 <- smts]
 symEnvTheory :: FixSymbol -> SymEnv -> Maybe TheorySymbol
 symEnvTheory x env = lookupSEnv x (seTheory env)
 
-symEnvSort :: FixSymbol -> SymEnv -> Maybe Sort
+symEnvSort :: FixSymbol -> SymEnv -> Maybe (Sort s)
 symEnvSort   x env = lookupSEnv x (seSort env)
 
-insertSymEnv :: FixSymbol -> Sort -> SymEnv -> SymEnv
+insertSymEnv :: FixSymbol -> Sort s -> SymEnv -> SymEnv
 insertSymEnv x t env = env { seSort = insertSEnv x t (seSort env) }
 
 insertsSymEnv :: SymEnv -> [(FixSymbol, Sort)] -> SymEnv
 insertsSymEnv = L.foldl' (\env (x, s) -> insertSymEnv x s env) 
 
-symbolAtName :: (PPrint a) => FixSymbol -> SymEnv -> a -> Sort -> FixSymbol
+symbolAtName :: (PPrint a) => FixSymbol -> SymEnv -> a -> Sort s -> FixSymbol
 symbolAtName mkSym env e = symbolAtSmtName mkSym env e . ffuncSort env
 
 symbolAtSmtName :: (PPrint a) => FixSymbol -> SymEnv -> a -> FuncSort -> FixSymbol
@@ -156,7 +156,7 @@ funcSortIndex env e z = M.lookupDefault err z (seAppls env)
   where
     err               = panic ("Unknown func-sort: " ++ showpp z ++ " for " ++ showpp e)
 
-ffuncSort :: SymEnv -> Sort -> FuncSort
+ffuncSort :: SymEnv -> Sort s -> FuncSort
 ffuncSort env t      = {- tracepp ("ffuncSort " ++ showpp (t1,t2)) -} (tx t1, tx t2)
   where
     tx               = applySmtSort (seData env) 
@@ -164,10 +164,10 @@ ffuncSort env t      = {- tracepp ("ffuncSort " ++ showpp (t1,t2)) -} (tx t1, tx
     args (FFunc a b) = (a, b)
     args _           = (FInt, FInt)
 
-applySmtSort :: SEnv DataDecl -> Sort -> SmtSort
+applySmtSort :: SEnv DataDecl -> Sort s -> SmtSort
 applySmtSort = sortSmtSort False
 
-isIntSmtSort :: SEnv DataDecl -> Sort -> Bool
+isIntSmtSort :: SEnv DataDecl -> Sort s -> Bool
 isIntSmtSort env s = SInt == applySmtSort env s
 
 --------------------------------------------------------------------------------
@@ -176,7 +176,7 @@ isIntSmtSort env s = SInt == applySmtSort env s
 data TheorySymbol  = Thy
   { tsSym    :: !FixSymbol          -- ^ name
   , tsRaw    :: !Raw             -- ^ serialized SMTLIB2 name
-  , tsSort   :: !Sort            -- ^ sort
+  , tsSort   :: !(Sort s)            -- ^ sort
   , tsInterp :: !Sem             -- ^ TRUE = defined (interpreted), FALSE = declared (uninterpreted)
   }
   deriving (Eq, Ord, Show, Data, Typeable, Generic)
@@ -221,7 +221,7 @@ data SmtSort
   | SMap
   | SBitVec !Int
   | SVar    !Int
-  | SData   !FTycon ![SmtSort]
+  | SData   !(FTycon s) ![SmtSort]
   -- HKT | SApp            ![SmtSort]           -- ^ Representing HKT
   deriving (Eq, Ord, Show, Data, Typeable, Generic)
 
@@ -236,7 +236,7 @@ instance B.Binary SmtSort
 --   'smtSort True  msg t' serializes a sort 't' using type variables,
 --   'smtSort False msg t' serializes a sort 't' using 'Int' instead of tyvars.
 
-sortSmtSort :: Bool -> SEnv DataDecl -> Sort -> SmtSort
+sortSmtSort :: Bool -> SEnv DataDecl -> Sort s -> SmtSort
 sortSmtSort poly env t  = {- tracepp ("sortSmtSort: " ++ showpp t) $ -} go . unAbs $ t
   where
     go (FFunc _ _)    = SInt
@@ -250,7 +250,7 @@ sortSmtSort poly env t  = {- tracepp ("sortSmtSort: " ++ showpp t) $ -} go . unA
       | otherwise     = SInt
     go t              = fappSmtSort poly env ct ts where (ct:ts) = unFApp t
 
-fappSmtSort :: Bool -> SEnv DataDecl -> Sort -> [Sort] -> SmtSort
+fappSmtSort :: Bool -> SEnv DataDecl -> Sort s -> [Sort s] -> SmtSort
 fappSmtSort poly env = go
   where
 -- HKT    go t@(FVar _) ts            = SApp (sortSmtSort poly env <$> (t:ts))

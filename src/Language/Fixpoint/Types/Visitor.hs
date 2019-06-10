@@ -63,13 +63,13 @@ import qualified Language.Fixpoint.Misc as Misc
 
 data Visitor acc ctx = Visitor {
  -- | Context @ctx@ is built in a "top-down" fashion; not "across" siblings
-    ctxExpr :: ctx -> Expr -> ctx
+    ctxExpr :: ctx -> Expr s -> ctx
 
   -- | Transforms can access current @ctx@
-  , txExpr  :: ctx -> Expr -> Expr
+  , txExpr  :: ctx -> Expr s -> Expr s
 
   -- | Accumulations can access current @ctx@; @acc@ value is monoidal
-  , accExpr :: ctx -> Expr -> acc
+  , accExpr :: ctx -> Expr s -> acc
   }
 
 ---------------------------------------------------------------------------------
@@ -115,7 +115,7 @@ f <$$> xs = f Misc.<$$> xs
 class Visitable t where
   visit :: (Monoid a) => Visitor a c -> c -> t -> VisitM a t
 
-instance Visitable Expr where
+instance Visitable (Expr s) where
   visit = visitExpr
 
 instance Visitable Reft where
@@ -168,7 +168,7 @@ instance Visitable Rewrite where
     return rw { smBody = body' } 
 
 ---------------------------------------------------------------------------------
-visitExpr :: (Monoid a) => Visitor a ctx -> ctx -> Expr -> VisitM a Expr
+visitExpr :: (Monoid a) => Visitor a ctx -> ctx -> Expr s -> VisitM a (Expr s)
 visitExpr !v    = vE
   where
     vE !c !e    = do {-# SCC "visitExpr.vE.accum" #-} accum acc
@@ -224,11 +224,11 @@ mapGVars' f            = trans kvVis () ()
       | Just p' <- f (k, su) = subst su p'
     txK _ p            = p
 
-mapExpr :: Visitable t => (Expr -> Expr) -> t -> t
+mapExpr :: Visitable t => (Expr s -> Expr s) -> t -> t
 mapExpr f = trans (defaultVisitor {txExpr = const f}) () ()
 
 
-mapMExpr :: (Monad m) => (Expr -> m Expr) -> Expr -> m Expr
+mapMExpr :: (Monad m) => (Expr s -> m Expr) -> Expr s -> m (Expr s)
 mapMExpr f = go
   where
     go e@(ESym _)      = f e
@@ -322,12 +322,12 @@ isKvarC = all isKvar . conjuncts . crhs
 isConcC :: (TaggedC c a) => c a -> Bool
 isConcC = all isConc . conjuncts . crhs
 
-isKvar :: Expr -> Bool
+isKvar :: Expr s -> Bool
 isKvar (PKVar {}) = True
 isKvar (PGrad {}) = True
 isKvar _          = False
 
-isConc :: Expr -> Bool
+isConc :: Expr s -> Bool
 isConc = null . kvars
 
 stripCasts :: (Visitable t) => t -> t
@@ -336,7 +336,7 @@ stripCasts = trans (defaultVisitor { txExpr = const go }) () ()
     go (ECst e _) = e
     go e          = e
 
--- stripCasts :: Expr -> Expr
+-- stripCasts :: Expr s -> Expr s
 -- stripCasts = mapExpr go
 --  where
 --    go (ECst e _) = e
@@ -347,9 +347,9 @@ stripCasts = trans (defaultVisitor { txExpr = const go }) () ()
 --   to the ty-vars that they should be substituted with. Note the
 --   domain and range are both FixSymbol and not the Int used for real ty-vars.
 --------------------------------------------------------------------------------
-type CoSub = M.HashMap FixSymbol Sort 
+type CoSub = M.HashMap FixSymbol (Sort s) 
 
-applyCoSub :: CoSub -> Expr -> Expr
+applyCoSub :: CoSub -> Expr s -> Expr s
 applyCoSub coSub      = mapExpr fE
   where
     fE (ECoerc s t e) = ECoerc  (txS s) (txS t) e
@@ -363,7 +363,7 @@ applyCoSub coSub      = mapExpr fE
 ---------------------------------------------------------------------------------
 -- | Visitors over @Sort@
 ---------------------------------------------------------------------------------
-foldSort :: (a -> Sort -> a) -> a -> Sort -> a
+foldSort :: (a -> Sort s -> a) -> a -> Sort s -> a
 foldSort f = step
   where
     step b t           = go (f b t) t
@@ -372,7 +372,7 @@ foldSort f = step
     go b (FAbs _ t)    = go b t
     go b _             = b
 
-mapSort :: (Sort -> Sort) -> Sort -> Sort
+mapSort :: (Sort s -> Sort s) -> Sort s -> Sort s
 mapSort f = step
   where
     step !x           = go (f x)
@@ -381,7 +381,7 @@ mapSort f = step
     go !(FAbs i t)    = FAbs i (step t)
     go !t             = t
 
-foldDataDecl :: (a -> Sort -> a) -> a -> DataDecl -> a
+foldDataDecl :: (a -> Sort s -> a) -> a -> DataDecl -> a
 foldDataDecl f acc = L.foldl' f acc . dataDeclSorts
 
 dataDeclSorts :: DataDecl -> [Sort]
@@ -424,7 +424,7 @@ instance SymConsts Reft where
   symConsts (Reft (_, ra)) = getSymConsts ra
 
 
-instance SymConsts Expr where
+instance SymConsts (Expr s) where
   symConsts = getSymConsts
 
 getSymConsts :: Visitable t => t -> [SymConst]

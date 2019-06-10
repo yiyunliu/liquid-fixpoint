@@ -53,18 +53,18 @@ defuncAxioms cfg env z = flip evalState (makeDFState cfg env emptyIBindEnv) $ do
 ---------------------------------------------------------------------------------------------
 -- | Expressions defunctionalization --------------------------------------------------------
 ---------------------------------------------------------------------------------------------
-txExpr :: Expr -> DF Expr
+txExpr :: Expr s -> DF Expr s
 txExpr e = do
   hoFlag <- gets dfHO
   if hoFlag then defuncExpr e else return e
 
-defuncExpr :: Expr -> DF Expr
+defuncExpr :: Expr s -> DF (Expr s)
 defuncExpr = mapMExpr reBind
          >=> mapMExpr logLam
          >=> mapMExpr logRedex
          >=> mapMExpr (fM normalizeLams)
 
-reBind :: Expr -> DF Expr
+reBind :: Expr s -> DF (Expr s)
 reBind (ELam (x, s) e) = ((\y -> ELam (y, s) (subst1 e (x, EVar y))) <$> freshSym s)
 reBind e               = return e
 
@@ -73,7 +73,7 @@ maxLamArg = 7
 
 -- NIKI TODO: allow non integer lambda arguments
 -- sorts = [setSort intSort, bitVecSort intSort, mapSort intSort intSort, boolSort, realSort, intSort]
--- makeLamArg :: Sort -> Int -> FixSymbol
+-- makeLamArg :: Sort s -> Int -> FixSymbol
 -- makeLamArg _ = intArgName
 
 --------------------------------------------------------------------------------
@@ -84,16 +84,16 @@ makeAxioms = do
   env     <- gets dfEnv
   return   $ filter (validAxiom env) (alphEqs ++ betaEqs)
 
-validAxiom :: SymEnv -> Expr -> Bool
+validAxiom :: SymEnv -> Expr s -> Bool
 validAxiom env = isJust . checkSortExpr dummySpan (seSort env)
 
 --------------------------------------------------------------------------------
 -- | Alpha Equivalence ---------------------------------------------------------
 --------------------------------------------------------------------------------
-makeAlphaAxioms ::  Expr -> [Expr]
+makeAlphaAxioms ::  Expr s -> [Expr s]
 makeAlphaAxioms = makeAlphaEq . normalizeLams
 
-makeAlphaEq :: Expr -> [Expr]
+makeAlphaEq :: Expr s -> [Expr s]
 makeAlphaEq e = go e ++ go' e
   where
     go ee
@@ -111,7 +111,7 @@ makeAlphaEq e = go e ++ go' e
 
 -- head normal form [TODO: example]
 
-normalize :: Expr -> Expr
+normalize :: Expr s -> Expr s
 normalize = snd . go
   where
     go (ELam (y, sy) e) = (i + 1, shiftLam i y sy e') where (i, e') = go e
@@ -133,7 +133,7 @@ normalize = snd . go
     unECst (ECst e _) = unECst e
     unECst e          = e
 
-shiftLam :: Int -> FixSymbol -> Sort -> Expr -> Expr
+shiftLam :: Int -> FixSymbol -> Sort s -> Expr s -> Expr s
 shiftLam i x t e = ELam (x_i, t) (e `subst1` (x, x_i_t))
   where
     x_i          = lamArgSymbol i
@@ -141,10 +141,10 @@ shiftLam i x t e = ELam (x_i, t) (e `subst1` (x, x_i_t))
 
 -- normalize lambda arguments [TODO: example]
 
-normalizeLams :: Expr -> Expr
+normalizeLams :: Expr s -> Expr s
 normalizeLams e = snd $ normalizeLamsFromTo 1 e
 
-normalizeLamsFromTo :: Int -> Expr -> (Int, Expr)
+normalizeLamsFromTo :: Int -> Expr s -> (Int, Expr s)
 normalizeLamsFromTo i   = go
   where
     go (ELam (y, sy) e) = (i + 1, shiftLam i y sy e') where (i, e') = go e
@@ -161,28 +161,28 @@ normalizeLamsFromTo i   = go
 --------------------------------------------------------------------------------
 -- | Beta Equivalence ----------------------------------------------------------
 --------------------------------------------------------------------------------
-makeBetaAxioms :: Expr -> [Expr]
+makeBetaAxioms :: Expr s -> [Expr s]
 makeBetaAxioms e = makeEqForAll (normalizeLams e) (normalize e)
   -- where
   --  e             = trace ("BETA-NL e = " ++ showpp e0) e0
 
-makeEq :: Expr -> Expr -> Expr
+makeEq :: Expr s -> Expr s -> Expr s
 makeEq e1 e2
   | e1 == e2  = PTrue
   | otherwise = EEq e1 e2
 
-makeEqForAll :: Expr -> Expr -> [Expr]
+makeEqForAll :: Expr s -> Expr s -> [Expr s]
 makeEqForAll e1 e2 = [ makeEq (closeLam su e1') (closeLam su e2') | su <- instantiate xs]
   where
     (xs1, e1')     = splitPAll [] e1
     (xs2, e2')     = splitPAll [] e2
     xs             = L.nub (xs1 ++ xs2)
 
-closeLam :: [(FixSymbol, (FixSymbol, Sort))] -> Expr -> Expr
+closeLam :: [(FixSymbol, (FixSymbol, Sort))] -> Expr s -> Expr s
 closeLam ((x,(y,s)):su) e = ELam (y,s) (subst1 (closeLam su e) (x, EVar y))
 closeLam []             e = e
 
-splitPAll :: [(FixSymbol, Sort)] -> Expr -> ([(FixSymbol, Sort)], Expr)
+splitPAll :: [(FixSymbol, Sort)] -> Expr s -> ([(FixSymbol, Sort)], Expr s)
 splitPAll acc (PAll xs e) = splitPAll (acc ++ xs) e
 splitPAll acc e           = (acc, e)
 
@@ -251,7 +251,7 @@ instance Defunc (FixSymbol, Sort) where
 instance Defunc Reft where
   defunc (Reft (x, e)) = Reft . (x,) <$> defunc e
 
-instance Defunc Expr where
+instance Defunc (Expr s) where
   defunc = txExpr
 
 instance Defunc a => Defunc (SEnv a) where
@@ -271,7 +271,7 @@ instance Defunc BindEnv   where
     matchSort (x, RR s r) = ((x,) . (`RR` r)) <$> defunc s
 
 -- Sort defunctionalization [should be done by elaboration]
-instance Defunc Sort where
+instance Defunc (Sort s) where
   defunc = return
 
 instance Defunc a => Defunc [a] where
@@ -325,17 +325,17 @@ makeInitDFState cfg si
 --------------------------------------------------------------------------------
 -- | Low level monad manipulation ----------------------------------------------
 --------------------------------------------------------------------------------
-freshSym :: Sort -> DF FixSymbol
+freshSym :: Sort s -> DF FixSymbol
 freshSym t = do
   n    <- gets dfFresh
   let x = intSymbol "lambda_fun_" n
   modify $ \s -> s {dfFresh = n + 1, dfBinds = insertSEnv x t (dfBinds s)}
   return x
 
-logLam :: Expr -> DF Expr
+logLam :: Expr s -> DF (Expr s)
 logLam e = whenM (gets dfAEq) (putLam e) >> return e
 
-logRedex :: Expr -> DF Expr
+logRedex :: Expr s -> DF (Expr s)
 logRedex e = do
   whenM (gets dfBEq) $
     when ({- tracepp ("isRedex:" ++ showpp e) $ -} isRedex e)
@@ -344,17 +344,17 @@ logRedex e = do
 
   -- (putRedex (tracepp "isRedex" e)) >> return e
 
-putLam :: Expr -> DF ()
+putLam :: Expr s -> DF ()
 putLam e@(ELam {}) = modify $ \s -> s { dfLams = e : dfLams s}
 putLam _           = return ()
 
-isRedex :: Expr -> Bool
+isRedex :: Expr s -> Bool
 isRedex (EApp f _)
   | ELam _ _ <- stripCasts f = True
 isRedex _                    = False
 
 
--- putRedex :: Expr -> DF ()
+-- putRedex :: Expr s -> DF ()
 -- putRedex e@(EApp f _) = case stripCasts f of
                           -- ELam _ _ -> modify $ \s -> s { dfRedex = (tracepp "putRedex" e) : dfRedex s }
                           -- e'       -> return  $ tracepp ("SKIP-Redex" ++ showpp e') ()
@@ -376,9 +376,9 @@ getClosedField fld = do
   es  <- gets fld
   return (closeLams env <$> es)
 
-closeLams :: SEnv Sort -> Expr -> Expr
+closeLams :: SEnv (Sort s) -> Expr s -> Expr s
 closeLams env e = PAll (freeBinds env e) e
 
-freeBinds :: SEnv Sort -> Expr -> [(FixSymbol, Sort)]
+freeBinds :: SEnv (Sort s) -> Expr s -> [(FixSymbol, Sort)]
 freeBinds env e = [ (y, t) | y <- sortNub (syms e)
                            , t <- maybeToList (lookupSEnv y env) ]

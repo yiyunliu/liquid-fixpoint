@@ -103,7 +103,7 @@ newTopBind x sr fi = (i', fi {bs = be'})
 
 --------------------------------------------------------------
 
-isValidInRefinements :: Sort -> Bool
+isValidInRefinements :: Sort s -> Bool
 isValidInRefinements FInt        = True
 isValidInRefinements FReal       = True
 isValidInRefinements FNum        = False

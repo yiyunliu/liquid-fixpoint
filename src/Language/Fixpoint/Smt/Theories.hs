@@ -109,7 +109,7 @@ z3strlen    = "str.len"
 z3strsubstr = "str.substr"
 z3strconcat = "str.++"
 
-strLenSort, substrSort, concatstrSort :: Sort
+strLenSort, substrSort, concatstrSort :: Sort s
 strLenSort    = FFunc strSort intSort
 substrSort    = mkFFunc 0 [strSort, intSort, intSort, strSort]
 concatstrSort = mkFFunc 0 [strSort, strSort, strSort]
@@ -257,9 +257,9 @@ smt2SmtSort (SData c ts) = build "({} {})" (symbolBuilder c        , smt2SmtSort
 smt2SmtSorts :: [SmtSort] -> Builder.Builder
 smt2SmtSorts = buildMany . fmap smt2SmtSort
 
-type VarAs = SymEnv -> FixSymbol -> Sort -> Builder.Builder
+type VarAs = SymEnv -> FixSymbol -> Sort s -> Builder.Builder
 --------------------------------------------------------------------------------
-smt2App :: VarAs -> SymEnv -> Expr -> [Builder.Builder] -> Maybe Builder.Builder
+smt2App :: VarAs -> SymEnv -> Expr s -> [Builder.Builder] -> Maybe Builder.Builder
 --------------------------------------------------------------------------------
 smt2App _ _ (ECst (EVar f) _) [d]
   | f == setEmpty = Just $ build "{}"             (Only emp)
@@ -272,7 +272,7 @@ smt2App k env f (d:ds)
 
 smt2App _ _ _ _    = Nothing
 
-smt2AppArg :: VarAs -> SymEnv -> Expr -> Maybe Builder.Builder
+smt2AppArg :: VarAs -> SymEnv -> Expr s -> Maybe Builder.Builder
 smt2AppArg k env (ECst (EVar f) t)
   | Just fThy <- symEnvTheory f env
   = Just $ if isPolyCtor fThy t
@@ -282,14 +282,14 @@ smt2AppArg k env (ECst (EVar f) t)
 smt2AppArg _ _ _
   = Nothing
 
-isPolyCtor :: TheorySymbol -> Sort -> Bool
+isPolyCtor :: TheorySymbol -> Sort s -> Bool
 isPolyCtor fThy t = isPolyInst (tsSort fThy) t && tsInterp fThy == Ctor
 
-ffuncOut :: Sort -> Sort
+ffuncOut :: Sort s -> Sort s
 ffuncOut t = maybe t (last . snd) (bkFFunc t)
 
 --------------------------------------------------------------------------------
-isSmt2App :: SEnv TheorySymbol -> Expr -> Maybe Int
+isSmt2App :: SEnv TheorySymbol -> Expr s -> Maybe Int
 --------------------------------------------------------------------------------
 isSmt2App g  (EVar f)
   | f == setEmpty = Just 1
@@ -303,7 +303,7 @@ thyAppInfo ti = case tsInterp ti of
   Field -> Just 1
   _     -> sortAppInfo (tsSort ti)
 
-sortAppInfo :: Sort -> Maybe Int
+sortAppInfo :: Sort s -> Maybe Int
 sortAppInfo t = case bkFFunc t of
   Just (_, ts) -> Just (length ts - 1)
   Nothing      -> Nothing
@@ -371,7 +371,7 @@ interpSymbols =
     bvBopSort  = FFunc bitVecSort $ FFunc bitVecSort bitVecSort
 
 
-interpSym :: FixSymbol -> Raw -> Sort -> (FixSymbol, TheorySymbol)
+interpSym :: FixSymbol -> Raw -> Sort s -> (FixSymbol, TheorySymbol)
 interpSym x n t = (x, Thy x n t Theory)
 
 maxLamArg :: Int
@@ -392,13 +392,13 @@ dataDeclSymbols d = ctorSymbols d ++ testSymbols d ++ selectSymbols d
 -- | 'selfSort d' returns the _self-sort_ of 'd' :: 'DataDecl'.
 --   See [NOTE:DataDecl] for details.
 
-selfSort :: DataDecl -> Sort
+selfSort :: DataDecl -> Sort s
 selfSort (DDecl c n _) = fAppTC c (FVar <$> [0..(n-1)])
 
 -- | 'fldSort d t' returns the _real-sort_ of 'd' if 't' is the _self-sort_
 --   and otherwise returns 't'. See [NOTE:DataDecl] for details.
 
-fldSort :: DataDecl -> Sort -> Sort
+fldSort :: DataDecl -> Sort s -> Sort s
 fldSort d (FTC c)
   | c == ddTyCon d = selfSort d
 fldSort _ s        = s
@@ -423,7 +423,7 @@ testSymbols d = testTheory t . symbol <$> ddCtors d
   where
     t         = mkFFunc (ddVars d) [selfSort d, boolSort]
 
-testTheory :: Sort -> FixSymbol -> (FixSymbol, TheorySymbol)
+testTheory :: Sort s -> FixSymbol -> (FixSymbol, TheorySymbol)
 testTheory t x = (sx, Thy sx raw t Test)
   where
     sx         = testSymbol x

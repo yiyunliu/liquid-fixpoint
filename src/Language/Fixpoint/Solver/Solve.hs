@@ -105,7 +105,7 @@ tidyResult r = r { F.resSolution = tidySolution (F.resSolution r) }
 tidySolution :: F.FixSolution -> F.FixSolution
 tidySolution = fmap tidyPred
 
-tidyPred :: F.Expr -> F.Expr
+tidyPred :: F.Expr s -> F.Expr s
 tidyPred = F.substf (F.eVar . F.tidySymbol)
 
 --------------------------------------------------------------------------------
@@ -152,7 +152,7 @@ rhsCands s c    = (fst <$> ks, kqs)
     cnd k su    = Sol.qbPreds msg s su (Sol.lookupQBind s k)
     msg         = "rhsCands: " ++ show (F.sid c)
 
-predKs :: F.Expr -> [(F.KVar, F.Subst)]
+predKs :: F.Expr s -> [(F.KVar, F.Subst)]
 predKs (F.PAnd ps)    = concatMap predKs ps
 predKs (F.PKVar k su) = [(k, su)]
 predKs _              = []
@@ -197,14 +197,14 @@ isChecked cfg cs = case checkCstr cfg of
 --   is implied by /\_{q' in qs \ qs}
 --   see: tests/pos/min00.fq for an example.
 --------------------------------------------------------------------------------
-minimizeResult :: Config -> M.HashMap F.KVar F.Expr
+minimizeResult :: Config -> M.HashMap F.KVar (F.Expr s)
                -> SolveM (M.HashMap F.KVar F.Expr)
 --------------------------------------------------------------------------------
 minimizeResult cfg s
   | minimalSol cfg = mapM minimizeConjuncts s
   | otherwise      = return s
 
-minimizeConjuncts :: F.Expr -> SolveM F.Expr
+minimizeConjuncts :: F.Expr s -> SolveM (F.Expr s)
 minimizeConjuncts p = F.pAnd <$> go (F.conjuncts p) []
   where
     go []     acc   = return acc
@@ -234,14 +234,14 @@ showUnsat u i lP rP = {- when u $ -} do
 --------------------------------------------------------------------------------
 -- | Predicate corresponding to RHS of constraint in current solution
 --------------------------------------------------------------------------------
-rhsPred :: F.SimpC a -> F.Expr
+rhsPred :: F.SimpC a -> F.Expr s
 --------------------------------------------------------------------------------
 rhsPred c
   | isTarget c = F.crhs c
   | otherwise  = errorstar $ "rhsPred on non-target: " ++ show (F.sid c)
 
 --------------------------------------------------------------------------------
-isValid :: F.SrcSpan -> F.Expr -> F.Expr -> SolveM Bool
+isValid :: F.SrcSpan -> F.Expr s -> F.Expr s -> SolveM Bool
 --------------------------------------------------------------------------------
 isValid sp p q = (not . null) <$> filterValid sp p [(q, ())]
 
