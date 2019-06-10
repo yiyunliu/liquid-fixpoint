@@ -191,7 +191,7 @@ isChecked cfg cs = case checkCstr cfg of
 -- | `minimizeResult` transforms each KVar's result by removing
 --   conjuncts that are implied by others. That is,
 --
---      minimizeConjuncts :: ps:[Pred] -> {qs:[Pred] | subset qs ps}
+--      minimizeConjuncts :: ps:[Pred s] -> {qs:[Pred s] | subset qs ps}
 --
 --   such that `minimizeConjuncts ps` is a minimal subset of ps where no
 --   is implied by /\_{q' in qs \ qs}
@@ -225,7 +225,7 @@ isUnsat s c = do
   lift   $ whenLoud $ showUnsat res (F.subcId c) lp rp
   return res
 
-showUnsat :: Bool -> Integer -> F.Pred -> F.Pred -> IO ()
+showUnsat :: Bool -> Integer -> F.Pred s -> F.Pred s -> IO ()
 showUnsat u i lP rP = {- when u $ -} do
   putStrLn $ printf   "UNSAT id %s %s" (show i) (show u)
   putStrLn $ showpp $ "LHS:" <+> pprint lP

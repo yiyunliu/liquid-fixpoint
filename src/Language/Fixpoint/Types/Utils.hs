@@ -44,7 +44,7 @@ reftFreeVars r@(Reft (v, _)) = S.delete v $ S.fromList $ syms r
 --------------------------------------------------------------------------------
 -- | Split a SortedReft into its concrete and KVar components
 --------------------------------------------------------------------------------
-sortedReftConcKVars :: FixSymbol -> SortedReft -> ([Pred], [KVSub], [KVSub])
+sortedReftConcKVars :: FixSymbol -> SortedReft s -> ([Pred s], [KVSub s], [KVSub s])
 sortedReftConcKVars x sr = go [] [] [] ves
   where
     ves                  = [(v, p `subst1` (v, eVar x)) | Reft (v, p) <- rs ]

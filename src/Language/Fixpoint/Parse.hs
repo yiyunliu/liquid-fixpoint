@@ -344,7 +344,7 @@ symbolP :: Parser FixSymbol
 symbolP = symbol <$> symCharsP
 
 -- | (Integer) Constants
-constantP :: Parser Constant
+constantP :: Parser (Constant s)
 constantP =  try (R <$> double)
          <|> I <$> integer
 
@@ -536,7 +536,7 @@ varSortP  = FVar  <$> parens intP
 funcSortP :: Parser (Sort s)
 funcSortP = parens $ mkFFunc <$> intP <* comma <*> sortsP
 
-sortsP :: Parser [Sort]
+sortsP :: Parser [Sort s]
 sortsP = brackets $ sepBy sortP semi
 
 -- | Sort
@@ -1017,7 +1017,7 @@ class Inputable a where
 instance Inputable FixSymbol where
   rr' = doParse' symbolP
 
-instance Inputable Constant where
+instance Inputable (Constant s) where
   rr' = doParse' constantP
 
 instance Inputable (Expr s) where
@@ -1096,7 +1096,7 @@ s20 = "forall a . x:Int -> Bool"
 
 s21 = "x:{v : GHC.Prim.Int# | true } -> {v : Int | true }"
 
-r0  = (rr s0) :: Pred
+r0  = (rr s0) :: Pred s
 r0' = (rr s0) :: [Refa]
 r1  = (rr s1) :: [Refa]
 

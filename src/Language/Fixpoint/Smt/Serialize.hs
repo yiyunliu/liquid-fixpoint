@@ -23,7 +23,7 @@ import           Data.Text.Format
 import           Language.Fixpoint.Misc (sortNub, errorstar)
 -- import Debug.Trace (trace)
 
-instance SMTLIB2 (FixSymbol, Sort) where
+instance SMTLIB2 (FixSymbol, Sort s) where
   smt2 env c@(sym, t) = build "({} {})" (smt2 env sym, smt2SortMono c env t)
 
 smt2SortMono, smt2SortPoly :: (PPrint a) => a -> SymEnv -> Sort s -> Builder.Builder
@@ -119,7 +119,7 @@ instance SMTLIB2 (LocSymbol s) where
 instance SMTLIB2 SymConst where
   smt2 env = smt2 env . symbol
 
-instance SMTLIB2 Constant where
+instance SMTLIB2 (Constant s) where
   smt2 _ (I n)   = build "{}" (Only n)
   smt2 _ (R d)   = build "{}" (Only d)
   smt2 _ (L t _) = build "{}" (Only t)
@@ -193,7 +193,7 @@ smtLamArg env x t = symbolBuilder $ symbolAtName x env () (FFunc t FInt)
 smt2VarAs :: SymEnv -> FixSymbol -> Sort s -> Builder.Builder
 smt2VarAs env x t = build "(as {} {})" (smt2 env x, smt2SortMono x env t)
 
-smt2Lam :: SymEnv -> (FixSymbol, Sort) -> Expr s -> Builder.Builder
+smt2Lam :: SymEnv -> (FixSymbol, Sort s) -> Expr s -> Builder.Builder
 smt2Lam env (x, xT) (ECst e eT) = build "({} {} {})" (smt2 env lambda, x', smt2 env e)
   where
     x'                          = smtLamArg env x xT

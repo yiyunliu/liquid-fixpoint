@@ -384,7 +384,7 @@ mapSort f = step
 foldDataDecl :: (a -> Sort s -> a) -> a -> (DataDecl s) s -> a
 foldDataDecl f acc = L.foldl' f acc . dataDeclSorts
 
-dataDeclSorts :: DataDecl s -> [Sort]
+dataDeclSorts :: DataDecl s -> [Sort s]
 dataDeclSorts = concatMap dataCtorSorts . ddCtors
 
 dataCtorSorts :: DataCtor s -> [Sort s]
@@ -393,7 +393,7 @@ dataCtorSorts = map dfSort . dcFields
 -- | String Constants -----------------------------------------
 ---------------------------------------------------------------
 
--- symConstLits    :: FInfo a -> [(FixSymbol, Sort)]
+-- symConstLits    :: FInfo a -> [(FixSymbol, Sort s)]
 -- symConstLits fi = [(symbol c, strSort) | c <- symConsts fi]
 
 class SymConsts a where

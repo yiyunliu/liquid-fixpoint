@@ -263,7 +263,7 @@ instance Arbitrary (FTycon s) where
     t <- arbitrary
     return $ symbolFTycon $ dummyLoc $ symbol $ cons c t
 
-instance Arbitrary Constant where
+instance Arbitrary (Constant s) where
   arbitrary = oneof [fmap I (arbitrary `suchThat` (>=0))
                     -- ,fmap R arbitrary
                     ]

@@ -140,7 +140,7 @@ _evalCands _ _  []    = return []
 _evalCands γ s0 cands = do eqs <- mapM (evalOne γ s0) cands
                            return $ mkUnfolds (zip (Just <$> cands) eqs)
 
-unfoldPred :: Config -> SMT.Context -> [Unfold] -> Pred 
+unfoldPred :: Config -> SMT.Context -> [Unfold] -> Pred s 
 unfoldPred cfg ctx = toSMT cfg ctx [] . pAnd . concatMap snd  
 
 evalCandsLoop :: Config -> SMT.Context -> Knowledge -> EvalEnv -> [Expr] -> IO [Unfold] 
@@ -186,7 +186,7 @@ data InstEnv a = InstEnv
 
 -- | @ICtx@ is the local information -- at each trie node -- obtained by incremental PLE
 data ICtx    = ICtx 
-  { icAssms  :: ![Pred]          -- ^ Hypotheses, already converted to SMT format 
+  { icAssms  :: ![Pred s]          -- ^ Hypotheses, already converted to SMT format 
   , icCands  :: S.HashSet (Expr s)   -- ^ "Candidates" for unfolding
   , icEquals :: ![Expr]          -- ^ "Known" equalities
   , icSolved :: S.HashSet (Expr s)   -- ^ Terms that we have already expanded
@@ -352,7 +352,7 @@ evaluate cfg ctx aenv facts es sid = do
 
 
  
-_evalLoop :: Config -> SMT.Context -> Knowledge -> EvalEnv -> [Pred] -> [Expr] -> IO [(Expr, Expr)]
+_evalLoop :: Config -> SMT.Context -> Knowledge -> EvalEnv -> [Pred s] -> [Expr] -> IO [(Expr, Expr)]
 _evalLoop cfg ctx γ s0 ctxEqs cands = loop 0 [] cands 
   where 
     loop _ acc []    = return acc
@@ -672,8 +672,8 @@ data Knowledge = KN
   { knSims    :: ![Rewrite]           -- ^ Measure info, asserted for each new Ctor ('assertSelectors')
   , knAms     :: ![Equation]          -- ^ (Recursive) function definitions, used for PLE
   , knContext :: SMT.Context
-  , knPreds   :: SMT.Context -> [(FixSymbol, Sort)] -> Expr s -> IO Bool
-  , knLams    :: [(FixSymbol, Sort)]
+  , knPreds   :: SMT.Context -> [(FixSymbol, Sort s)] -> Expr s -> IO Bool
+  , knLams    :: [(FixSymbol, Sort s)]
   }
 
 isValid :: Knowledge -> Expr s -> IO Bool
@@ -706,7 +706,7 @@ initEqualities ctx aenv es = concatMap (makeSimplifications (aenvSimpl aenv)) dc
 -- totality-effecting one.
 -- RJ: What does "totality effecting" mean? 
 
-askSMT :: Config -> SMT.Context -> [(FixSymbol, Sort)] -> Expr s -> IO Bool
+askSMT :: Config -> SMT.Context -> [(FixSymbol, Sort s)] -> Expr s -> IO Bool
 askSMT cfg ctx bs e
   | isTautoPred  e     = return True
   | null (Vis.kvars e) = SMT.checkValidWithContext ctx [] PTrue e'
@@ -714,7 +714,7 @@ askSMT cfg ctx bs e
   where 
     e'                 = toSMT cfg ctx bs e 
 
-toSMT :: Config -> SMT.Context -> [(FixSymbol, Sort)] -> Expr s -> Pred
+toSMT :: Config -> SMT.Context -> [(FixSymbol, Sort s)] -> Expr s -> Pred s
 toSMT cfg ctx bs = defuncAny cfg senv . elaborate "makeKnowledge" (elabEnv bs)
   where
     elabEnv      = insertsSymEnv senv -- L.foldl' (\env (x, s) -> insertSymEnv x s env) senv

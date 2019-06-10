@@ -117,11 +117,11 @@ import qualified Data.HashSet              as S
 type Tag           = [Int]
 
 data WfC a  =  WfC  { wenv  :: !IBindEnv
-                    , wrft  :: (FixSymbol, Sort, KVar)
+                    , wrft  :: (FixSymbol, Sort s, KVar)
                     , winfo :: !a
                     }
              | GWfC { wenv  :: !IBindEnv
-                    , wrft  :: !(FixSymbol, Sort, KVar)
+                    , wrft  :: !(FixSymbol, Sort s, KVar)
                     , winfo :: !a
                     , wexpr :: !(Expr s)
                     , wloc  :: !GradInfo
@@ -522,13 +522,13 @@ qualifier lEnv l γ v so p   = mkQ "Auto" ((v, so) : xts) p l
     xs  = L.delete v $ L.nub $ syms p
     xts = catMaybes $ zipWith (envSort l lEnv γ) xs [0..]
 
-mkQ :: FixSymbol -> [(FixSymbol, Sort)] -> Expr s -> SourcePos -> Qualifier 
+mkQ :: FixSymbol -> [(FixSymbol, Sort s)] -> Expr s -> SourcePos -> Qualifier 
 mkQ n = Q n . qualParams
 
-qualParams :: [(FixSymbol, Sort)] -> [QualParam]
+qualParams :: [(FixSymbol, Sort s)] -> [QualParam]
 qualParams xts = [ QP x PatNone t | (x, t) <- xts]
 
-qualBinds   :: Qualifier -> [(FixSymbol, Sort)]
+qualBinds   :: Qualifier -> [(FixSymbol, Sort s)]
 qualBinds q = [ (qpSym qp, qpSort qp) | qp <- qParams q ]
 
 envSort :: SourcePos -> SEnv (Sort s) -> SEnv (Sort s) -> FixSymbol -> Integer -> Maybe (FixSymbol, Sort s)
@@ -550,7 +550,7 @@ mkQual n qps p = Q n qps' p
     qps'       = zipWith (\qp t' -> qp { qpSort = t'}) qps ts'
     ts'        = gSorts (qpSort <$> qps) 
 
-gSorts :: [Sort] -> [Sort]
+gSorts :: [Sort s] -> [Sort s]
 gSorts ts = substVars su <$> ts 
   where
     su    = (`zip` [0..]) . sortNub . concatMap sortVars $ ts
@@ -674,8 +674,8 @@ data GInfo c a = FI
   , ws       :: !(M.HashMap KVar (WfC a))  -- ^ Kvar  |-> WfC defining its scope/args
   , bs       :: !BindEnv                   -- ^ Bind  |-> (FixSymbol, SortedReft)
   , ebinds   :: ![BindId]                  -- ^ Subset of existential binders
-  , gLits    :: !(SEnv Sort)               -- ^ Global Constant symbols
-  , dLits    :: !(SEnv Sort)               -- ^ Distinct Constant symbols
+  , gLits    :: !(SEnv (Sort s))               -- ^ Global Constant symbols
+  , dLits    :: !(SEnv (Sort s))               -- ^ Distinct Constant symbols
   , kuts     :: !Kuts                      -- ^ Set of KVars *not* to eliminate
   , quals    :: ![Qualifier]               -- ^ Abstract domain
   , bindInfo :: !(M.HashMap BindId a)      -- ^ Metadata about binders
@@ -880,7 +880,7 @@ instance PPrint AxiomEnv where
 
 data Equation = Equ
   { eqName :: !FixSymbol           -- ^ name of reflected function
-  , eqArgs :: [(FixSymbol, Sort)]  -- ^ names of parameters
+  , eqArgs :: [(FixSymbol, Sort s)]  -- ^ names of parameters
   , eqBody :: !(Expr s)             -- ^ definition of body
   , eqSort :: !(Sort s)             -- ^ sort of body
   , eqRec  :: !Bool             -- ^ is this a recursive definition

@@ -178,15 +178,15 @@ makeEqForAll e1 e2 = [ makeEq (closeLam su e1') (closeLam su e2') | su <- instan
     (xs2, e2')     = splitPAll [] e2
     xs             = L.nub (xs1 ++ xs2)
 
-closeLam :: [(FixSymbol, (FixSymbol, Sort))] -> Expr s -> Expr s
+closeLam :: [(FixSymbol, (FixSymbol, Sort s))] -> Expr s -> Expr s
 closeLam ((x,(y,s)):su) e = ELam (y,s) (subst1 (closeLam su e) (x, EVar y))
 closeLam []             e = e
 
-splitPAll :: [(FixSymbol, Sort)] -> Expr s -> ([(FixSymbol, Sort)], Expr s)
+splitPAll :: [(FixSymbol, Sort s)] -> Expr s -> ([(FixSymbol, Sort s)], Expr s)
 splitPAll acc (PAll xs e) = splitPAll (acc ++ xs) e
 splitPAll acc e           = (acc, e)
 
-instantiate     :: [(FixSymbol, Sort)] -> [[(FixSymbol, (FixSymbol, Sort))]]
+instantiate     :: [(FixSymbol, Sort s)] -> [[(FixSymbol, (FixSymbol, Sort s))]]
 instantiate      = choices . map inst1
   where
     inst1 (x, s) = [(x, (lamArgSymbol i, s)) | i <- [1..maxLamArg]]
@@ -245,7 +245,7 @@ instance Defunc SortedReft where
 instance Defunc (FixSymbol, SortedReft) where
   defunc (x, sr) = (x,) <$> defunc sr
 
-instance Defunc (FixSymbol, Sort) where
+instance Defunc (FixSymbol, Sort s) where
   defunc (x, t) = (x,) <$> defunc t
 
 instance Defunc Reft where
@@ -295,7 +295,7 @@ data DFST = DFST
   , dfLNorm :: !Bool
   , dfLams  :: ![Expr]      -- ^ lambda expressions appearing in the expressions
   , dfRedex :: ![Expr]      -- ^ redexes appearing in the expressions
-  , dfBinds :: !(SEnv Sort) -- ^ sorts of new lambda-binders
+  , dfBinds :: !(SEnv (Sort s)) -- ^ sorts of new lambda-binders
   }
 
 makeDFState :: Config -> SymEnv -> IBindEnv -> DFST
@@ -379,6 +379,6 @@ getClosedField fld = do
 closeLams :: SEnv (Sort s) -> Expr s -> Expr s
 closeLams env e = PAll (freeBinds env e) e
 
-freeBinds :: SEnv (Sort s) -> Expr s -> [(FixSymbol, Sort)]
+freeBinds :: SEnv (Sort s) -> Expr s -> [(FixSymbol, Sort s)]
 freeBinds env e = [ (y, t) | y <- sortNub (syms e)
                            , t <- maybeToList (lookupSEnv y env) ]

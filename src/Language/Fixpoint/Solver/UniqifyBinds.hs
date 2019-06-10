@@ -64,7 +64,7 @@ type IdMap = M.HashMap Ref (S.HashSet BindId)
 -- | A `RenameMap` maps an old name and sort to new name,
 --   represented by a hashmap containing association lists.
 --   `Nothing` as new name means the name is the same as the old.
-type RenameMap = M.HashMap FixSymbol [(Sort, Maybe FixSymbol)]
+type RenameMap = M.HashMap FixSymbol [(Sort s, Maybe FixSymbol)]
 
 --------------------------------------------------------------------------------
 mkIdMap :: SInfo a -> IdMap
@@ -125,7 +125,7 @@ updateRef rnMap fi rf bset = applySub (mkSubst subs) fi rf
     symTList = [second sr_sort $ lookupBindEnv i $ bs fi | i <- S.toList bset]
     subs     = catMaybes $ mkSubUsing rnMap <$> symTList
 
-mkSubUsing :: RenameMap -> (FixSymbol, Sort) -> Maybe (FixSymbol, Expr)
+mkSubUsing :: RenameMap -> (FixSymbol, Sort s) -> Maybe (FixSymbol, Expr)
 mkSubUsing m (sym, t) = do
   newName <- fromJust $ L.lookup t $ mlookup m sym
   return (sym, eVar newName)

@@ -116,19 +116,19 @@ runCommands cmds
        return zs
 -}
 
-checkValidWithContext :: Context -> [(FixSymbol, Sort)] -> Expr s -> Expr s -> IO Bool
+checkValidWithContext :: Context -> [(FixSymbol, Sort s)] -> Expr s -> Expr s -> IO Bool
 checkValidWithContext me xts p q =
   smtBracket me "checkValidWithContext" $
     checkValid' me xts p q
 
 -- | type ClosedPred E = {v:Pred | subset (vars v) (keys E) }
 -- checkValid :: e:Env -> ClosedPred e -> ClosedPred e -> IO Bool
-checkValid :: Config -> FilePath -> [(FixSymbol, Sort)] -> Expr s -> Expr s -> IO Bool
+checkValid :: Config -> FilePath -> [(FixSymbol, Sort s)] -> Expr s -> Expr s -> IO Bool
 checkValid cfg f xts p q = do
   me <- makeContext cfg f
   checkValid' me xts p q
 
-checkValid' :: Context -> [(FixSymbol, Sort)] -> Expr s -> Expr s -> IO Bool
+checkValid' :: Context -> [(FixSymbol, Sort s)] -> Expr s -> Expr s -> IO Bool
 checkValid' me xts p q = do
   smtDecls me xts
   smtAssert me $ pAnd [p, PNot q]
@@ -138,7 +138,7 @@ checkValid' me xts p q = do
 --   (e.g. if you want to make MANY repeated Queries)
 
 -- checkValid :: e:Env -> [ClosedPred e] -> IO [Bool]
-checkValids :: Config -> FilePath -> [(FixSymbol, Sort)] -> [Expr] -> IO [Bool]
+checkValids :: Config -> FilePath -> [(FixSymbol, Sort s)] -> [Expr] -> IO [Bool]
 checkValids cfg f xts ps
   = do me <- makeContext cfg f
        smtDecls me xts
@@ -343,7 +343,7 @@ smtPush, smtPop   :: Context -> IO ()
 smtPush me        = interact' me Push
 smtPop me         = interact' me Pop
 
-smtDecls :: Context -> [(FixSymbol, Sort)] -> IO ()
+smtDecls :: Context -> [(FixSymbol, Sort s)] -> IO ()
 smtDecls = mapM_ . uncurry . smtDecl
 
 smtDecl :: Context -> FixSymbol -> Sort s -> IO ()
@@ -499,7 +499,7 @@ symKind env x = case F.tsInterp <$> F.symEnvTheory x env of
 --   (of each sort) that are *disequal* to each other, e.g. EQ, LT, GT,
 --   or string literals "cat", "dog", "mouse". These should only include
 --   non-function sorted values.
-distinctLiterals :: [(F.FixSymbol, F.Sort)] -> [[F.Expr]]
+distinctLiterals :: [(F.FixSymbol, F.Sort s)] -> [[F.Expr]]
 distinctLiterals xts = [ es | (_, es) <- tess ]
    where
     tess             = Misc.groupList [(t, F.expr x) | (x, t) <- xts, notFun t]

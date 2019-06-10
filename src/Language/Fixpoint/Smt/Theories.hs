@@ -377,7 +377,7 @@ interpSym x n t = (x, Thy x n t Theory)
 maxLamArg :: Int
 maxLamArg = 7
 
-axiomLiterals :: [(FixSymbol, Sort)] -> [Expr]
+axiomLiterals :: [(FixSymbol, Sort s)] -> [Expr]
 axiomLiterals lts = catMaybes [ lenAxiom l <$> litLen l | (l, t) <- lts, isString t ]
   where
     lenAxiom l n  = EEq (EApp (expr (strLen :: FixSymbol)) (expr l)) (expr n `ECst` intSort)
@@ -438,10 +438,10 @@ selectSymbols :: DataDecl s -> [(FixSymbol, TheorySymbol)]
 selectSymbols d = theorify <$> concatMap (ctorSelectors d) (ddCtors d)
 
 -- | 'theorify' converts the 'Sort' into a full 'TheorySymbol'
-theorify :: (FixSymbol, Sort) -> (FixSymbol, TheorySymbol)
+theorify :: (FixSymbol, Sort s) -> (FixSymbol, TheorySymbol)
 theorify (x, t) = (x, Thy x (symbolRaw x) t Field)
 
-ctorSelectors :: DataDecl s -> DataCtor s -> [(FixSymbol, Sort)]
+ctorSelectors :: DataDecl s -> DataCtor s -> [(FixSymbol, Sort s)]
 ctorSelectors d ctor = fieldSelector d <$> dcFields ctor
 
 fieldSelector :: DataDecl s -> DataField s -> (FixSymbol, Sort s)

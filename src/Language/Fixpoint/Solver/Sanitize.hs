@@ -307,10 +307,10 @@ symbolEnv cfg si = F.symEnv sEnv tEnv ds (F.dLits si) (ts ++ ts')
     xts          = symbolSorts cfg si
 
 
-symbolSorts :: Config -> F.GInfo c a -> [(F.FixSymbol, F.Sort)]
+symbolSorts :: Config -> F.GInfo c a -> [(F.FixSymbol, F.Sort s)]
 symbolSorts cfg fi = either E.die id $ symbolSorts' cfg fi
 
-symbolSorts' :: Config -> F.GInfo c a -> SanitizeM [(F.FixSymbol, F.Sort)]
+symbolSorts' :: Config -> F.GInfo c a -> SanitizeM [(F.FixSymbol, F.Sort s)]
 symbolSorts' cfg fi  = (normalize . compact . (defs ++)) =<< bindSorts fi
   where
     normalize       = fmap (map (unShadow txFun dm))
@@ -330,7 +330,7 @@ defuncSort :: F.Sort s -> F.Sort s
 defuncSort (F.FFunc {}) = F.funcSort
 defuncSort t            = t
 
-compact :: [(F.FixSymbol, F.Sort)] -> Either E.Error [(F.FixSymbol, F.Sort)]
+compact :: [(F.FixSymbol, F.Sort s)] -> Either E.Error [(F.FixSymbol, F.Sort s)]
 compact xts
   | null bad  = Right [(x, t) | (x, [t]) <- ok ]
   | otherwise = Left $ dupBindErrors bad'
@@ -340,7 +340,7 @@ compact xts
     binds     = M.toList . M.map Misc.sortNub . Misc.group
 
 --------------------------------------------------------------------------------
-bindSorts  :: F.GInfo c a -> Either E.Error [(F.FixSymbol, F.Sort)]
+bindSorts  :: F.GInfo c a -> Either E.Error [(F.FixSymbol, F.Sort s)]
 --------------------------------------------------------------------------------
 bindSorts fi
   | null bad   = Right [ (x, t) | (x, [(t, _)]) <- ok ]
@@ -353,7 +353,7 @@ bindSorts fi
 multiSorted :: (x, [t]) -> Bool
 multiSorted = (1 <) . length . snd
 
-dupBindErrors :: [(F.FixSymbol, [(F.Sort, [F.BindId] )])] -> E.Error
+dupBindErrors :: [(F.FixSymbol, [(F.Sort s, [F.BindId] )])] -> E.Error
 dupBindErrors = foldr1 E.catError . map dbe
   where
    dbe (x, y) = E.err E.dummySpan $ vcat [ "Multiple sorts for" <+> pprint x
@@ -368,9 +368,9 @@ symBinds  = {- THIS KILLS ELEM: tracepp "symBinds" . -}
           . Misc.group
           . binders
 
-type SymBinds = (F.FixSymbol, [(F.Sort, [F.BindId])])
+type SymBinds = (F.FixSymbol, [(F.Sort s, [F.BindId])])
 
-binders :: F.BindEnv -> [(F.FixSymbol, (F.Sort, F.BindId))]
+binders :: F.BindEnv -> [(F.FixSymbol, (F.Sort s, F.BindId))]
 binders be = [(x, (F.sr_sort t, i)) | (i, x, t) <- F.bindEnvToList be]
 
 

@@ -145,7 +145,7 @@ skipElabExpr msg env e = case elabExprE msg env e of
   Left _   -> e 
   Right e' ->  elabNumeric . elabApply env $ e'
 
-instance Elaborate (FixSymbol, Sort) where
+instance Elaborate (FixSymbol, Sort s) where
   elaborate msg env (x, s) = (x, elaborate msg env s)
 
 instance Elaborate a => Elaborate [a]  where
@@ -418,7 +418,7 @@ addEnv f bs x
 --------------------------------------------------------------------------------
 -- | Elaborate expressions with types to make polymorphic instantiation explicit.
 --------------------------------------------------------------------------------
-elab :: ElabEnv -> Expr s -> CheckM (Expr s, Sort)
+elab :: ElabEnv -> Expr s -> CheckM (Expr s, Sort s)
 --------------------------------------------------------------------------------
 elab f@(_, g) e@(EBin o e1 e2) = do
   (e1', s1) <- elab f e1
@@ -568,7 +568,7 @@ elabAppAs env@(_, f) t g e = do
   e'       <- elabAs env te e
   return    $ EApp (ECst g' tg) (ECst e' te)
 
-elabEApp  :: ElabEnv -> Expr s -> Expr s -> CheckM (Expr s, Sort, Expr s, Sort, Sort)
+elabEApp  :: ElabEnv -> Expr s -> Expr s -> CheckM (Expr s, Sort s, Expr s, Sort s, Sort s)
 elabEApp f@(_, g) e1 e2 = do
   (e1', s1)     <- notracepp ("elabEApp1: e1 = " ++ showpp e1) <$> elab f e1
   (e2', s2)     <- elab f e2
@@ -586,7 +586,7 @@ elabAppSort f e1 e2 s1 s2 = do
 --------------------------------------------------------------------------------
 -- | defuncEApp monomorphizes function applications.
 --------------------------------------------------------------------------------
-defuncEApp :: SymEnv -> Expr s -> [(Expr s, Sort)] -> Expr s
+defuncEApp :: SymEnv -> Expr s -> [(Expr s, Sort s)] -> Expr s
 defuncEApp env e es = L.foldl' makeApplication e' es'
   where
     (e', es')       = takeArgs (seTheory env) e es
@@ -599,7 +599,7 @@ takeArgs env e es =
     Nothing -> (e, es)
 
 -- 'e1' is the function, 'e2' is the argument, 's' is the OUTPUT TYPE
-makeApplication :: Expr s -> (Expr s, Sort) -> Expr s
+makeApplication :: Expr s -> (Expr s, Sort s) -> Expr s
 makeApplication e1 (e2, s) = ECst (EApp (EApp f e1) e2) s
   where
     f                      = {- notracepp ("makeApplication: " ++ showpp (e2, t2)) $ -} applyAt t2 s
@@ -636,7 +636,7 @@ unApplyAt (ECst (EVar f) t@(FFunc {}))
 unApplyAt _        = Nothing
 
 
-splitArgs :: Expr s -> (Expr s, [(Expr s, Sort)])
+splitArgs :: Expr s -> (Expr s, [(Expr s, Sort s)])
 splitArgs = go []
   where
     go acc (ECst (EApp e1 e) s) = go ((e, s) : acc) e1
@@ -751,7 +751,7 @@ which, I imagine is what happens _somewhere_ inside GHC too?
 -}
 
 --------------------------------------------------------------------------------
-applySorts :: Vis.Visitable t => t -> [Sort]
+applySorts :: Vis.Visitable t => t -> [Sort s]
 --------------------------------------------------------------------------------
 applySorts = {- tracepp "applySorts" . -} (defs ++) . Vis.fold vis () []
   where
@@ -1189,7 +1189,7 @@ checkFunSort t             = throwErrorAt (errNonFunction 1 t)
 -- | API for manipulating Sort Substitutions -----------------------------------
 --------------------------------------------------------------------------------
 
-newtype TVSubst = Th (M.HashMap Int Sort) deriving (Show)
+newtype TVSubst s = Th (M.HashMap Int (Sort s)) deriving (Show)
 
 instance Semigroup TVSubst where
   (Th s1) <> (Th s2) = Th (s1 <> s2)
@@ -1228,7 +1228,7 @@ errUnifyExpr :: Maybe (Expr s) -> String
 errUnifyExpr Nothing  = ""
 errUnifyExpr (Just e) = "in expression: " ++ showpp e
 
-errUnifyMany :: [Sort] -> [Sort] -> String
+errUnifyMany :: [Sort s] -> [Sort s] -> String
 errUnifyMany ts ts'  = printf "Cannot unify types with different cardinalities %s and %s"
                          (showpp ts) (showpp ts')
 

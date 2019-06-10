@@ -121,9 +121,9 @@ import           Text.PrettyPrint.HughesPJ.Compat
 
 instance NFData KVar
 instance NFData SrcSpan
-instance NFData Subst
+instance NFData (Subst s)
 instance NFData GradInfo
-instance NFData Constant
+instance NFData s => NFData (Constant s)
 instance NFData SymConst
 instance NFData Brel
 instance NFData Bop
@@ -138,9 +138,9 @@ instance (Hashable k, Eq k, B.Binary k, B.Binary v) => B.Binary (M.HashMap k v) 
 instance (Eq a, Hashable a, B.Binary a) => B.Binary (TCEmb a s) 
 instance B.Binary SrcSpan
 instance B.Binary KVar
-instance B.Binary Subst
+instance B.Binary (Subst s)
 instance B.Binary GradInfo
-instance B.Binary Constant
+instance B.Binary s => B.Binary (Constant s)
 instance B.Binary SymConst
 instance B.Binary Brel
 instance B.Binary Bop
@@ -209,7 +209,7 @@ instance Hashable KVar
 instance Hashable Brel
 instance Hashable Bop
 instance Hashable SymConst
-instance Hashable Constant
+instance Hashable s => Hashable (Constant s)
 instance Hashable GradInfo 
 instance Hashable Subst 
 instance Hashable (Expr s)
@@ -217,7 +217,7 @@ instance Hashable (Expr s)
 --------------------------------------------------------------------------------
 -- | Substitutions -------------------------------------------------------------
 --------------------------------------------------------------------------------
-newtype Subst = Su (M.HashMap FixSymbol Expr)
+newtype Subst s = Su (M.HashMap FixSymbol (Expr s))
                 deriving (Eq, Data, Typeable, Generic)
 
 instance Show Subst where
@@ -231,14 +231,14 @@ instance Fixpoint Subst where
 instance PPrint Subst where
   pprintTidy _ = toFix
 
-data KVSub = KVS
+data KVSub s = KVS
   { ksuVV    :: FixSymbol
   , ksuSort  :: Sort s
   , ksuKVar  :: KVar
   , ksuSubst :: Subst
   } deriving (Eq, Data, Typeable, Generic, Show)
 
-instance PPrint KVSub where
+instance PPrint (KVSub s) where
   pprintTidy k ksu = pprintTidy k (ksuVV ksu, ksuKVar ksu, ksuSubst ksu)
 
 --------------------------------------------------------------------------------
@@ -250,10 +250,10 @@ instance PPrint KVSub where
 data SymConst = SL !Text
               deriving (Eq, Ord, Show, Data, Typeable, Generic)
 
-data Constant = I !Integer
-              | R !Double
-              | L !Text !(Sort s)
-              deriving (Eq, Ord, Show, Data, Typeable, Generic)
+data Constant s = I !Integer
+               | R !Double
+               | L !Text !(Sort s)
+               deriving (Eq, Ord, Show, Data, Typeable, Generic)
 
 data Brel = Eq | Ne | Gt | Ge | Lt | Le | Ueq | Une
             deriving (Eq, Ord, Show, Data, Typeable, Generic)
@@ -263,14 +263,14 @@ data Bop  = Plus | Minus | Times | Div | Mod | RTimes | RDiv
             -- NOTE: For "Mod" 2nd expr should be a constant or a var *)
 
 data Expr s = ESym !SymConst
-            | ECon !Constant
+            | ECon !(Constant s)
             | EVar !(Symbol s)
             | EApp !(Expr s) !(Expr s)
             | ENeg !(Expr s)
             | EBin !Bop !(Expr s) !(Expr s)
             | EIte !(Expr s) !(Expr s) !(Expr s)
             | ECst !(Expr s) !(Sort s)
-            | ELam !(Symbol s, Sort)   !(Expr s)
+            | ELam !(Symbol s, Sort s)   !(Expr s)
             | ETApp !(Expr s) !(Sort s)
             | ETAbs !(Expr s) !(Symbol s)
             | PAnd   ![(Expr s)]
@@ -279,10 +279,10 @@ data Expr s = ESym !SymConst
             | PImp   !(Expr s) !(Expr s)
             | PIff   !(Expr s) !(Expr s)
             | PAtom  !Brel  !(Expr s) !(Expr s)
-            | PKVar  !KVar !Subst
-            | PAll   ![(FixSymbol, Sort)] !(Expr s)
-            | PExist ![(FixSymbol, Sort)] !(Expr s)
-            | PGrad  !KVar !Subst !GradInfo !(Expr s)
+            | PKVar  !KVar !(Subst s)
+            | PAll   ![(FixSymbol, Sort s)] !(Expr s)
+            | PExist ![(FixSymbol, Sort s)] !(Expr s)
+            | PGrad  !KVar !(Subst s) !GradInfo !(Expr s)
             | ECoerc !(Sort s) !(Sort s) !(Expr s)  
             deriving (Eq, Show, Data, Typeable, Generic)
 
@@ -356,13 +356,13 @@ debruijnIndex = go
 newtype Reft = Reft (FixSymbol, Expr)
                deriving (Eq, Data, Typeable, Generic)
 
-data SortedReft = RR { sr_sort :: !Sort, sr_reft :: !Reft }
+data SortedReft s = RR { sr_sort :: !(Sort s), sr_reft :: !Reft }
                   deriving (Eq, Data, Typeable, Generic)
 
 elit :: Located FixSymbol -> Sort s -> Expr s
 elit l s = ECon $ L (symbolText $ val l) s
 
-instance Fixpoint Constant where
+instance Fixpoint s => Fixpoint (Constant s) where
   toFix (I i)   = toFix i
   toFix (R i)   = toFix i
   toFix (L s t) = parens $ text "lit" <+> text "\"" <-> toFix s <-> text "\"" <+> toFix t
@@ -614,7 +614,7 @@ instance PPrint (Expr s) where
   pprintPrec _ _ (ETAbs e s)     = "ETAbs" <+> toFix e <+> toFix s
   pprintPrec z k (PGrad x _ _ e) = pprintPrec z k e <+> "&&" <+> toFix x -- "??"
 
-pprintQuant :: Tidy -> Doc -> [(FixSymbol, Sort)] -> Expr s -> Doc
+pprintQuant :: Tidy -> Doc -> [(FixSymbol, Sort s)] -> Expr s -> Doc
 pprintQuant k d xts p = (d <+> toFix xts)
                         $+$
                         ("  ." <+> pprintTidy k p)
@@ -707,24 +707,24 @@ isSingletonExpr v (PIff e1 e2)
   | e2 == EVar v           = Just e1
 isSingletonExpr _ _        = Nothing
 
-pAnd, pOr     :: ListNE Pred -> Pred
+pAnd, pOr     :: ListNE (Pred s) -> Pred s
 pAnd          = simplify . PAnd
 pOr           = simplify . POr
 
-(&.&) :: Pred -> Pred -> Pred
+(&.&) :: Pred s -> Pred s -> Pred s
 (&.&) p q = pAnd [p, q]
 
-(|.|) :: Pred -> Pred -> Pred
+(|.|) :: Pred s -> Pred s -> Pred s
 (|.|) p q = pOr [p, q]
 
-pIte :: Pred -> Expr s -> Expr s -> Expr s
+pIte :: Pred s -> Expr s -> Expr s -> Expr s
 pIte p1 p2 p3 = pAnd [p1 `PImp` p2, (PNot p1) `PImp` p3]
 
-pExist :: [(FixSymbol, Sort)] -> Pred -> Pred
+pExist :: [(FixSymbol, Sort s)] -> Pred s -> Pred s
 pExist []  p = p
 pExist xts p = PExist xts p
 
-mkProp :: Expr s -> Pred
+mkProp :: Expr s -> Pred s
 mkProp = id -- EApp (EVar propConName)
 
 --------------------------------------------------------------------------------

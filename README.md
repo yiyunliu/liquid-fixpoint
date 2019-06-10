@@ -223,8 +223,8 @@ Similarly each `rhs` of a `SubC` must either be a single `$k[...]` or an plain `
 ### Global vs. Distinct Literals
 
 ```
-     , gLits    :: !(SEnv Sort)               -- ^ Global Constant symbols
-     , dLits    :: !(SEnv Sort)       
+     , gLits    :: !(SEnv (Sort s))               -- ^ Global Constant symbols
+     , dLits    :: !(SEnv (Sort s))       
 ```
 
 The _global_ literals `gLits` are symbols that

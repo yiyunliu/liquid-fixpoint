@@ -176,7 +176,7 @@ kvInfo be k       = (be', KVInfo k (fst <$> xts) wfc)
     -- make the parameters
     xts           = [ (hvarArg k i, t) | (t, i) <- zip (H.hvArgs k) [0..] ]
 
-insertBE :: F.BindEnv -> (F.FixSymbol, F.Sort) -> (F.BindEnv, F.BindId)
+insertBE :: F.BindEnv -> (F.FixSymbol, F.Sort s) -> (F.BindEnv, F.BindId)
 insertBE be (x, t) = Tuple.swap $ F.insertBindEnv x (F.trueSortedReft t) be
 
 ----------------------------------------------------------------------------------

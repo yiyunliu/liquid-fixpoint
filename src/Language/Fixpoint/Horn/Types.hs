@@ -45,7 +45,7 @@ import qualified Data.HashMap.Strict as M
 -------------------------------------------------------------------------------
 data Var a = HVar
   { hvName :: !F.FixSymbol                         -- ^ name of the variable $k1, $k2 etc.
-  , hvArgs :: ![F.Sort] {- len hvArgs > 0 -}    -- ^ sorts of its parameters i.e. of the relation defined by the @HVar@
+  , hvArgs :: ![F.Sort s] {- len hvArgs > 0 -}    -- ^ sorts of its parameters i.e. of the relation defined by the @HVar@
   , hvMeta :: a                                 -- ^ meta-data
   }
   deriving (Eq, Ord, Data, Typeable, Generic, Functor)
@@ -95,7 +95,7 @@ mkQual env v p = case envSort env <$> (v:xs) of
     xs         = L.delete v $ Misc.hashNub (F.syms p)
     junk       = F.dummyPos "mkQual" 
 
-envSort :: F.SEnv (F.Sort s) -> F.FixSymbol -> (F.FixSymbol, F.Sort)
+envSort :: F.SEnv (F.Sort s) -> F.FixSymbol -> (F.FixSymbol, F.Sort s)
 envSort env x = case F.lookupSEnv x env of
                    Just t -> (x, t) 
                    _      -> F.panic $ "unbound symbol in scrape: " ++ F.showpp x
@@ -151,8 +151,8 @@ data Query a = Query
   { qQuals :: ![F.Qualifier]                    -- ^ qualifiers over which to solve cstrs
   , qVars  :: ![Var a]                          -- ^ kvars, with parameter-sorts
   , qCstr  :: !(Cstr a)                         -- ^ list of constraints
-  , qCon   :: M.HashMap (F.FixSymbol) (F.Sort)     -- ^ list of constants (uninterpreted functions
-  , qDis   :: M.HashMap (F.FixSymbol) (F.Sort)     -- ^ list of constants (uninterpreted functions
+  , qCon   :: M.HashMap (F.FixSymbol) (F.Sort s)     -- ^ list of constants (uninterpreted functions
+  , qDis   :: M.HashMap (F.FixSymbol) (F.Sort s)     -- ^ list of constants (uninterpreted functions
   }
   deriving (Data, Typeable, Generic, Functor)
 

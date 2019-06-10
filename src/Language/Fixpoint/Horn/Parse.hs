@@ -89,7 +89,7 @@ hQualifierP = do
   body   <- parens predP
   return  $ F.mkQual n (mkParam <$> params) body pos
 
-mkParam :: (F.FixSymbol, F.Sort) -> F.QualParam 
+mkParam :: (F.FixSymbol, F.Sort s) -> F.QualParam 
 mkParam (x, t) = F.QP x F.PatNone t
 
 -------------------------------------------------------------------------------
@@ -103,7 +103,7 @@ hVarP = H.HVar <$> kvSymP <*> parens (many1 (parens sortP)) <*> pure ()
 -- | Helpers 
 -------------------------------------------------------------------------------
 
-symSortP :: Parser (F.FixSymbol, F.Sort)
+symSortP :: Parser (F.FixSymbol, F.Sort s)
 symSortP = parens ((,) <$> symbolP <*> sortP)
 
 

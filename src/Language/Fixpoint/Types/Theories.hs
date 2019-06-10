@@ -60,10 +60,10 @@ type Raw          = LT.Text
 -- | 'SymEnv' is used to resolve the 'Sort' and 'Sem' of each 'FixSymbol'
 --------------------------------------------------------------------------------
 data SymEnv = SymEnv
-  { seSort    :: !(SEnv Sort)              -- ^ Sorts of *all* defined symbols
+  { seSort    :: !(SEnv (Sort s))              -- ^ Sorts of *all* defined symbols
   , seTheory  :: !(SEnv TheorySymbol)      -- ^ Information about theory-specific Symbols
   , seData    :: !(SEnv (DataDecl s))          -- ^ User-defined data-declarations
-  , seLits    :: !(SEnv Sort)              -- ^ Distinct Constant symbols
+  , seLits    :: !(SEnv (Sort s))              -- ^ Distinct Constant symbols
   , seAppls   :: !(M.HashMap FuncSort Int) -- ^ Types at which `apply` was used;
                                            --   see [NOTE:apply-monomorphization]
   }
@@ -126,7 +126,7 @@ wiredInEnv = M.fromList [(toIntName, mkFFunc 1 [FVar 0, FInt])]
 --   such a strategy would NUKE the entire apply-sort machinery from the CODE base.
 --   [TODO]: dynamic-apply-declaration
 
-funcSorts :: SEnv (DataDecl s) -> [Sort] -> [FuncSort]
+funcSorts :: SEnv (DataDecl s) -> [Sort s] -> [FuncSort]
 funcSorts dEnv ts = [ (t1, t2) | t1 <- smts, t2 <- smts]
   where
     smts         = Misc.sortNub $ concat [ [tx t1, tx t2] | FFunc t1 t2 <- ts]
@@ -142,7 +142,7 @@ symEnvSort   x env = lookupSEnv x (seSort env)
 insertSymEnv :: FixSymbol -> Sort s -> SymEnv -> SymEnv
 insertSymEnv x t env = env { seSort = insertSEnv x t (seSort env) }
 
-insertsSymEnv :: SymEnv -> [(FixSymbol, Sort)] -> SymEnv
+insertsSymEnv :: SymEnv -> [(FixSymbol, Sort s)] -> SymEnv
 insertsSymEnv = L.foldl' (\env (x, s) -> insertSymEnv x s env) 
 
 symbolAtName :: (PPrint a) => FixSymbol -> SymEnv -> a -> Sort s -> FixSymbol

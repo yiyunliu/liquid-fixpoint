@@ -249,7 +249,7 @@ instance F.Subable Pred where
    ((πb b)))))
 -}
 
-ebs :: Cstr a -> [(F.FixSymbol, F.Sort)]
+ebs :: Cstr a -> [(F.FixSymbol, F.Sort s)]
 ebs (Head _ _) = []
 ebs (CAnd cs) = ebs =<< cs
 ebs (All _ c) = ebs c

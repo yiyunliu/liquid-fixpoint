@@ -127,7 +127,7 @@ update1 s (k, qs) = (change, updateK k qs s)
 -- | The `Solution` data type --------------------------------------------------
 --------------------------------------------------------------------------------
 type Solution  = Sol () QBind
-type GSolution = Sol (((FixSymbol, Sort), Expr), GBind) QBind
+type GSolution = Sol (((FixSymbol, Sort s), Expr), GBind) QBind
 newtype QBind  = QB [EQual]   deriving (Show, Data, Typeable, Generic, Eq)
 newtype GBind  = GB [[EQual]] deriving (Show, Data, Typeable, Generic)
 
@@ -193,7 +193,7 @@ instance PPrint EbindSol where
   pprintTidy _ (EbIncr)    = "EbIncr"
 
 --------------------------------------------------------------------------------
-updateEbind :: Sol a b -> BindId -> Pred -> Sol a b 
+updateEbind :: Sol a b -> BindId -> Pred s -> Sol a b 
 --------------------------------------------------------------------------------
 updateEbind s i !e = case M.lookup i (sEbd s) of 
   Nothing         -> errorstar $ "updateEBind: Unknown ebind " ++ show i
@@ -211,7 +211,7 @@ data Sol b a = Sol
   , sHyp :: !(M.HashMap KVar Hyp)        -- ^ Defining cubes  (for non-cut kvar)
   , sScp :: !(M.HashMap KVar IBindEnv)   -- ^ Set of allowed binders for kvar
   , sEbd :: !(M.HashMap BindId EbindSol) -- ^ EbindSol for each existential binder
-  , sxEnv :: !(SEnv (BindId, Sort))      --   TODO: merge with sEnv? used for sorts of ebinds to solve ebinds in lhsPred
+  , sxEnv :: !(SEnv (BindId, Sort s))      --   TODO: merge with sEnv? used for sorts of ebinds to solve ebinds in lhsPred
   } deriving (Generic)
 
 deriving instance (NFData b, NFData a) => NFData (Sol b a)
@@ -292,7 +292,7 @@ fromList :: SymEnv
          -> [(KVar, Hyp)] 
          -> M.HashMap KVar IBindEnv 
          -> [(BindId, EbindSol)]
-         -> SEnv (BindId, Sort)
+         -> SEnv (BindId, Sort s)
          -> Sol a b
 fromList env kGs kXs kYs z ebs xbs
         = Sol env kXm kGm kYm z ebm xbs
@@ -303,7 +303,7 @@ fromList env kGs kXs kYs z ebs xbs
     ebm = M.fromList ebs
 
 --------------------------------------------------------------------------------
-qbPreds :: String -> Sol a QBind -> Subst -> QBind -> [(Pred, EQual)]
+qbPreds :: String -> Sol a QBind -> Subst -> QBind -> [(Pred s, EQual)]
 --------------------------------------------------------------------------------
 qbPreds msg s su (QB eqs) = [ (elabPred eq, eq) | eq <- eqs ]
   where
@@ -323,7 +323,7 @@ lookupQBind s k = {- tracepp _msg $ -} Mb.fromMaybe (QB []) (lookupElab s k)
     _msg        = "lookupQB: k = " ++ show k
 
 --------------------------------------------------------------------------------
-glookup :: GSolution -> KVar -> Either Hyp (Either QBind (((FixSymbol, Sort), Expr), GBind))
+glookup :: GSolution -> KVar -> Either Hyp (Either QBind (((FixSymbol, Sort s), Expr), GBind))
 --------------------------------------------------------------------------------
 glookup s k
   | Just gbs <- M.lookup k (gMap s)
@@ -440,11 +440,11 @@ instance PPrint BindPred where
 --------------------------------------------------------------------------------
 data Index = FastIdx
   { bindExpr   :: !(BindId |-> BindPred) -- ^ BindPred for each BindId
-  , kvUse      :: !(KIndex |-> KVSub)    -- ^ Definition of each `KIndex`
+  , kvUse      :: !(KIndex |-> KVSub s)    -- ^ Definition of each `KIndex`
   , kvDef      :: !(KVar   |-> Hyp)      -- ^ Constraints defining each `KVar`
   , envBinds   :: !(CMap IBindEnv)       -- ^ Binders of each Subc
   , envTx      :: !(CMap [SubcId])       -- ^ Transitive closure oof all dependent binders
-  , envSorts   :: !(SEnv Sort)           -- ^ Sorts for all symbols
+  , envSorts   :: !(SEnv (Sort s))           -- ^ Sorts for all symbols
   -- , bindPrev   :: !(BIndex |-> BIndex)   -- ^ "parent" (immediately dominating) binder
   -- , kvDeps     :: !(CMap [KIndex])       -- ^ List of (Cut) KVars on which a SubC depends
   }

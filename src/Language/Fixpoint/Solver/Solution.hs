@@ -65,7 +65,7 @@ instConstants = F.fromListSEnv . filter notLit . F.toListSEnv . F.gLits
     notLit    = not . F.isLitSymbol . fst
 
 
-refineK :: Bool -> F.SEnv (F.Sort s) -> [F.Qualifier] -> (F.FixSymbol, F.Sort, F.KVar) -> (F.KVar, Sol.QBind)
+refineK :: Bool -> F.SEnv (F.Sort s) -> [F.Qualifier] -> (F.FixSymbol, F.Sort s, F.KVar) -> (F.KVar, Sol.QBind)
 refineK ho env qs (v, t, k) = F.notracepp _msg (k, eqs')
    where
     eqs                     = instK ho env v t qs
@@ -100,14 +100,14 @@ instKQ ho env v t q = do
     tyss       = instCands ho env
     senv       = (`F.lookupSEnvWithDistance` env)
 
-instCands :: Bool -> F.SEnv (F.Sort s) -> [(F.Sort, [F.FixSymbol])]
+instCands :: Bool -> F.SEnv (F.Sort s) -> [(F.Sort s, [F.FixSymbol])]
 instCands ho env = filter isOk tyss
   where
     tyss      = Misc.groupList [(t, x) | (x, t) <- xts]
     isOk      = if ho then const True else isNothing . F.functionSort . fst
     xts       = F.toListSEnv env
 
-match :: So.Env -> [(F.Sort, [F.FixSymbol])] -> [F.FixSymbol] -> [F.QualParam] -> [[F.FixSymbol]]
+match :: So.Env -> [(F.Sort s, [F.FixSymbol])] -> [F.FixSymbol] -> [F.QualParam] -> [[F.FixSymbol]]
 match env tyss xs (qp : qps)
   = do (su, qsu, x) <- candidates env tyss qp
        match env tyss (x : xs) (applyQP su qsu <$> qps)
@@ -120,7 +120,7 @@ applyQP su qsu qp = qp { qpSort = So.apply     su  (qpSort qp)
                        }
 
 --------------------------------------------------------------------------------
-candidates :: So.Env -> [(F.Sort, [F.FixSymbol])] -> F.QualParam 
+candidates :: So.Env -> [(F.Sort s, [F.FixSymbol])] -> F.QualParam 
            -> [(So.TVSubst, QPSubst, F.FixSymbol)]
 --------------------------------------------------------------------------------
 candidates env tyss x = -- traceShow _msg
@@ -196,7 +196,7 @@ apply g s bs      = (F.pAnd (pks:ps), kI)
     (ps,  ks, _)  = envConcKVars g s bs
 
 
-envConcKVars :: CombinedEnv -> Sol.Sol a Sol.QBind -> F.IBindEnv -> ([F.Expr], [F.KVSub], [F.KVSub])
+envConcKVars :: CombinedEnv -> Sol.Sol a Sol.QBind -> F.IBindEnv -> ([F.Expr], [F.KVSub s], [F.KVSub s])
 envConcKVars g s bs = (concat pss, concat kss, L.nubBy (\x y -> F.ksuKVar x == F.ksuKVar y) $ concat gss)
   where
     (pss, kss, gss) = unzip3 [ F.notracepp ("sortedReftConcKVars" ++ F.showpp sr) $ F.sortedReftConcKVars x sr | (x, sr) <- xrs ]
@@ -225,13 +225,13 @@ ebSol g s i = case  M.lookup i sebds of
 
     s' = s { Sol.sEbd = M.insert i Sol.EbIncr sebds }
 
-ebindReft :: CombinedEnv -> Sol.Sol a Sol.QBind -> F.SimpC () -> F.Pred
+ebindReft :: CombinedEnv -> Sol.Sol a Sol.QBind -> F.SimpC () -> F.Pred s
 ebindReft g s c = F.pAnd [ fst $ apply g' s bs, F.crhs c ]
   where
     g'          = g { ceCid = sid c, ceIEnv = bs } 
     bs          = F.senv c
 
-exElim :: F.SEnv (F.BindId, F.Sort) -> F.IBindEnv -> F.BindId -> F.Pred -> F.Pred
+exElim :: F.SEnv (F.BindId, F.Sort s) -> F.IBindEnv -> F.BindId -> F.Pred s -> F.Pred s
 exElim env ienv xi p = F.notracepp msg (F.pExist yts p)
   where
     msg         = "exElim" -- printf "exElim: ix = %d, p = %s" xi (F.showpp p)
@@ -240,17 +240,17 @@ exElim env ienv xi p = F.notracepp msg (F.pExist yts p)
                             , xi < yi
                             , yi `F.memberIBindEnv` ienv                  ]
 
-applyKVars :: CombinedEnv -> Sol.Sol a Sol.QBind -> [F.KVSub] -> ExprInfo
+applyKVars :: CombinedEnv -> Sol.Sol a Sol.QBind -> [F.KVSub s] -> ExprInfo
 applyKVars g s = mrExprInfos (applyKVar g s) F.pAnd mconcat
 
-applyKVar :: CombinedEnv -> Sol.Sol a Sol.QBind -> F.KVSub -> ExprInfo
+applyKVar :: CombinedEnv -> Sol.Sol a Sol.QBind -> F.KVSub s -> ExprInfo
 applyKVar g s ksu = case Sol.lookup s (F.ksuKVar ksu) of
   Left cs   -> hypPred g s ksu cs
   Right eqs -> (F.pAnd $ fst <$> Sol.qbPreds msg s (F.ksuSubst ksu) eqs, mempty) -- TODO: don't initialize kvars that have a hyp solution
   where
     msg     = "applyKVar: " ++ show (ceCid g)
 
-hypPred :: CombinedEnv -> Sol.Sol a Sol.QBind -> F.KVSub -> Sol.Hyp  -> ExprInfo
+hypPred :: CombinedEnv -> Sol.Sol a Sol.QBind -> F.KVSub s -> Sol.Hyp  -> ExprInfo
 hypPred g s ksu hyp = F.pOr *** mconcatPlus $ unzip $ cubePred g s ksu <$> hyp
 
 {- | `cubePred g s k su c` returns the predicate for
@@ -268,14 +268,14 @@ hypPred g s ksu hyp = F.pOr *** mconcatPlus $ unzip $ cubePred g s ksu <$> hyp
 
  -}
 
-elabExist :: F.SrcSpan -> Sol.Sol a Sol.QBind -> [(F.FixSymbol, F.Sort)] -> F.Expr s -> F.Expr s
+elabExist :: F.SrcSpan -> Sol.Sol a Sol.QBind -> [(F.FixSymbol, F.Sort s)] -> F.Expr s -> F.Expr s
 elabExist sp s xts p = F.pExist xts' p
   where
     xts'        = [ (x, elab t) | (x, t) <- xts]
     elab        = So.elaborate (F.atLoc sp "elabExist") env
     env         = Sol.sEnv s
 
-cubePred :: CombinedEnv -> Sol.Sol a Sol.QBind -> F.KVSub -> Sol.Cube -> ExprInfo
+cubePred :: CombinedEnv -> Sol.Sol a Sol.QBind -> F.KVSub s -> Sol.Cube -> ExprInfo
 cubePred g s ksu c    = (F.notracepp "cubePred" $ elabExist sp s xts (psu &.& p), kI)
   where
     sp                = F.srcSpan g
@@ -284,14 +284,14 @@ cubePred g s ksu c    = (F.notracepp "cubePred" $ elabExist sp s xts (psu &.& p)
     bs                = Sol.cuBinds c
     k                 = F.ksuKVar ksu
 
-type Binders = [(F.FixSymbol, F.Sort)]
+type Binders = [(F.FixSymbol, F.Sort s)]
 
 -- | @cubePredExc@ computes the predicate for the subset of binders bs'.
 --   The output is a tuple, `(xts, psu, p, kI)` such that the actual predicate
 --   we want is `Exists xts. (psu /\ p)`.
 
-cubePredExc :: CombinedEnv -> Sol.Sol a Sol.QBind -> F.KVSub -> Sol.Cube -> F.IBindEnv
-            -> ((Binders, F.Pred, F.Pred), KInfo)
+cubePredExc :: CombinedEnv -> Sol.Sol a Sol.QBind -> F.KVSub s -> Sol.Cube -> F.IBindEnv
+            -> ((Binders, F.Pred s, F.Pred s), KInfo)
 
 cubePredExc g s ksu c bs' = (cubeP, extendKInfo kI (Sol.cuTag c))
   where
@@ -334,7 +334,7 @@ cubePredExc g s ksu c bs' = (cubeP, extendKInfo kI (Sol.cuTag c))
      2. are binders corresponding to sorts (e.g. `a : num`, currently used
         to hack typeclasses current.)
  -}
-substElim :: F.SymEnv -> F.SEnv (F.Sort s) -> CombinedEnv -> F.KVar -> F.Subst -> ([(F.FixSymbol, F.Sort)], F.Pred)
+substElim :: F.SymEnv -> F.SEnv (F.Sort s) -> CombinedEnv -> F.KVar -> F.Subst -> ([(F.FixSymbol, F.Sort s)], F.Pred s)
 substElim syEnv sEnv g _ (F.Su m) = (xts, p)
   where
     p      = F.pAnd [ mkSubst sp syEnv x (substSort sEnv frees x t) e t | (x, e, t) <- xets  ]
@@ -381,7 +381,7 @@ isClass _       = False
               -- ++ " in env \n"
               -- ++ show (combinedSEnv g)
 
--- substPred :: F.Subst -> F.Pred
+-- substPred :: F.Subst -> F.Pred s
 -- substPred (F.Su m) = F.pAnd [ F.PAtom F.Eq (F.eVar x) e | (x, e) <- M.toList m]
 
 combinedSEnv :: CombinedEnv -> F.SEnv (F.Sort s)
@@ -400,7 +400,7 @@ delCEnv s k bs = F.diffIBindEnv bs _kbs
   where
     _kbs       = Misc.safeLookup "delCEnv" k (Sol.sScp s)
 
-symSorts :: CombinedEnv -> F.IBindEnv -> [(F.FixSymbol, F.Sort)]
+symSorts :: CombinedEnv -> F.IBindEnv -> [(F.FixSymbol, F.Sort s)]
 symSorts g bs = second F.sr_sort <$> F.envCs (ceBEnv g) bs
 
 _noKvars :: F.Expr s -> Bool
