@@ -321,7 +321,7 @@ preamble u _    = smtlibPreamble u
 
 -- | `theorySymbols` contains the list of ALL SMT symbols with interpretations,
 --   i.e. which are given via `define-fun` (as opposed to `declare-fun`)
-theorySymbols :: [DataDecl] -> SEnv TheorySymbol -- M.HashMap FixSymbol TheorySymbol
+theorySymbols :: [DataDecl s] -> SEnv TheorySymbol -- M.HashMap FixSymbol TheorySymbol
 theorySymbols ds = fromListSEnv $  -- SHIFTLAM uninterpSymbols
                                   interpSymbols
                                ++ concatMap dataDeclSymbols ds
@@ -386,29 +386,29 @@ axiomLiterals lts = catMaybes [ lenAxiom l <$> litLen l | (l, t) <- lts, isStrin
 --------------------------------------------------------------------------------
 -- | Constructors, Selectors and Tests from 'DataDecl'arations.
 --------------------------------------------------------------------------------
-dataDeclSymbols :: DataDecl -> [(FixSymbol, TheorySymbol)]
+dataDeclSymbols :: DataDecl s -> [(FixSymbol, TheorySymbol)]
 dataDeclSymbols d = ctorSymbols d ++ testSymbols d ++ selectSymbols d
 
 -- | 'selfSort d' returns the _self-sort_ of 'd' :: 'DataDecl'.
 --   See [NOTE:DataDecl] for details.
 
-selfSort :: DataDecl -> Sort s
+selfSort :: DataDecl s -> Sort s
 selfSort (DDecl c n _) = fAppTC c (FVar <$> [0..(n-1)])
 
 -- | 'fldSort d t' returns the _real-sort_ of 'd' if 't' is the _self-sort_
 --   and otherwise returns 't'. See [NOTE:DataDecl] for details.
 
-fldSort :: DataDecl -> Sort s -> Sort s
+fldSort :: DataDecl s -> Sort s -> Sort s
 fldSort d (FTC c)
   | c == ddTyCon d = selfSort d
 fldSort _ s        = s
 
 --------------------------------------------------------------------------------
-ctorSymbols :: DataDecl -> [(FixSymbol, TheorySymbol)]
+ctorSymbols :: DataDecl s -> [(FixSymbol, TheorySymbol)]
 --------------------------------------------------------------------------------
 ctorSymbols d = ctorSort d <$> ddCtors d
 
-ctorSort :: DataDecl -> DataCtor -> (FixSymbol, TheorySymbol)
+ctorSort :: DataDecl s -> DataCtor s -> (FixSymbol, TheorySymbol)
 ctorSort d ctor = (x, Thy x (symbolRaw x) t Ctor)
   where
     x           = symbol ctor
@@ -417,7 +417,7 @@ ctorSort d ctor = (x, Thy x (symbolRaw x) t Ctor)
     ts          = fldSort d . dfSort <$> dcFields ctor
 
 --------------------------------------------------------------------------------
-testSymbols :: DataDecl -> [(FixSymbol, TheorySymbol)]
+testSymbols :: DataDecl s -> [(FixSymbol, TheorySymbol)]
 --------------------------------------------------------------------------------
 testSymbols d = testTheory t . symbol <$> ddCtors d
   where
@@ -433,7 +433,7 @@ symbolRaw :: FixSymbol -> T.Text
 symbolRaw = T.fromStrict . symbolSafeText
 
 --------------------------------------------------------------------------------
-selectSymbols :: DataDecl -> [(FixSymbol, TheorySymbol)]
+selectSymbols :: DataDecl s -> [(FixSymbol, TheorySymbol)]
 --------------------------------------------------------------------------------
 selectSymbols d = theorify <$> concatMap (ctorSelectors d) (ddCtors d)
 
@@ -441,10 +441,10 @@ selectSymbols d = theorify <$> concatMap (ctorSelectors d) (ddCtors d)
 theorify :: (FixSymbol, Sort) -> (FixSymbol, TheorySymbol)
 theorify (x, t) = (x, Thy x (symbolRaw x) t Field)
 
-ctorSelectors :: DataDecl -> DataCtor -> [(FixSymbol, Sort)]
+ctorSelectors :: DataDecl s -> DataCtor s -> [(FixSymbol, Sort)]
 ctorSelectors d ctor = fieldSelector d <$> dcFields ctor
 
-fieldSelector :: DataDecl -> DataField -> (FixSymbol, Sort)
+fieldSelector :: DataDecl s -> DataField s -> (FixSymbol, Sort s)
 fieldSelector d f = (symbol f, mkFFunc n [selfSort d, ft])
   where
     ft            = fldSort d $ dfSort f

@@ -624,7 +624,7 @@ fi :: [SubC a]
    -> Bool
    -> [Triggered Expr]
    -> AxiomEnv
-   -> [DataDecl]
+   -> [DataDecl s]
    -> [BindId] 
    -> GInfo SubC a
 fi cs ws binds ls ds ks qs bi aHO aHOq es axe adts ebs
@@ -679,7 +679,7 @@ data GInfo c a = FI
   , kuts     :: !Kuts                      -- ^ Set of KVars *not* to eliminate
   , quals    :: ![Qualifier]               -- ^ Abstract domain
   , bindInfo :: !(M.HashMap BindId a)      -- ^ Metadata about binders
-  , ddecls   :: ![DataDecl]                -- ^ User-defined data declarations
+  , ddecls   :: ![DataDecl s]                -- ^ User-defined data declarations
   , hoInfo   :: !HOInfo                    -- ^ Higher Order info
   , asserts  :: ![Triggered Expr]          -- ^ TODO: what is this?
   , ae       :: AxiomEnv                   -- ^ Information about reflected function defs

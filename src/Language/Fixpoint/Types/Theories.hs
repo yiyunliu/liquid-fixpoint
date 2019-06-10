@@ -62,7 +62,7 @@ type Raw          = LT.Text
 data SymEnv = SymEnv
   { seSort    :: !(SEnv Sort)              -- ^ Sorts of *all* defined symbols
   , seTheory  :: !(SEnv TheorySymbol)      -- ^ Information about theory-specific Symbols
-  , seData    :: !(SEnv DataDecl)          -- ^ User-defined data-declarations
+  , seData    :: !(SEnv (DataDecl s))          -- ^ User-defined data-declarations
   , seLits    :: !(SEnv Sort)              -- ^ Distinct Constant symbols
   , seAppls   :: !(M.HashMap FuncSort Int) -- ^ Types at which `apply` was used;
                                            --   see [NOTE:apply-monomorphization]
@@ -87,7 +87,7 @@ instance Monoid SymEnv where
   mempty        = SymEnv emptySEnv emptySEnv emptySEnv emptySEnv mempty
   mappend       = (<>)
 
-symEnv :: SEnv (Sort s) -> SEnv TheorySymbol -> [DataDecl] -> SEnv (Sort s) -> [Sort s] -> SymEnv
+symEnv :: SEnv (Sort s) -> SEnv TheorySymbol -> [DataDecl s] -> SEnv (Sort s) -> [Sort s] -> SymEnv
 symEnv xEnv fEnv ds ls ts = SymEnv xEnv' fEnv dEnv ls sortMap
   where
     xEnv'                 = unionSEnv xEnv wiredInEnv
@@ -126,7 +126,7 @@ wiredInEnv = M.fromList [(toIntName, mkFFunc 1 [FVar 0, FInt])]
 --   such a strategy would NUKE the entire apply-sort machinery from the CODE base.
 --   [TODO]: dynamic-apply-declaration
 
-funcSorts :: SEnv DataDecl -> [Sort] -> [FuncSort]
+funcSorts :: SEnv (DataDecl s) -> [Sort] -> [FuncSort]
 funcSorts dEnv ts = [ (t1, t2) | t1 <- smts, t2 <- smts]
   where
     smts         = Misc.sortNub $ concat [ [tx t1, tx t2] | FFunc t1 t2 <- ts]
@@ -164,10 +164,10 @@ ffuncSort env t      = {- tracepp ("ffuncSort " ++ showpp (t1,t2)) -} (tx t1, tx
     args (FFunc a b) = (a, b)
     args _           = (FInt, FInt)
 
-applySmtSort :: SEnv DataDecl -> Sort s -> SmtSort
+applySmtSort :: SEnv (DataDecl s) -> Sort s -> SmtSort
 applySmtSort = sortSmtSort False
 
-isIntSmtSort :: SEnv DataDecl -> Sort s -> Bool
+isIntSmtSort :: SEnv (DataDecl s) -> Sort s -> Bool
 isIntSmtSort env s = SInt == applySmtSort env s
 
 --------------------------------------------------------------------------------
@@ -236,7 +236,7 @@ instance B.Binary SmtSort
 --   'smtSort True  msg t' serializes a sort 't' using type variables,
 --   'smtSort False msg t' serializes a sort 't' using 'Int' instead of tyvars.
 
-sortSmtSort :: Bool -> SEnv DataDecl -> Sort s -> SmtSort
+sortSmtSort :: Bool -> SEnv (DataDecl s) -> Sort s -> SmtSort
 sortSmtSort poly env t  = {- tracepp ("sortSmtSort: " ++ showpp t) $ -} go . unAbs $ t
   where
     go (FFunc _ _)    = SInt
@@ -250,7 +250,7 @@ sortSmtSort poly env t  = {- tracepp ("sortSmtSort: " ++ showpp t) $ -} go . unA
       | otherwise     = SInt
     go t              = fappSmtSort poly env ct ts where (ct:ts) = unFApp t
 
-fappSmtSort :: Bool -> SEnv DataDecl -> Sort s -> [Sort s] -> SmtSort
+fappSmtSort :: Bool -> SEnv (DataDecl s) -> Sort s -> [Sort s] -> SmtSort
 fappSmtSort poly env = go
   where
 -- HKT    go t@(FVar _) ts            = SApp (sortSmtSort poly env <$> (t:ts))
@@ -271,7 +271,7 @@ fappSmtSort poly env = go
     pad i | poly                = []
           | otherwise           = replicate i SInt
 
-tyArgs :: (Symbolic x) => x -> SEnv DataDecl -> Maybe Int
+tyArgs :: (Symbolic x) => x -> SEnv (DataDecl s) -> Maybe Int
 tyArgs x env = ddVars <$> lookupSEnv (symbol x) env
 
 instance PPrint SmtSort where

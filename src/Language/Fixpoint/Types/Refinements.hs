@@ -135,7 +135,7 @@ instance (Hashable k, Eq k, B.Binary k, B.Binary v) => B.Binary (M.HashMap k v) 
   put = B.put . M.toList
   get = M.fromList <$> B.get
 
-instance (Eq a, Hashable a, B.Binary a) => B.Binary (TCEmb a) 
+instance (Eq a, Hashable a, B.Binary a) => B.Binary (TCEmb a s) 
 instance B.Binary SrcSpan
 instance B.Binary KVar
 instance B.Binary Subst
@@ -305,7 +305,7 @@ data GradInfo = GradInfo {gsrc :: SrcSpan, gused :: Maybe SrcSpan}
 srcGradInfo :: SourcePos -> GradInfo
 srcGradInfo src = GradInfo (SS src src) Nothing
 
-mkEApp :: LocSymbol -> [Expr s] -> Expr s
+mkEApp :: LocSymbol s -> [Expr s] -> Expr s
 mkEApp = eApps . EVar . val
 
 eApps :: Expr s -> [Expr s] -> Expr s
@@ -512,7 +512,7 @@ instance PPrint Bop where
 instance PPrint (Sort s) where
   pprintTidy _ = toFix
 
-instance PPrint a => PPrint (TCEmb a) where 
+instance PPrint a => PPrint (TCEmb a s) where 
   pprintTidy k = pprintTidy k . tceToList 
 
 instance PPrint KVar where

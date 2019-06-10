@@ -334,7 +334,7 @@ infixIdP = many (satisfy (`notElem` [' ', '.']))
 isSmall :: Char -> Bool
 isSmall c = Char.isLower c || c == '_'
 
-locSymbolP, locLowerIdP, locUpperIdP :: Parser LocSymbol
+locSymbolP, locLowerIdP, locUpperIdP :: Parser (LocSymbol s)
 locLowerIdP = locParserP lowerIdP
 locUpperIdP = locParserP upperIdP
 locSymbolP  = locParserP symbolP
@@ -705,14 +705,14 @@ refDefP x  = refBindP (optBindP x)
 -- | Parsing Data Declarations -------------------------------------------------
 --------------------------------------------------------------------------------
 
-dataFieldP :: Parser DataField
+dataFieldP :: Parser (DataField s)
 dataFieldP = DField <$> locSymbolP <* colon <*> sortP
 
-dataCtorP :: Parser DataCtor
+dataCtorP :: Parser (DataCtor s)
 dataCtorP  = DCtor <$> locSymbolP
                    <*> braces (sepBy dataFieldP comma)
 
-dataDeclP :: Parser DataDecl
+dataDeclP :: Parser (DataDecl s)
 dataDeclP  = DDecl <$> fTyConP <*> intP <* reservedOp "="
                    <*> brackets (many (reservedOp "|" *> dataCtorP))
 
@@ -797,7 +797,7 @@ data Def a
   | Def !Equation
   | Mat !Rewrite
   | Expand ![(Int,Bool)]
-  | Adt  !DataDecl
+  | Adt  !(DataDecl s)
   deriving (Show, Generic)
   --  Sol of solbind
   --  Dep of FixConstraint.dep

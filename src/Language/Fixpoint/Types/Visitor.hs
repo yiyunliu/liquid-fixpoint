@@ -381,13 +381,13 @@ mapSort f = step
     go !(FAbs i t)    = FAbs i (step t)
     go !t             = t
 
-foldDataDecl :: (a -> Sort s -> a) -> a -> DataDecl -> a
+foldDataDecl :: (a -> Sort s -> a) -> a -> (DataDecl s) s -> a
 foldDataDecl f acc = L.foldl' f acc . dataDeclSorts
 
-dataDeclSorts :: DataDecl -> [Sort]
+dataDeclSorts :: DataDecl s -> [Sort]
 dataDeclSorts = concatMap dataCtorSorts . ddCtors
 
-dataCtorSorts :: DataCtor -> [Sort]
+dataCtorSorts :: DataCtor s -> [Sort s]
 dataCtorSorts = map dfSort . dcFields
 ---------------------------------------------------------------
 -- | String Constants -----------------------------------------

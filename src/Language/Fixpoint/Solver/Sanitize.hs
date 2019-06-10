@@ -58,13 +58,13 @@ sanitize =    -- banIllScopedKvars
 _dropAdtMeasures :: F.SInfo a -> F.SInfo a
 _dropAdtMeasures si = si { F.ae = dropAdtAenv (F.ddecls si) (F.ae si) }
 
-dropAdtAenv :: [F.DataDecl] -> F.AxiomEnv -> F.AxiomEnv
+dropAdtAenv :: [F.DataDecl s] -> F.AxiomEnv -> F.AxiomEnv
 dropAdtAenv ds ae = ae { F.aenvSimpl = filter (not . isAdt) (F.aenvSimpl ae) }
   where
     isAdt         = (`S.member` adtSyms) . F.smName
     adtSyms       = adtSymbols ds
 
-adtSymbols :: [F.DataDecl] -> S.HashSet F.FixSymbol
+adtSymbols :: [F.DataDecl s] -> S.HashSet F.FixSymbol
 adtSymbols = S.fromList . map fst . concatMap Thy.dataDeclSymbols
 
 --------------------------------------------------------------------------------

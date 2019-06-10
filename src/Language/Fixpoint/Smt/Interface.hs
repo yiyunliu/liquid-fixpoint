@@ -358,7 +358,7 @@ smtDecl me x t = interact' me ({- notracepp msg $ -} Declare x ins' out')
 smtFuncDecl :: Context -> FixSymbol -> ([SmtSort],  SmtSort) -> IO ()
 smtFuncDecl me x (ts, t) = interact' me (Declare x ts t)
 
-smtDataDecl :: Context -> [DataDecl] -> IO ()
+smtDataDecl :: Context -> [DataDecl s] -> IO ()
 smtDataDecl me ds = interact' me (DeclData ds)
 
 deconSort :: Sort s -> ([Sort s], Sort s)
@@ -461,7 +461,7 @@ symbolSorts env = [(x, tx t) | (x, t) <- F.toListSEnv env ]
   tx t@(FObj a) = fromMaybe t (F.lookupSEnv a env)
   tx t          = t
 
-dataDeclarations :: SymEnv -> [[DataDecl]]
+dataDeclarations :: SymEnv -> [[DataDecl s]]
 dataDeclarations = orderDeclarations . map snd . F.toListSEnv . F.seData
 
 funcSortVars :: F.SymEnv -> [(F.FixSymbol, ([F.SmtSort], F.SmtSort))]
@@ -510,7 +510,7 @@ distinctLiterals xts = [ es | (_, es) <- tess ]
 -- | 'orderDeclarations' sorts the data declarations such that each declarations
 --   only refers to preceding ones.
 --------------------------------------------------------------------------------
-orderDeclarations :: [F.DataDecl] -> [[F.DataDecl]]
+orderDeclarations :: [F.DataDecl s] -> [[F.DataDecl s]]
 --------------------------------------------------------------------------------
 orderDeclarations ds = {- reverse -} (Misc.sccsWith f ds)
   where
@@ -520,13 +520,13 @@ orderDeclarations ds = {- reverse -} (Misc.sccsWith f ds)
 dataDeclDeps :: M.HashMap (F.FTycon s) (F.DataDecl s) -> F.DataDecl s -> [F.FTycon s]
 dataDeclDeps dM = filter (`M.member` dM) . Misc.sortNub . dataDeclFTycons
 
-dataDeclFTycons :: F.DataDecl -> [F.FTycon]
+dataDeclFTycons :: F.DataDecl s -> [F.FTycon]
 dataDeclFTycons = concatMap dataCtorFTycons . F.ddCtors
 
-dataCtorFTycons :: F.DataCtor -> [F.FTycon]
+dataCtorFTycons :: F.DataCtor s -> [F.FTycon s]
 dataCtorFTycons = concatMap dataFieldFTycons . F.dcFields
 
-dataFieldFTycons :: F.DataField -> [F.FTycon]
+dataFieldFTycons :: F.DataField s -> [F.FTycon s]
 dataFieldFTycons = sortFTycons . F.dfSort
 
 sortFTycons :: Sort s -> [FTycon]

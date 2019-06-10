@@ -33,23 +33,23 @@ smt2SortPoly = smt2Sort True
 smt2Sort :: (PPrint a) => Bool -> a -> SymEnv -> Sort s -> Builder.Builder
 smt2Sort poly _ env t = smt2 env (Thy.sortSmtSort poly (seData env) t)
 
-smt2data :: SymEnv -> [DataDecl] -> Builder.Builder
+smt2data :: SymEnv -> [DataDecl s] -> Builder.Builder
 smt2data env = smt2data' env . map padDataDecl
 
-smt2data' :: SymEnv -> [DataDecl] -> Builder.Builder
+smt2data' :: SymEnv -> [DataDecl s] -> Builder.Builder
 smt2data' env ds = build "({}) ({})" (tvars, smt2many (smt2data1 env <$> muSort ds)) 
   where
     tvars        = smt2many (smt2TV <$> [0..(n-1)])
     smt2TV       = smt2 env . SVar
     n            = numTyVars ds 
 
-smt2data1 :: SymEnv -> DataDecl -> Builder.Builder
+smt2data1 :: SymEnv -> DataDecl s -> Builder.Builder
 smt2data1 env (DDecl tc _ cs) = build "({} {})" (name, ctors)
   where
     name                      = smt2 env (symbol tc)
     ctors                     = smt2many (smt2ctor env <$> cs)
 
-numTyVars    :: [DataDecl] -> Int 
+numTyVars    :: [DataDecl s] -> Int 
 numTyVars ds 
   | ok        = n 
   | otherwise = panic ("Cannot create mutually-recursive datatypes with different number of type variables!: " ++ tcs)
@@ -59,7 +59,7 @@ numTyVars ds
     ok        = and [ n == n' | n' <- ns ]
 
 {- 
-smt2data' :: SymEnv -> DataDecl -> Builder.Builder
+smt2data' :: SymEnv -> DataDecl s -> Builder.Builder
 smt2data' env (DDecl tc n cs) = build "({}) (({} {}))" (tvars, name, ctors)
   where
     tvars                    = smt2many (smt2TV <$> [0..(n-1)])
@@ -73,13 +73,13 @@ smt2data' env (DDecl tc n cs) = build "({}) (({} {}))" (tvars, name, ctors)
     (TreeList nil (cons (car Tree) (cdr TreeList)))))
 -}
 
-smt2ctor :: SymEnv -> DataCtor -> Builder.Builder
+smt2ctor :: SymEnv -> DataCtor s -> Builder.Builder
 smt2ctor env (DCtor c [])  = smt2 env c
 smt2ctor env (DCtor c fs)  = build "({} {})" (smt2 env c, fields)
   where
     fields                 = smt2many (smt2field env <$> fs)
 
-smt2field :: SymEnv -> DataField -> Builder.Builder
+smt2field :: SymEnv -> DataField s -> Builder.Builder
 smt2field env d@(DField x t) = build "({} {})" (smt2 env x, smt2SortPoly d env t)
 
 -- | SMTLIB/Z3 don't like "unused" type variables; they get pruned away and
@@ -87,7 +87,7 @@ smt2field env d@(DField x t) = build "({} {})" (smt2 env x, smt2SortPoly d env t
 --   'padDataDecl' adds a junk constructor that "uses" up all the tyvars just
 --   to avoid this pruning problem.
 
-padDataDecl :: DataDecl -> DataDecl
+padDataDecl :: DataDecl s -> DataDecl s
 padDataDecl d@(DDecl tc n cs)
   | hasDead    = DDecl tc n (junkDataCtor tc n : cs)
   | otherwise  = d
@@ -95,13 +95,13 @@ padDataDecl d@(DDecl tc n cs)
     hasDead    = length usedVars < n
     usedVars   = declUsedVars d
 
-junkDataCtor :: FTycon s -> Int -> DataCtor
+junkDataCtor :: FTycon s -> Int -> DataCtor s
 junkDataCtor c n = DCtor (atLoc c junkc) [DField (junkFld i) (FVar i) | i <- [0..(n-1)]]
   where
     junkc        = suffixSymbol "junk" (symbol c)
     junkFld i    = atLoc c    (intSymbol junkc i)
 
-declUsedVars :: DataDecl -> [Int]
+declUsedVars :: DataDecl s -> [Int]
 declUsedVars = sortNub . Vis.foldDataDecl go []
   where
     go is (FVar i) = i : is
@@ -113,7 +113,7 @@ instance SMTLIB2 FixSymbol where
   smt2 _ s                           = symbolBuilder s
 
 
-instance SMTLIB2 LocSymbol where
+instance SMTLIB2 (LocSymbol s) where
   smt2 env = smt2 env . val
 
 instance SMTLIB2 SymConst where

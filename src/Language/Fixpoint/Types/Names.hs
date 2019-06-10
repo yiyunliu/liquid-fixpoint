@@ -9,6 +9,7 @@
 {-# LANGUAGE ViewPatterns               #-}
 {-# LANGUAGE BangPatterns               #-}
 {-# LANGUAGE PatternGuards              #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 
 -- | This module contains Haskell variables representing globally visible names.
@@ -172,12 +173,30 @@ data AbstractSymbol s
   = PS { abstractSymbol :: s
        , abstractSymbolEncoded :: !T.Text
        } deriving (Data, Typeable, Generic)
+instance Eq s => Eq (AbstractSymbol s) where
+  s1 == s2 = abstractSymbol s1 == abstractSymbol s2
+instance Show s => Show (AbstractSymbol s) where
+  show as = show (abstractSymbol as)
+
+
+instance (Ord s) => Ord (AbstractSymbol s) where
+  compare s1 s2 = compare (abstractSymbol s1) (abstractSymbol s2)
+
 
 data Symbol s
   = FS FixSymbol
   -- | 's' represents an abstract symbol from the source language.
   | AS (AbstractSymbol s)
   deriving (Data, Typeable, Generic)
+deriving instance (Eq s) => Eq (Symbol s)
+deriving instance (Ord s) => Ord (Symbol s)
+
+instance (Show s) => Show (Symbol s) where
+  show (FS s) = show s
+  show (AS as) = show as
+
+-- instance IsString (Symbol s) where
+--   fromString = FS . fromString
 
 instance Eq FixSymbol where
   S i _ _ == S j _ _ = i == j
@@ -204,12 +223,27 @@ instance Hashable FixSymbol where
   -- NOTE: hash based on original text rather than id
   hashWithSalt s (S _ t _) = hashWithSalt s t
 
+
+instance Hashable s => Hashable (Symbol s) where
+  hashWithSalt s sym = hashWithSalt s (toPolynomial sym)
+    where toPolynomial :: Symbol s -> Either FixSymbol (s, T.Text)
+          toPolynomial (AS (PS {abstractSymbolEncoded=encoded, abstractSymbol=as})) = Right (as, encoded)
+          toPolynomial (FS s) = Left s
+
 instance NFData FixSymbol where
   rnf (S {}) = ()
+
+instance NFData s => NFData (AbstractSymbol s)
+
+instance NFData s => NFData (Symbol s)
 
 instance Binary FixSymbol where
   get = textSymbol <$> get
   put = put . symbolText
+
+instance Binary s => Binary (AbstractSymbol s)
+
+instance Binary s => Binary (Symbol s)
 
 sCache :: Cache FixSymbol
 sCache = mkCache
@@ -240,6 +274,14 @@ instance Fixpoint T.Text where
 
 instance Fixpoint FixSymbol where
   toFix = toFix . checkedText -- symbolSafeText
+
+instance Fixpoint s => Fixpoint (AbstractSymbol s)  where
+  toFix (PS {abstractSymbol=as}) = toFix as
+
+instance (Fixpoint s) => Fixpoint (Symbol s) where
+  toFix (FS s) = toFix s
+  toFix (AS as) = toFix as
+  
 
 checkedText :: FixSymbol -> T.Text
 checkedText x
@@ -512,6 +554,10 @@ class Symbolic a where
 
 symbolicString :: (Symbolic a) => a -> String
 symbolicString = symbolString . symbol
+
+instance (Symbolic s) => Symbolic (Symbol s) where
+  symbol (FS s) = s
+  symbol (AS as) = symbol . abstractSymbol $ as
 
 instance Symbolic T.Text where
   symbol = textSymbol
