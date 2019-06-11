@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE AllowAmbiguousTypes        #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE FunctionalDependencies     #-}
 {-# LANGUAGE DeriveDataTypeable         #-}
@@ -763,8 +765,8 @@ mapPredReft f (Reft (v, p)) = Reft (v, f p)
 isFunctionSortedReft :: SortedReft s -> Bool
 isFunctionSortedReft = isJust . functionSort . sr_sort
 
-isNonTrivial :: Reftable r => r -> Bool
-isNonTrivial = not . isTauto
+isNonTrivial :: forall r s. Reftable r s => r -> Bool
+isNonTrivial = not . isTauto @r @s
 
 reftPred :: Reft s -> Expr s
 reftPred (Reft (_, p)) = p
@@ -834,7 +836,7 @@ instance Falseable (Reft s) where
 -- | Class Predicates for Valid Refinements -----------------------------
 -------------------------------------------------------------------------
 
-class Subable a where
+class Subable a s where
   syms   :: a -> [FixSymbol]                   -- ^ free symbols of a
   substa :: (FixSymbol -> FixSymbol) -> a -> a
   -- substa f  = substf (EVar . f)
@@ -844,14 +846,14 @@ class Subable a where
   subst1 :: a -> (FixSymbol, Expr s) -> a
   subst1 y (x, e) = subst (Su $ M.fromList [(x,e)]) y
 
-instance Subable a => Subable (Located a) where
-  syms (Loc _ _ x)   = syms x
-  substa f (Loc l l' x) = Loc l l' (substa f x)
+instance Subable a s => Subable (Located a) s where
+  syms (Loc _ _ x)   = syms @a @s x
+  substa f (Loc l l' x) = Loc l l' (substa @a @s f x)
   substf f (Loc l l' x) = Loc l l' (substf f x)
   subst su (Loc l l' x) = Loc l l' (subst su x)
 
 
-class (Monoid r, Subable r) => Reftable r where
+class (Monoid r, Subable r s) => Reftable r s where
   isTauto :: r -> Bool
   ppTy    :: r -> Doc -> Doc
 

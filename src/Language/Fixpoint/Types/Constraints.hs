@@ -116,7 +116,7 @@ import qualified Data.HashSet              as S
 
 type Tag           = [Int]
 
-data WfC a  =  WfC  { wenv  :: !IBindEnv
+data WfC s a  =  WfC  { wenv  :: !IBindEnv
                     , wrft  :: (FixSymbol, Sort s, KVar)
                     , winfo :: !a
                     }
@@ -128,24 +128,24 @@ data WfC a  =  WfC  { wenv  :: !IBindEnv
                     }
               deriving (Eq, Generic, Functor)
 
-data GWInfo = GWInfo { gsym  :: FixSymbol
+data GWInfo s = GWInfo { gsym  :: FixSymbol
                      , gsort :: Sort s
                      , gexpr :: Expr s
                      , ginfo :: GradInfo
                      }
               deriving (Eq, Generic)
 
-gwInfo :: WfC a -> GWInfo
+gwInfo :: WfC s a -> GWInfo
 gwInfo (GWfC _ (x,s,_) _ e i)
   = GWInfo x s e i
 gwInfo _
   = errorstar "gwInfo"
 
-updateWfCExpr :: (Expr s -> Expr s) -> WfC a -> WfC a
+updateWfCExpr :: (Expr s -> Expr s) -> WfC s a -> WfC s a
 updateWfCExpr _ w@(WfC {})  = w
 updateWfCExpr f w@(GWfC {}) = w{wexpr = f (wexpr w)}
 
-isGWfc :: WfC a -> Bool
+isGWfc :: WfC s a -> Bool
 isGWfc (GWfC {}) = True
 isGWfc (WfC  {}) = False
 
@@ -154,7 +154,7 @@ instance HasGradual (WfC a) where
 
 type SubcId = Integer
 
-data SubC a = SubC
+data SubC s a = SubC
   { _senv  :: !IBindEnv
   , slhs   :: !(SortedReft s)
   , srhs   :: !(SortedReft s)
@@ -164,7 +164,7 @@ data SubC a = SubC
   }
   deriving (Eq, Generic, Functor)
 
-data SimpC a = SimpC
+data SimpC s a = SimpC
   { _cenv  :: !IBindEnv
   , _crhs  :: !(Expr s)
   , _cid   :: !(Maybe Integer)
@@ -247,9 +247,9 @@ subcId = mfromJust "subCId" . sid
 -- | Solutions and Results
 ---------------------------------------------------------------------------
 
-type GFixSolution = GFixSol (Expr s)
+type GFixSolution s = GFixSol (Expr s)
 
-type FixSolution  = M.HashMap KVar (Expr s)
+type FixSolution s = M.HashMap KVar (Expr s)
 
 newtype GFixSol e = GSol (M.HashMap KVar (e, [e]))
   deriving (Generic, Semigroup, Monoid, Functor)

@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Language.Fixpoint.Types.Templates (
 
   anything, Templates, makeTemplates, 
@@ -13,7 +15,7 @@ import Language.Fixpoint.Types.Names
 import Language.Fixpoint.Types.PrettyPrint
 import Text.PrettyPrint.HughesPJ.Compat
 
-data Templates 
+data Templates s
   = TAll 
   | TExprs [Template s] 
   deriving Show
@@ -22,22 +24,22 @@ data Templates
 type Template s = ([FixSymbol], Expr s)
 
 
-class HasTemplates a where 
-  filterUnMatched :: Templates -> a -> a 
+class HasTemplates a s where 
+  filterUnMatched :: Templates s -> a -> a 
 
 
-instance HasTemplates (Expr s) where
+instance (Eq s, Fixpoint s) => HasTemplates (Expr s) s where
   filterUnMatched temps e = pAnd $ filter (not . matchesTemplates temps) $ conjuncts e 
 
-instance HasTemplates (Reft s) where
+instance (Eq s, Fixpoint s) => HasTemplates (Reft s) s where
   filterUnMatched temps (Reft (x,e)) = Reft (x, filterUnMatched temps e)
 
-matchesTemplates :: Templates -> Expr s -> Bool 
+matchesTemplates :: (Fixpoint s, Eq s) => Templates s -> Expr s -> Bool 
 matchesTemplates TAll _ = True 
 matchesTemplates (TExprs ts) e = any (`matchesTemplate` e) ts
 
-matchesTemplate :: Template -> Expr s -> Bool 
-matchesTemplate (xs, t@(EVar x)) e
+matchesTemplate :: (Fixpoint s, Eq s) => Template s -> Expr s -> Bool 
+matchesTemplate (xs, t@(EVar (FS x))) e
   = x `elem` xs || e == t  
 matchesTemplate (xs, EApp t1 t2) (EApp e1 e2) 
   = matchesTemplate (xs, t1) e1 && matchesTemplate (xs, t2) e2 
@@ -80,27 +82,27 @@ matchesTemplate (_, t) e
 
 
 
-makeTemplates :: [([FixSymbol], Expr)] -> Templates
+makeTemplates :: [([FixSymbol], Expr s)] -> Templates s
 makeTemplates = TExprs 
 
 
-isEmptyTemplates, isAnyTemplates :: Templates -> Bool 
+isEmptyTemplates, isAnyTemplates :: Templates s -> Bool 
 isEmptyTemplates (TExprs []) = True 
 isEmptyTemplates _           = False 
 
 isAnyTemplates TAll = True 
 isAnyTemplates _    = False 
 
-anything :: Templates
+anything :: Templates s
 anything = TAll
 
-instance Semigroup Templates where 
+instance Semigroup (Templates s) where 
   TAll <> _ = TAll
   _ <> TAll = TAll
   TExprs i1 <> TExprs i2 = TExprs (i1 ++ i2)
 
-instance Monoid Templates where 
+instance Monoid (Templates s) where 
   mempty = TExprs [] 
 
-instance PPrint Templates where
+instance (Show s, Eq s, Fixpoint s) => PPrint (Templates s) where
   pprintTidy _ = text . show 
