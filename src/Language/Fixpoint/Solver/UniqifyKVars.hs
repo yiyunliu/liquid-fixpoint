@@ -39,21 +39,21 @@ import qualified Data.HashMap.Strict as M
 import           Data.Foldable       (foldl')
 
 --------------------------------------------------------------------------------
-wfcUniqify    :: SInfo a -> SInfo a
+wfcUniqify    :: SInfo s a -> SInfo s a
 wfcUniqify fi = updateWfcs $ remakeSubsts fi
 
 
 
 -- mapKVarSubsts (\k su -> restrict table k su xs)
 --------------------------------------------------------------------------------
-remakeSubsts :: SInfo a -> SInfo a
+remakeSubsts :: SInfo s a -> SInfo s a
 --------------------------------------------------------------------------------
 remakeSubsts fi = mapKVarSubsts (remakeSubst fi) fi
 
-remakeSubst :: SInfo a -> KVar -> Subst s -> Subst s
+remakeSubst :: SInfo s a -> KVar s -> Subst s -> Subst s
 remakeSubst fi k su = foldl' (updateSubst k) su (kvarDomain fi k)
 
-updateSubst :: KVar -> Subst s -> FixSymbol -> Subst s
+updateSubst :: KVar s -> Subst s -> FixSymbol -> Subst s
 updateSubst k (Su su) sym
   = case M.lookup sym su of
       Just z  -> Su $ M.delete sym $ M.insert ksym z          su
@@ -66,11 +66,11 @@ updateSubst k (Su su) sym
 -- /  | otherwise         = Su $                M.insert ksym (eVar sym)   su
 
 --------------------------------------------------------------------------------
-updateWfcs :: SInfo a -> SInfo a
+updateWfcs :: SInfo s a -> SInfo s a
 --------------------------------------------------------------------------------
 updateWfcs fi = M.foldl' updateWfc fi (ws fi)
 
-updateWfc :: SInfo a -> WfC a -> SInfo a
+updateWfc :: SInfo s a -> WfC s a -> SInfo s a
 updateWfc fi w    = fi'' { ws = M.insert k w' (ws fi) }
   where
     w'            = updateWfCExpr (subst su) w''
@@ -81,13 +81,13 @@ updateWfc fi w    = fi'' { ws = M.insert k w' (ws fi) }
     v'            = kArgSymbol v (kv k)
     su            = mkSubst ((v, EVar v'):[(x, eVar $ kArgSymbol x (kv k)) | x <- kvarDomain fi k])
 
-accumBindsIfValid :: KVar -> (SInfo a, [BindId]) -> BindId -> (SInfo a, [BindId])
+accumBindsIfValid :: KVar s -> (SInfo s a, [BindId]) -> BindId -> (SInfo s a, [BindId])
 accumBindsIfValid k (fi, ids) i = if renamable then accumBinds k (fi, ids) i else (fi, i : ids)
   where
     (_, sr)                     = lookupBindEnv i      (bs fi)
     renamable                   = isValidInRefinements (sr_sort sr)
 
-accumBinds :: KVar -> (SInfo a, [BindId]) -> BindId -> (SInfo a, [BindId])
+accumBinds :: KVar s -> (SInfo s a, [BindId]) -> BindId -> (SInfo s a, [BindId])
 accumBinds k (fi, ids) i = (fi', i' : ids)
   where
     (oldSym, sr) = lookupBindEnv i (bs fi)
@@ -96,7 +96,7 @@ accumBinds k (fi, ids) i = (fi', i' : ids)
 
 -- | `newTopBind` ignores the actual refinements as they are not relevant
 --   in the kvar parameters (as suggested by BLC.)
-newTopBind :: FixSymbol -> SortedReft s -> SInfo a -> (BindId, SInfo a)
+newTopBind :: FixSymbol -> SortedReft s -> SInfo s a -> (BindId, SInfo s a)
 newTopBind x sr fi = (i', fi {bs = be'})
   where
     (i', be')   = insertBindEnv x (top sr) (bs fi)

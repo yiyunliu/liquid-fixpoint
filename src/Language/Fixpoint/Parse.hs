@@ -624,7 +624,7 @@ falseP = reserved "false" >> return PFalse
 kvarPredP :: Parser (Expr s)
 kvarPredP = PKVar <$> kvarP <*> substP
 
-kvarP :: Parser KVar
+kvarP :: Parser (KVar s)
 kvarP = KV <$> (char '$' *> symbolP <* spaces)
 
 substP :: Parser Subst
@@ -721,7 +721,7 @@ dataDeclP  = DDecl <$> fTyConP <*> intP <* reservedOp "="
 --------------------------------------------------------------------------------
 
 -- | Qualifiers
-qualifierP :: Parser (Sort s) -> Parser Qualifier
+qualifierP :: Parser (Sort s) -> Parser (Qualifier s)
 qualifierP tP = do
   pos    <- getPosition
   n      <- upperIdP
@@ -730,7 +730,7 @@ qualifierP tP = do
   body   <- predP
   return  $ mkQual n params body pos
 
-qualParamP :: Parser (Sort s) -> Parser QualParam 
+qualParamP :: Parser (Sort s) -> Parser (QualParam s)
 qualParamP tP = do 
   x     <- symbolP 
   pat   <- qualPatP 
@@ -738,12 +738,12 @@ qualParamP tP = do
   t     <- tP 
   return $ QP x pat t 
 
-qualPatP :: Parser QualPattern
+qualPatP :: Parser (QualPattern s)
 qualPatP 
    =  (reserved "as" >> qualStrPatP)
   <|> return PatNone 
 
-qualStrPatP :: Parser QualPattern
+qualStrPatP :: Parser (QualPattern s)
 qualStrPatP 
    = (PatExact <$> symbolP)
   <|> parens (    (uncurry PatPrefix <$> pairP symbolP dot qpVarP)
@@ -785,12 +785,12 @@ data Def a
   = Srt !(Sort s)
   | Axm !(Expr s)
   | Cst !(SubC a)
-  | Wfc !(WfC a)
+  | Wfc !(WfC s a)
   | Con !FixSymbol !(Sort s)
   | Dis !FixSymbol !(Sort s)
-  | Qul !Qualifier
-  | Kut !KVar
-  | Pack !KVar !Int
+  | Qul !(Qualifier s)
+  | Kut !(KVar s)
+  | Pack !(KVar s) !Int
   | IBind !Int !FixSymbol !(SortedReft s)
   | EBind !Int !FixSymbol !(Sort s) 
   | Opt !String
@@ -831,7 +831,7 @@ defP =  Srt   <$> (reserved "sort"       >> colon >> sortP)
 sortedReftP :: Parser SortedReft
 sortedReftP = refP (RR <$> (sortP <* spaces))
 
-wfCP :: Parser (WfC ())
+wfCP :: Parser (WfC s ())
 wfCP = do reserved "env"
           env <- envP
           reserved "reft"
@@ -929,7 +929,7 @@ predSolP = parens (predP  <* (comma >> iQualP))
 iQualP :: Parser [FixSymbol]
 iQualP = upperIdP >> parens (sepBy symbolP comma)
 
-solution1P :: Parser (KVar, Expr)
+solution1P :: Parser (KVar s, Expr)
 solution1P = do
   reserved "solution:"
   k  <- kvP
@@ -939,10 +939,10 @@ solution1P = do
   where
     kvP = try kvarP <|> (KV <$> symbolP)
 
-solutionP :: Parser (M.HashMap KVar Expr)
+solutionP :: Parser (M.HashMap (KVar s) Expr)
 solutionP = M.fromList <$> sepBy solution1P whiteSpace
 
-solutionFileP :: Parser (FixResult Integer, M.HashMap KVar Expr)
+solutionFileP :: Parser (FixResult Integer, M.HashMap (KVar s) Expr)
 solutionFileP = (,) <$> fixResultP integer <*> solutionP
 
 --------------------------------------------------------------------------------

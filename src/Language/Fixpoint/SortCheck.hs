@@ -96,7 +96,7 @@ class Elaborate a where
   elaborate :: Located String -> SymEnv -> a -> a
 
 
-instance (Loc a) => Elaborate (SInfo a) where
+instance (Loc a) => Elaborate (SInfo s a) where
   elaborate x senv si = si
     { cm      = elaborate x senv <$> cm      si
     , bs      = elaborate x senv  $  bs      si
@@ -756,7 +756,7 @@ applySorts :: Vis.Visitable t => t -> [Sort s]
 applySorts = {- tracepp "applySorts" . -} (defs ++) . Vis.fold vis () []
   where
     defs   = [FFunc t1 t2 | t1 <- basicSorts, t2 <- basicSorts]
-    vis    = (Vis.defaultVisitor :: Vis.Visitor [KVar] t) { Vis.accExpr = go }
+    vis    = (Vis.defaultVisitor :: Vis.Visitor [KVar s] t) { Vis.accExpr = go }
     go _ (EApp (ECst (EVar f) t) _)   -- get types needed for [NOTE:apply-monomorphism]
            | f == applyName
            = [t]

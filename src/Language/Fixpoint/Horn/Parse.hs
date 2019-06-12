@@ -29,7 +29,7 @@ mkQuery things = H.Query
 --   in a .smt2 query file.
 
 data HThing a
-  = HQual !F.Qualifier
+  = HQual !(F.Qualifier s)
   | HVar  !(H.Var a)
   | HCstr !(H.Cstr a)
   
@@ -81,7 +81,7 @@ kvSymP = char '$' *> symbolP
 -------------------------------------------------------------------------------
 -- | Qualifiers
 -------------------------------------------------------------------------------
-hQualifierP :: Parser F.Qualifier
+hQualifierP :: Parser (F.Qualifier s)
 hQualifierP = do
   pos    <- getPosition
   n      <- upperIdP
@@ -89,7 +89,7 @@ hQualifierP = do
   body   <- parens predP
   return  $ F.mkQual n (mkParam <$> params) body pos
 
-mkParam :: (F.FixSymbol, F.Sort s) -> F.QualParam 
+mkParam :: (F.FixSymbol, F.Sort s) -> F.QualParam s
 mkParam (x, t) = F.QP x F.PatNone t
 
 -------------------------------------------------------------------------------

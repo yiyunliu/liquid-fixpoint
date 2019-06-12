@@ -103,7 +103,7 @@ minKvars cfg solve fi = do
                   ++ "; Total KVars: "  ++ show (length $ ws fi)
   commonDebug (M.keys . ws) removeOtherKs isSafe False cfg' solve fi MinKVars format
 
-removeOtherKs :: FInfo a -> [KVar] -> FInfo a
+removeOtherKs :: FInfo a -> [KVar s] -> FInfo a
 removeOtherKs fi0 ks = fi1 { ws = ws', cm = cm' }
   where
     fi1 = mapKVars go fi0

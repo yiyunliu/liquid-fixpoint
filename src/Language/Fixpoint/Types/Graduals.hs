@@ -48,7 +48,7 @@ import qualified Language.Fixpoint.SortCheck       as So
 import Language.Fixpoint.Solver.Sanitize (symbolEnv)
 
 
-data GSol = GSol !SymEnv !(M.HashMap KVar (Expr, GradInfo))
+data GSol = GSol !SymEnv !(M.HashMap (KVar s) (Expr, GradInfo))
 
 instance Semigroup GSol where
   (GSol e1 m1) <> (GSol e2 m2) = GSol (e1 <> e2) (m1 <> m2)
@@ -64,8 +64,8 @@ instance Show GSol where
 
 
 makeSolutions :: (NFData a, Fixpoint a, Show a)
-              => Config -> SInfo a
-              -> [(KVar, (GWInfo, [[Expr]]))]
+              => Config -> SInfo s a
+              -> [(KVar s, (GWInfo s, [[Expr s]]))]
               -> Maybe [GSol]
 
 makeSolutions _ _ []
@@ -80,7 +80,7 @@ makeSolutions cfg fi kes
 -------------------------------------------------------------------------------
 -- |  Make each gradual appearence unique -------------------------------------
 -------------------------------------------------------------------------------
-uniquify :: (NFData a, Fixpoint a, Loc a) => SInfo a -> (SInfo a)
+uniquify :: (NFData a, Fixpoint a, Loc a) => SInfo s a -> (SInfo s a)
 
 uniquify fi = fi{cm = cm', ws = ws', bs = bs'}
   where
@@ -90,7 +90,7 @@ uniquify fi = fi{cm = cm', ws = ws', bs = bs'}
 uniquifyCS :: (NFData a, Fixpoint a, Loc a)
            => BindEnv
            -> M.HashMap SubcId (SimpC a)
-           -> (M.HashMap SubcId (SimpC a), M.HashMap KVar [(KVar, Maybe SrcSpan)], BindEnv)
+           -> (M.HashMap SubcId (SimpC a), M.HashMap (KVar s) [(KVar s, Maybe SrcSpan)], BindEnv)
 uniquifyCS bs cs
   = (x, km, benv st)
 --   = (x, km, mapBindEnv (\i (x,r) -> if i `elem` ubs st then (x, ungrad r) else (x, r)) $ benv st)
@@ -151,9 +151,9 @@ instance Unique (Expr s) where
 type UniqueM = State UniqueST
 data UniqueST
   = UniqueST { freshId :: Integer
-             , kmap    :: M.HashMap KVar [(KVar, Maybe SrcSpan)]
+             , kmap    :: M.HashMap (KVar s) [(KVar s, Maybe SrcSpan)]
              , change  :: Bool
-             , cache   :: M.HashMap KVar KVar
+             , cache   :: M.HashMap (KVar s) (KVar s)
              , uloc    :: Maybe SrcSpan
              , ubs     :: [BindId]
              , benv    :: BindEnv
@@ -172,7 +172,7 @@ withCache act = do
 emptyCache :: UniqueM ()
 emptyCache = modify $ \s -> s{cache = mempty}
 
-addCache :: KVar -> KVar -> UniqueM ()
+addCache :: KVar s -> KVar s -> UniqueM ()
 addCache k k' = modify $ \s -> s{cache = M.insert k k' (cache s)}
 
 updateBEnv :: BindId -> BindEnv -> UniqueM ()
@@ -187,7 +187,7 @@ resetChange = modify $ \s -> s{change = False}
 initUniqueST :: BindEnv ->  UniqueST
 initUniqueST = UniqueST 0 mempty False mempty Nothing mempty
 
-freshK, freshK' :: KVar -> UniqueM KVar
+freshK, freshK' :: KVar s -> UniqueM (KVar s)
 freshK k  = do
   setChange
   cached <- cache <$> get
@@ -204,7 +204,7 @@ freshK' k = do
   addCache k k'
   return k'
 
-addK :: KVar -> KVar -> UniqueM ()
+addK :: KVar s -> KVar s -> UniqueM ()
 addK key val =
   modify $ (\s -> s{kmap = M.insertWith (++) key [(val, uloc s)] (kmap s)})
 
@@ -213,9 +213,9 @@ addK key val =
 -------------------------------------------------------------------------------
 
 expandWF :: (NFData a, Fixpoint a)
-         => M.HashMap KVar [(KVar, Maybe SrcSpan)]
-         -> M.HashMap KVar (WfC a)
-         -> M.HashMap KVar (WfC a)
+         => M.HashMap (KVar s) [(KVar s, Maybe SrcSpan)]
+         -> M.HashMap (KVar s) (WfC s a)
+         -> M.HashMap (KVar s) (WfC s a)
 expandWF km ws
   = M.fromList $
        ([(k, updateKVar k src w) | (i, w) <- gws, (kw, ks) <- km', kw == i, (k, src) <- ks]
@@ -255,7 +255,7 @@ instance Gradual BindEnv where
 instance Gradual v => Gradual (M.HashMap k v) where
   gsubst su = M.map (gsubst su)
 
-instance Gradual (SInfo a) where
+instance Gradual (SInfo s a) where
   gsubst su fi = fi { bs = gsubst su (bs fi)
                     , cm = gsubst su (cm fi)
                     }

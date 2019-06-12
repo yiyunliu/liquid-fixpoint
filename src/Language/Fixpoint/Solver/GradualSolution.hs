@@ -25,7 +25,7 @@ import Language.Fixpoint.SortCheck
 --------------------------------------------------------------------------------
 -- | Initial Gradual Solution (from Qualifiers and WF constraints) -------------
 --------------------------------------------------------------------------------
-init :: (F.Fixpoint a) => Config -> F.SInfo a -> [(F.KVar, (F.GWInfo, [F.Expr]))]
+init :: (F.Fixpoint a) => Config -> F.SInfo s a -> [(F.KVar s, (F.GWInfo s, [F.Expr]))]
 --------------------------------------------------------------------------------
 init cfg si = map (elab . refineG si qs genv) gs `using` parList rdeepseq 
   where
@@ -42,24 +42,24 @@ init cfg si = map (elab . refineG si qs genv) gs `using` parList rdeepseq
 
 
 --------------------------------------------------------------------------------
-refineG :: F.SInfo a -> [F.Qualifier] -> F.SEnv (F.Sort s) -> F.WfC a -> (F.KVar, (F.GWInfo, [F.Expr]))
+refineG :: F.SInfo s a -> [F.Qualifier s] -> F.SEnv (F.Sort s) -> F.WfC s a -> (F.KVar s, (F.GWInfo s, [F.Expr s]))
 refineG fi qs genv w = (k, (F.gwInfo w, Sol.qbExprs qb))
   where 
     (k, qb) = refine fi qs genv w 
 
-refine :: F.SInfo a -> [F.Qualifier] -> F.SEnv (F.Sort s) -> F.WfC a -> (F.KVar, Sol.QBind)
+refine :: F.SInfo s a -> [F.Qualifier s] -> F.SEnv (F.Sort s) -> F.WfC s a -> (F.KVar s, Sol.QBind)
 refine fi qs genv w = refineK (allowHOquals fi) env qs $ F.wrft w
   where
     env             = wenv <> genv
     wenv            = F.sr_sort <$> F.fromListSEnv (F.envCs (F.bs fi) (F.wenv w))
 
-instConstants :: F.SInfo a -> F.SEnv (F.Sort s)
+instConstants :: F.SInfo s a -> F.SEnv (F.Sort s)
 instConstants = F.fromListSEnv . filter notLit . F.toListSEnv . F.gLits
   where
     notLit    = not . F.isLitSymbol . fst
 
 
-refineK :: Bool -> F.SEnv (F.Sort s) -> [F.Qualifier] -> (F.FixSymbol, F.Sort s, F.KVar) -> (F.KVar, Sol.QBind)
+refineK :: Bool -> F.SEnv (F.Sort s) -> [F.Qualifier s] -> (F.FixSymbol, F.Sort s, F.KVar s) -> (F.KVar s, Sol.QBind)
 refineK ho env qs (v, t, k) = (k, eqs')
    where
     eqs                     = instK ho env v t qs
@@ -70,7 +70,7 @@ instK :: Bool
       -> F.SEnv (F.Sort s)
       -> F.FixSymbol
       -> F.Sort s
-      -> [F.Qualifier]
+      -> [F.Qualifier s]
       -> Sol.QBind
 --------------------------------------------------------------------------------
 instK ho env v t = Sol.qb . unique . concatMap (instKQ ho env v t)
@@ -81,7 +81,7 @@ instKQ :: Bool
        -> F.SEnv (F.Sort s)
        -> F.FixSymbol
        -> F.Sort s
-       -> F.Qualifier
+       -> F.Qualifier s
        -> [Sol.EQual]
 instKQ ho env v t q
   = do (su0, v0) <- candidates senv [(t, [v])] qt

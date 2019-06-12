@@ -33,7 +33,7 @@ simplify' _ fi = simplifyFInfo (mkNonTrivSorts fi) fi
 -- | The main data types
 --------------------------------------------------------------------
 type NonTrivSorts = S.HashSet (Sort s)
-type KVarMap      = M.HashMap KVar [Sort s]
+type KVarMap      = M.HashMap (KVar s) [Sort s]
 data Polarity     = Lhs | Rhs
 type TrivInfo     = (NonTrivSorts, KVarMap)
 --------------------------------------------------------------------
@@ -65,7 +65,7 @@ ntEdges (nts, kvm) = es ++ [(v, u) | (u, v) <- es]
 type NTG = [(NTV, NTV, [NTV])]
 
 data NTV = NTV
-         | K !KVar
+         | K !(KVar s)
          | S !(Sort s)
          deriving (Eq, Ord, Show, Generic)
 
@@ -99,7 +99,7 @@ addNTS p r t ti
   | isNTR p r = addSort t ti
   | otherwise = ti
 
-addKVs :: Sort s -> [KVar] -> TrivInfo -> TrivInfo
+addKVs :: Sort s -> [KVar s] -> TrivInfo -> TrivInfo
 addKVs t ks ti     = foldl' addK ti ks
   where
     addK (ts, m) k = (ts, inserts k t m)
@@ -144,7 +144,7 @@ simplifyFInfo tm fi = fi {
 simplifyBindEnv :: NonTrivSorts -> BindEnv -> BindEnv
 simplifyBindEnv tm = mapBindEnv (\_ (x, sr) -> (x, simplifySortedReft tm sr))
 
-simplifyWfCs :: NonTrivSorts -> M.HashMap KVar (WfC a) -> M.HashMap KVar (WfC a)
+simplifyWfCs :: NonTrivSorts -> M.HashMap (KVar s) (WfC s a) -> M.HashMap (KVar s) (WfC s a)
 simplifyWfCs tm = M.filter (isNonTrivialSort tm . snd3 . wrft)
 
 simplifySubCs :: (Eq k, Hashable k)

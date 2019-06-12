@@ -38,7 +38,7 @@ import           Language.Fixpoint.SortCheck       (checkSortExpr)
 import           Language.Fixpoint.Types.Visitor   (mapMExpr, stripCasts)
 -- import Debug.Trace (trace)
 
-defunctionalize :: (Fixpoint a) => Config -> SInfo a -> SInfo a
+defunctionalize :: (Fixpoint a) => Config -> SInfo s a -> SInfo s a
 defunctionalize cfg si = evalState (defunc si) (makeInitDFState cfg si)
 
 defuncAny :: Defunc a => Config -> SymEnv -> a -> a
@@ -228,7 +228,7 @@ instance Defunc (SimpC a) where
   defunc sc = do crhs' <- defunc $ _crhs sc
                  return $ sc {_crhs = crhs'}
 
-instance Defunc (WfC a)   where
+instance Defunc (WfC s a)   where
   defunc wf@(WfC {}) = do
     let (x, t, k) = wrft wf
     t' <- defunc t
@@ -316,7 +316,7 @@ makeDFState cfg env ibind = DFST
   , dfBinds = mempty
   }
 
-makeInitDFState :: Config -> SInfo a -> DFST
+makeInitDFState :: Config -> SInfo s a -> DFST
 makeInitDFState cfg si
   = makeDFState cfg
       (symbolEnv cfg si)

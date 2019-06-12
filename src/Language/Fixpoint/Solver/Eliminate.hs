@@ -22,7 +22,7 @@ import           Language.Fixpoint.Solver.Sanitize
 -- | `solverInfo` constructs a `SolverInfo` comprising the Solution and various
 --   indices needed by the worklist-based refinement loop
 --------------------------------------------------------------------------------
-solverInfo :: Config -> SInfo a -> SolverInfo a b
+solverInfo :: Config -> SInfo s a -> SolverInfo a b
 --------------------------------------------------------------------------------
 solverInfo cfg sI = SI sHyp sI' cD cKs
   where
@@ -38,7 +38,7 @@ solverInfo cfg sI = SI sHyp sI' cD cKs
 
 
 --------------------------------------------------------------------------------
-kvScopes :: SInfo a -> [CEdge] -> M.HashMap KVar IBindEnv
+kvScopes :: SInfo s a -> [CEdge] -> M.HashMap (KVar s) IBindEnv
 kvScopes sI es = is2env <$> kiM
   where
     is2env = foldr1 intersectionIBindEnv . fmap (senv . getSubC sI)
@@ -47,7 +47,7 @@ kvScopes sI es = is2env <$> kiM
 
 --------------------------------------------------------------------------------
 
-cutSInfo :: SInfo a -> KIndex -> S.HashSet KVar -> SInfo a
+cutSInfo :: SInfo s a -> KIndex -> S.HashSet (KVar s) -> SInfo s a
 cutSInfo si kI cKs = si { ws = ws', cm = cm' }
   where
     ws'   = M.filterWithKey (\k _ -> S.member k cKs) (ws si)
@@ -55,7 +55,7 @@ cutSInfo si kI cKs = si { ws = ws', cm = cm' }
     cs    = S.fromList      (concatMap kCs cKs)
     kCs k = M.lookupDefault [] k kI
 
-kutVars :: Config -> SInfo a -> ([CEdge], S.HashSet KVar, S.HashSet KVar)
+kutVars :: Config -> SInfo s a -> ([CEdge], S.HashSet (KVar s), S.HashSet (KVar s))
 kutVars cfg si   = (es, depCuts ds, depNonCuts ds)
   where
     (es, ds)     = elimVars cfg si
@@ -63,21 +63,21 @@ kutVars cfg si   = (es, depCuts ds, depNonCuts ds)
 --------------------------------------------------------------------------------
 -- | Map each `KVar` to the list of constraints on which it appears on RHS
 --------------------------------------------------------------------------------
-type KIndex = M.HashMap KVar [Integer]
+type KIndex = M.HashMap (KVar s) [Integer]
 
 --------------------------------------------------------------------------------
-kIndex     :: SInfo a -> KIndex
+kIndex     :: SInfo s a -> KIndex
 --------------------------------------------------------------------------------
 kIndex si  = group [(k, i) | (i, c) <- iCs, k <- rkvars c]
   where
     iCs    = M.toList (cm si)
     rkvars = kvars . crhs
 
-nonCutHyps :: SInfo a -> KIndex -> S.HashSet KVar -> [(KVar, Sol.Hyp)]
+nonCutHyps :: SInfo s a -> KIndex -> S.HashSet (KVar s) -> [(KVar s, Sol.Hyp)]
 nonCutHyps si kI nKs = [ (k, nonCutHyp kI si k) | k <- S.toList nKs ]
 
 
-nonCutHyp  :: KIndex -> SInfo a -> KVar -> Sol.Hyp
+nonCutHyp  :: KIndex -> SInfo s a -> KVar s -> Sol.Hyp
 nonCutHyp kI si k = nonCutCube <$> cs
   where
     cs            = getSubC   si <$> M.lookupDefault [] k kI
@@ -91,7 +91,7 @@ rhsSubst             = rsu . crhs
     rsu (PKVar _ su) = su
     rsu _            = errorstar "Eliminate.rhsSubst called on bad input"
 
-getSubC :: SInfo a -> Integer -> SimpC a
+getSubC :: SInfo s a -> Integer -> SimpC a
 getSubC si i = safeLookup msg i (cm si)
   where
     msg = "getSubC: " ++ show i

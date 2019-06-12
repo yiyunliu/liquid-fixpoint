@@ -187,7 +187,7 @@ Each `slhs` of a constraint is a `SortedReft`.
   That is represented in the `Expr` type as
 
 ```
-  | PKVar  !KVar !(Subst s)
+  | PKVar  !(KVar s) !(Subst s)
 ```
 
   must appear _only_ at the **top-level** that is not under _any_

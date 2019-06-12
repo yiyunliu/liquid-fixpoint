@@ -34,7 +34,7 @@ import qualified Data.HashSet        as S
 import qualified Data.List           as L
 
 --------------------------------------------------------------------------------
-solve :: (NFData a, F.Fixpoint a, Show a, F.Loc a) => Config -> F.SInfo a -> IO (F.Result (Integer, a))
+solve :: (NFData a, F.Fixpoint a, Show a, F.Loc a) => Config -> F.SInfo s a -> IO (F.Result (Integer, a))
 --------------------------------------------------------------------------------
 
 solve cfg fi = do
@@ -59,13 +59,13 @@ withProgressFI :: SolverInfo a b -> IO b -> IO b
 withProgressFI = withProgress . (+ 1) . fromIntegral . cNumScc . siDeps  
 --------------------------------------------------------------------------------
 
-printStats :: F.SInfo a ->  W.Worklist a -> Stats -> IO ()
+printStats :: F.SInfo s a ->  W.Worklist a -> Stats -> IO ()
 printStats fi w s = putStrLn "\n" >> ppTs [ ptable fi, ptable s, ptable w ]
   where
     ppTs          = putStrLn . showpp . mconcat
 
 --------------------------------------------------------------------------------
-solverInfo :: Config -> F.SInfo a -> SolverInfo a b
+solverInfo :: Config -> F.SInfo s a -> SolverInfo a b
 --------------------------------------------------------------------------------
 solverInfo cfg fI
   | useElim cfg = E.solverInfo cfg fI
@@ -73,15 +73,15 @@ solverInfo cfg fI
   where
     cD          = elimDeps fI (kvEdges fI) mempty mempty
 
-siKvars :: F.SInfo a -> S.HashSet F.KVar
+siKvars :: F.SInfo s a -> S.HashSet F.KVar
 siKvars = S.fromList . M.keys . F.ws
 
 --------------------------------------------------------------------------------
 solve_ :: (NFData a, F.Fixpoint a, F.Loc a)
        => Config
-       -> F.SInfo a
+       -> F.SInfo s a
        -> Sol.Solution
-       -> S.HashSet F.KVar
+       -> S.HashSet (F.KVar s)
        -> W.Worklist a
        -> SolveM (F.Result (Integer, a), Stats)
 --------------------------------------------------------------------------------
@@ -144,7 +144,7 @@ refineC _i s c
     _msg ks xs ys = printf "refineC: iter = %d, sid = %s, s = %s, rhs = %d, rhs' = %d \n"
                      _i (show _ci) (showpp ks) (length xs) (length ys)
 
-rhsCands :: Sol.Solution -> F.SimpC a -> ([F.KVar], Sol.Cand (F.KVar, Sol.EQual))
+rhsCands :: Sol.Solution -> F.SimpC a -> ([F.KVar s], Sol.Cand (F.KVar s, Sol.EQual))
 rhsCands s c    = (fst <$> ks, kqs)
   where
     kqs         = [ (p, (k, q)) | (k, su) <- ks, (p, q)  <- cnd k su ]
@@ -152,7 +152,7 @@ rhsCands s c    = (fst <$> ks, kqs)
     cnd k su    = Sol.qbPreds msg s su (Sol.lookupQBind s k)
     msg         = "rhsCands: " ++ show (F.sid c)
 
-predKs :: F.Expr s -> [(F.KVar, F.Subst s)]
+predKs :: F.Expr s -> [(F.KVar s, F.Subst s)]
 predKs (F.PAnd ps)    = concatMap predKs ps
 predKs (F.PKVar k su) = [(k, su)]
 predKs _              = []
@@ -171,7 +171,7 @@ result cfg wkl s = do
   where
     ci c = (F.subcId c, F.sinfo c)
 
-solResult :: Config -> Sol.Solution -> SolveM (M.HashMap F.KVar F.Expr)
+solResult :: Config -> Sol.Solution -> SolveM (M.HashMap (F.KVar s) F.Expr)
 solResult cfg = minimizeResult cfg . Sol.result
 
 result_ :: (F.Loc a, NFData a) => Config -> W.Worklist a -> Sol.Solution -> SolveM (F.FixResult (F.SimpC a))
@@ -197,8 +197,8 @@ isChecked cfg cs = case checkCstr cfg of
 --   is implied by /\_{q' in qs \ qs}
 --   see: tests/pos/min00.fq for an example.
 --------------------------------------------------------------------------------
-minimizeResult :: Config -> M.HashMap F.KVar (F.Expr s)
-               -> SolveM (M.HashMap F.KVar F.Expr)
+minimizeResult :: Config -> M.HashMap (F.KVar s) (F.Expr s)
+               -> SolveM (M.HashMap (F.KVar s) F.Expr)
 --------------------------------------------------------------------------------
 minimizeResult cfg s
   | minimalSol cfg = mapM minimizeConjuncts s
@@ -264,7 +264,7 @@ donePhase' msg = lift $ do
 -- | Interaction with the user when Solving -----------------------------------
 -------------------------------------------------------------------------------
 
-_iMergePartitions :: [(Int, F.SInfo a)] -> IO [(Int, F.SInfo a)]
+_iMergePartitions :: [(Int, F.SInfo s a)] -> IO [(Int, F.SInfo s a)]
 _iMergePartitions ifis = do
   putStrLn "Current Partitions are: "
   putStrLn $ unlines (partitionInfo <$> ifis)
@@ -287,14 +287,14 @@ getMergePartition n = do
             getMergePartition n
     else return (i,j)
 
-mergePartitions :: Int -> Int -> [(Int, F.SInfo a)] -> [(Int, F.SInfo a)]
+mergePartitions :: Int -> Int -> [(Int, F.SInfo s a)] -> [(Int, F.SInfo s a)]
 mergePartitions i j fis
   = zip [1..] ((takei i `mappend` (takei j){F.bs = mempty}):rest)
   where
     takei i = snd (fis L.!! (i - 1))
     rest = snd <$> filter (\(k,_) -> (k /= i && k /= j)) fis
 
-partitionInfo :: (Int, F.SInfo a) -> String
+partitionInfo :: (Int, F.SInfo s a) -> String
 partitionInfo (i, fi)
   = "Partition number " ++ show i ++ "\n" ++
     "Defined ?? " ++ show defs    ++ "\n" ++

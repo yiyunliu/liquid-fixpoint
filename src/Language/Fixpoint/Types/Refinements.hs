@@ -123,7 +123,7 @@ import           Text.PrettyPrint.HughesPJ.Compat
 -- import           Text.Printf               (printf)
 
 
-instance NFData KVar
+instance NFData (KVar s)
 instance NFData SrcSpan
 instance (NFData s) => NFData (Subst s)
 instance NFData GradInfo
@@ -141,7 +141,7 @@ instance (Hashable k, Eq k, B.Binary k, B.Binary v) => B.Binary (M.HashMap k v) 
 
 instance (Eq a, Hashable a, B.Binary a, B.Binary s) => B.Binary (TCEmb a s) 
 instance B.Binary SrcSpan
-instance B.Binary KVar
+instance B.Binary (KVar s)
 instance B.Binary s => B.Binary (Subst s)
 instance B.Binary GradInfo
 instance B.Binary s => B.Binary (Constant s)
@@ -164,7 +164,7 @@ isKvar _           = False
 
 class HasGradual a where
   isGradual :: a -> Bool
-  gVars     :: a -> [KVar]
+  gVars     :: a -> [KVar s]
   gVars _ = [] 
   ungrad    :: a -> a
   ungrad x = x 
@@ -200,16 +200,18 @@ refaConjuncts p = [p' | p' <- conjuncts p, not $ isTautoPred p']
 -- | Kvars ---------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-newtype KVar = KV { kv :: FixSymbol }
-               deriving (Eq, Ord, Data, Typeable, Generic, IsString)
+newtype KVar s = KV { kv :: Symbol s }
+               deriving (Eq, Ord, Data, Typeable, Generic)
 
-intKvar :: Integer -> KVar
+instance IsString s => IsString (KVar s)
+
+intKvar :: Integer -> KVar s
 intKvar = KV . intSymbol "k_"
 
-instance Show KVar where
+instance Show (KVar s) where
   show (KV x) = "$" ++ show x
 
-instance Hashable KVar
+instance Hashable (KVar s)
 instance Hashable Brel
 instance Hashable Bop
 instance Hashable SymConst
@@ -238,7 +240,7 @@ instance (Eq s, Fixpoint s) => PPrint (Subst s) where
 data KVSub s = KVS
   { ksuVV    :: FixSymbol
   , ksuSort  :: Sort s
-  , ksuKVar  :: KVar
+  , ksuKVar  :: KVar s
   , ksuSubst :: Subst s
   } deriving (Eq, Data, Typeable, Generic, Show)
 
@@ -283,10 +285,10 @@ data Expr s = ESym !SymConst
             | PImp   !(Expr s) !(Expr s)
             | PIff   !(Expr s) !(Expr s)
             | PAtom  !Brel  !(Expr s) !(Expr s)
-            | PKVar  !KVar !(Subst s)
+            | PKVar  !(KVar s) !(Subst s)
             | PAll   ![(FixSymbol, Sort s)] !(Expr s)
             | PExist ![(FixSymbol, Sort s)] !(Expr s)
-            | PGrad  !KVar !(Subst s) !GradInfo !(Expr s)
+            | PGrad  !(KVar s) !(Subst s) !GradInfo !(Expr s)
             | ECoerc !(Sort s) !(Sort s) !(Expr s)  
             deriving (Eq, Show, Data, Typeable, Generic)
 
@@ -390,7 +392,7 @@ encodeSymConst (SL s) = litSymbol $ symbol s
 instance Fixpoint SymConst where
   toFix  = toFix . encodeSymConst
 
-instance Fixpoint KVar where
+instance Fixpoint (KVar s) where
   toFix (KV k) = text "$" <-> toFix k
 
 instance Fixpoint Brel where
@@ -519,7 +521,7 @@ instance (Eq s, Fixpoint s) => PPrint (Sort s) where
 instance (Eq s, Fixpoint s, PPrint a) => PPrint (TCEmb a s) where 
   pprintTidy k = pprintTidy k . tceToList 
 
-instance PPrint KVar where
+instance PPrint (KVar s) where
   pprintTidy _ (KV x) = text "$" <-> pprint x
 
 instance PPrint SymConst where

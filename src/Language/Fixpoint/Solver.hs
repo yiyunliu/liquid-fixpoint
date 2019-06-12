@@ -172,7 +172,7 @@ result e = Result (Crash [] msg) mempty mempty
   where
     msg  = showpp e
 
-loudDump :: (Fixpoint a) => Int -> Config -> SInfo a -> IO ()
+loudDump :: (Fixpoint a) => Int -> Config -> SInfo s a -> IO ()
 loudDump i cfg si = when False (writeLoud $ msg ++ render (toFixpoint cfg si))
   where
     msg           = "fq file after Uniqify & Rename " ++ show i ++ "\n"

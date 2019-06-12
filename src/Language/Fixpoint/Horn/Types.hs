@@ -60,11 +60,11 @@ data Pred
   deriving (Data, Typeable, Generic, Eq)
 
 -------------------------------------------------------------------------------
-quals :: Cstr a -> [F.Qualifier] 
+quals :: Cstr a -> [F.Qualifier s] 
 -------------------------------------------------------------------------------
 quals = F.tracepp "horn.quals" . cstrQuals F.emptySEnv F.vv_  
 
-cstrQuals :: F.SEnv (F.Sort s) -> F.FixSymbol -> Cstr a -> [F.Qualifier] 
+cstrQuals :: F.SEnv (F.Sort s) -> F.FixSymbol -> Cstr a -> [F.Qualifier s] 
 cstrQuals = go 
   where
     go env v (Head p _)  = predQuals env v p
@@ -72,22 +72,22 @@ cstrQuals = go
     go env _ (All  b c)  = bindQuals env b c 
     go env _ (Any  b c)  = bindQuals env b c
 
-bindQuals  :: F.SEnv (F.Sort s) -> Bind -> Cstr a -> [F.Qualifier] 
+bindQuals  :: F.SEnv (F.Sort s) -> Bind -> Cstr a -> [F.Qualifier s] 
 bindQuals env b c = predQuals env' bx (bPred b) ++ cstrQuals env' bx c 
   where 
     env'          = F.insertSEnv bx bt env
     bx            = bSym b
     bt            = bSort b
 
-predQuals :: F.SEnv (F.Sort s) -> F.FixSymbol -> Pred -> [F.Qualifier]
+predQuals :: F.SEnv (F.Sort s) -> F.FixSymbol -> Pred -> [F.Qualifier s]
 predQuals env v (Reft p)  = exprQuals env v p
 predQuals env v (PAnd ps) = concatMap (predQuals env v) ps
 predQuals _   _ _         = [] 
 
-exprQuals :: F.SEnv (F.Sort s) -> F.FixSymbol -> F.Expr s -> [F.Qualifier]
+exprQuals :: F.SEnv (F.Sort s) -> F.FixSymbol -> F.Expr s -> [F.Qualifier s]
 exprQuals env v e = mkQual env v <$> F.conjuncts e
 
-mkQual :: F.SEnv (F.Sort s) -> F.FixSymbol -> F.Expr s -> F.Qualifier
+mkQual :: F.SEnv (F.Sort s) -> F.FixSymbol -> F.Expr s -> F.Qualifier s
 mkQual env v p = case envSort env <$> (v:xs) of
                    (_,so):xts -> F.mkQ "Auto" ((v, so) : xts) p junk 
                    _          -> F.panic "impossible"
@@ -148,7 +148,7 @@ okCstr _        = False
 -------------------------------------------------------------------------------
 
 data Query a = Query 
-  { qQuals :: ![F.Qualifier]                    -- ^ qualifiers over which to solve cstrs
+  { qQuals :: ![F.Qualifier s]                    -- ^ qualifiers over which to solve cstrs
   , qVars  :: ![Var a]                          -- ^ kvars, with parameter-sorts
   , qCstr  :: !(Cstr a)                         -- ^ list of constraints
   , qCon   :: M.HashMap (F.FixSymbol) (F.Sort s)     -- ^ list of constants (uninterpreted functions

@@ -199,12 +199,12 @@ visitExpr !v    = vE
     step _  !p@(PKVar _ _)   = return p
     step !c !(PGrad k su i e) = PGrad k su i <$> vE c e
 
-mapKVars :: Visitable t => (KVar -> Maybe Expr) -> t -> t
+mapKVars :: Visitable t => (KVar s -> Maybe Expr) -> t -> t
 mapKVars f = mapKVars' f'
   where
     f' (kv', _) = f kv'
 
-mapKVars' :: Visitable t => ((KVar, Subst s) -> Maybe (Expr s)) -> t -> t
+mapKVars' :: Visitable t => ((KVar s, Subst s) -> Maybe (Expr s)) -> t -> t
 mapKVars' f            = trans kvVis () ()
   where
     kvVis              = defaultVisitor { txExpr = txK }
@@ -216,7 +216,7 @@ mapKVars' f            = trans kvVis () ()
 
 
 
-mapGVars' :: Visitable t => ((KVar, Subst s) -> Maybe (Expr s)) -> t -> t
+mapGVars' :: Visitable t => ((KVar s, Subst s) -> Maybe (Expr s)) -> t -> t
 mapGVars' f            = trans kvVis () ()
   where
     kvVis              = defaultVisitor { txExpr = txK }
@@ -254,7 +254,7 @@ mapMExpr f = go
     go (PAnd  ps)      = f =<< (PAnd        <$> (go <$$> ps)              )
     go (POr  ps)       = f =<< (POr         <$> (go <$$> ps)              )
 
-mapKVarSubsts :: Visitable t => (KVar -> Subst s -> Subst s) -> t -> t
+mapKVarSubsts :: Visitable t => (KVar s -> Subst s -> Subst s) -> t -> t
 mapKVarSubsts f          = trans kvVis () ()
   where
     kvVis                = defaultVisitor { txExpr = txK }
@@ -289,31 +289,31 @@ lamSize t    = n
 eapps :: Visitable t => t -> [Expr]
 eapps                 = fold eappVis () []
   where
-    eappVis              = (defaultVisitor :: Visitor [KVar] t) { accExpr = eapp' }
+    eappVis              = (defaultVisitor :: Visitor [KVar s] t) { accExpr = eapp' }
     eapp' _ e@(EApp _ _) = [e]
     eapp' _ _            = []
 
-kvars :: Visitable t => t -> [KVar]
+kvars :: Visitable t => t -> [KVar s]
 kvars                 = fold kvVis () []
   where
-    kvVis             = (defaultVisitor :: Visitor [KVar] t) { accExpr = kv' }
+    kvVis             = (defaultVisitor :: Visitor [KVar s] t) { accExpr = kv' }
     kv' _ (PKVar k _)     = [k]
     kv' _ (PGrad k _ _ _) = [k]
     kv' _ _               = []
 
-envKVars :: (TaggedC c a) => BindEnv -> c a -> [KVar]
+envKVars :: (TaggedC c a) => BindEnv -> c a -> [KVar s]
 envKVars be c = squish [ kvs sr |  (_, sr) <- clhs be c]
   where
     squish    = S.toList  . S.fromList . concat
     kvs       = kvars . sr_reft
 
-envKVarsN :: (TaggedC c a) => BindEnv -> c a -> [(KVar, Int)]
+envKVarsN :: (TaggedC c a) => BindEnv -> c a -> [(KVar s, Int)]
 envKVarsN be c = tally [ kvs sr |  (_, sr) <- clhs be c]
   where
     tally      = Misc.count . concat
     kvs        = kvars . sr_reft
 
-rhsKVars :: (TaggedC c a) => c a -> [KVar]
+rhsKVars :: (TaggedC c a) => c a -> [KVar s]
 rhsKVars = kvars . crhs -- rhsCs
 
 isKvarC :: (TaggedC c a) => c a -> Bool

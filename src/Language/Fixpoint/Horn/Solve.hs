@@ -187,11 +187,11 @@ type KVEnv a  = M.HashMap F.FixSymbol (KVInfo a)
 data KVInfo a = KVInfo 
   { kvVar    :: !(H.Var a)
   , kvParams :: ![F.FixSymbol]
-  , kvWfC    :: !(F.WfC a) 
+  , kvWfC    :: !(F.WfC s a) 
   }
   deriving (Generic, Functor)
 
-kvEnvWfCs :: KVEnv a -> M.HashMap F.KVar (F.WfC a)
+kvEnvWfCs :: KVEnv a -> M.HashMap (F.KVar s) (F.WfC s a)
 kvEnvWfCs kve = M.fromList [ (F.KV k, kvWfC info) | (k, info) <- M.toList kve ]
 
 hvarArg :: H.Var a -> Int -> F.FixSymbol 

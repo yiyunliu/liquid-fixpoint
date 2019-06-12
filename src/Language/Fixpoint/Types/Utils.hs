@@ -24,14 +24,14 @@ import           Language.Fixpoint.Types.Constraints
 --------------------------------------------------------------------------------
 -- | Compute the domain of a kvar
 --------------------------------------------------------------------------------
-kvarDomain :: SInfo a -> KVar -> [FixSymbol]
+kvarDomain :: SInfo s a -> KVar s -> [FixSymbol]
 --------------------------------------------------------------------------------
 kvarDomain si k = domain (bs si) (getWfC si k)
 
-domain :: BindEnv -> WfC a -> [FixSymbol]
+domain :: BindEnv -> WfC s a -> [FixSymbol]
 domain be wfc = fst3 (wrft wfc) : map fst (envCs be $ wenv wfc)
 
-getWfC :: SInfo a -> KVar -> WfC a
+getWfC :: SInfo s a -> KVar s -> WfC s a
 getWfC si k = ws si M.! k
 
 --------------------------------------------------------------------------------

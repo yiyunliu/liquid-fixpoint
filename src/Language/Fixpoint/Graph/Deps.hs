@@ -52,7 +52,7 @@ import           Debug.Trace (trace)
 
 --------------------------------------------------------------------------------
 -- | Compute constraints that transitively affect target constraints,
---   and delete everything else from F.SInfo a
+--   and delete everything else from F.SInfo s a
 --------------------------------------------------------------------------------
 slice :: (F.TaggedC c a) => Config -> F.GInfo c a -> F.GInfo c a
 --------------------------------------------------------------------------------
@@ -78,7 +78,7 @@ sliceKVars fi sl = S.fromList $ concatMap (subcKVars be) cs
     be           = F.bs fi
     cm           = F.cm fi
 
-subcKVars :: (F.TaggedC c a) => F.BindEnv -> c a -> [F.KVar]
+subcKVars :: (F.TaggedC c a) => F.BindEnv -> c a -> [F.KVar s]
 subcKVars be c = V.envKVars be c ++ V.rhsKVars c
 
 --------------------------------------------------------------------------------
@@ -175,7 +175,7 @@ succs cm rdBy = (sortNub . concatMap kvReads . kvWrites) <$> cm
     kvWrites  = V.kvars . F.crhs
 
 --------------------------------------------------------------------------------
-kvWriteBy :: (F.TaggedC c a) => CMap (c a) -> F.SubcId -> [F.KVar]
+kvWriteBy :: (F.TaggedC c a) => CMap (c a) -> F.SubcId -> [F.KVar s]
 --------------------------------------------------------------------------------
 kvWriteBy cm = V.kvars . F.crhs . lookupCMap cm
 
@@ -213,7 +213,7 @@ kvEdges fi = selfes ++ concatMap (subcEdges bs) cs ++ concatMap (ebindEdges ebs 
            ++ [(KVar k , DKVar k) | k <- ks]
            ++ [(DKVar k, DKVar k) | k <- ks]
 
-fiKVars :: F.GInfo c a -> [F.KVar]
+fiKVars :: F.GInfo c a -> [F.KVar s]
 fiKVars = M.keys . F.ws
 
 ebindEdges :: (F.TaggedC c a) => [F.BindId] -> F.BindEnv -> c a -> [CEdge]
@@ -240,7 +240,7 @@ subcEdges bs c =  [(KVar k, Cstr i ) | k  <- V.envKVars bs c]
 --------------------------------------------------------------------------------
 -- | Eliminated Dependencies
 --------------------------------------------------------------------------------
-elimDeps :: (F.TaggedC c a) => F.GInfo c a -> [CEdge] -> S.HashSet F.KVar -> S.HashSet F.FixSymbol -> CDeps
+elimDeps :: (F.TaggedC c a) => F.GInfo c a -> [CEdge] -> S.HashSet (F.KVar s) -> S.HashSet F.FixSymbol -> CDeps
 elimDeps si es nonKutVs ebs = graphDeps si es'
   where
     es'                 = graphElim es nonKutVs ebs
@@ -254,7 +254,7 @@ elimDeps si es nonKutVs ebs = graphDeps si es'
 
           ki ------------> c
 -}
-graphElim :: [CEdge] -> S.HashSet F.KVar -> S.HashSet F.FixSymbol -> [CEdge]
+graphElim :: [CEdge] -> S.HashSet (F.KVar s) -> S.HashSet F.FixSymbol -> [CEdge]
 graphElim es ks _ebs = ikvgEdges $ -- elimEs (S.map EBind ebs) $
                                   elimKs (S.map KVar ks)   $ edgesIkvg es
   where
@@ -304,20 +304,20 @@ dCut    v = Deps (S.singleton v) S.empty
 --------------------------------------------------------------------------------
 -- | Compute Dependencies and Cuts ---------------------------------------------
 --------------------------------------------------------------------------------
-elimVars :: (F.TaggedC c a) => Config -> F.GInfo c a -> ([CEdge], Elims F.KVar)
+elimVars :: (F.TaggedC c a) => Config -> F.GInfo c a -> ([CEdge], Elims (F.KVar s))
 --------------------------------------------------------------------------------
 elimVars cfg si = (es, ds)
   where
     ds          = edgeDeps cfg si es
     es          = kvEdges si
 
-removeKutEdges ::  S.HashSet F.KVar -> [CEdge] -> [CEdge]
+removeKutEdges ::  S.HashSet (F.KVar s) -> [CEdge] -> [CEdge]
 removeKutEdges ks = filter (not . isKut . snd)
   where
-    cutVs         = S.map KVar ks
+    cutVs         = S.map (KVar s) ks
     isKut         = (`S.member` cutVs)
 
-cutVars :: (F.TaggedC c a) => Config -> F.GInfo c a -> S.HashSet F.KVar
+cutVars :: (F.TaggedC c a) => Config -> F.GInfo c a -> S.HashSet (F.KVar s)
 cutVars cfg si
   | autoKuts cfg = S.empty
   | otherwise    = F.ksVars . F.kuts $ si
@@ -325,7 +325,7 @@ cutVars cfg si
 forceKuts :: (Hashable a, Eq a) => S.HashSet a -> Elims a  -> Elims a
 forceKuts xs (Deps cs ns) = Deps (S.union cs xs) (S.difference ns xs)
 
-edgeDeps :: (F.TaggedC c a) => Config -> F.GInfo c a -> [CEdge] -> Elims F.KVar
+edgeDeps :: (F.TaggedC c a) => Config -> F.GInfo c a -> [CEdge] -> Elims (F.KVar s)
 edgeDeps cfg si  = forceKuts ks
                  . edgeDeps' cfg
                  . removeKutEdges ks
@@ -337,7 +337,7 @@ edgeDeps cfg si  = forceKuts ks
       | nonLinCuts cfg = nonLinearKVars si
       | otherwise      = mempty
 
-edgeDeps' :: Config -> [CEdge] -> Elims F.KVar
+edgeDeps' :: Config -> [CEdge] -> Elims (F.KVar s)
 edgeDeps' cfg es = Deps (takeK cs) (takeK ns)
   where
     Deps cs ns   = gElims cfg kF cutF g
@@ -353,7 +353,7 @@ sMapMaybe :: (Hashable b, Eq b) => (a -> Maybe b) -> S.HashSet a -> S.HashSet b
 sMapMaybe f = S.fromList . mapMaybe f . S.toList
 
 --------------------------------------------------------------------------------
-type EdgeRank = M.HashMap F.KVar Integer
+type EdgeRank = M.HashMap (F.KVar s) Integer
 --------------------------------------------------------------------------------
 edgeRank :: [CEdge] -> EdgeRank
 edgeRank es = minimum . (n :) <$> kiM
@@ -541,7 +541,7 @@ data Stats = Stats {
   , stNumKVNonLin :: !Int   -- ^ number of kvars that appear >= 2 in some LHS
   , stNumKVTotal  :: !Int   -- ^ number of kvars
   , stIsReducible :: !Bool  -- ^ is dep-graph reducible
-  , stSetKVNonLin :: !(S.HashSet F.KVar) -- ^ set of non-linear kvars
+  , stSetKVNonLin :: !(S.HashSet (F.KVar s)) -- ^ set of non-linear kvars
   }
 
 instance PTable Stats where
@@ -566,12 +566,12 @@ graphStats cfg si = Stats {
     d             = snd $ elimVars cfg si
 
 --------------------------------------------------------------------------------
-nonLinearKVars :: (F.TaggedC c a) => F.GInfo c a -> S.HashSet F.KVar
+nonLinearKVars :: (F.TaggedC c a) => F.GInfo c a -> S.HashSet (F.KVar s)
 --------------------------------------------------------------------------------
 nonLinearKVars fi = S.unions $ nlKVarsC bs <$> cs
   where
     bs            = F.bs fi
     cs            = M.elems (F.cm fi)
 
-nlKVarsC :: (F.TaggedC c a) => F.BindEnv -> c a -> S.HashSet F.KVar
+nlKVarsC :: (F.TaggedC c a) => F.BindEnv -> c a -> S.HashSet (F.KVar s)
 nlKVarsC bs c = S.fromList [ k |  (k, n) <- V.envKVarsN bs c, n >= 2]

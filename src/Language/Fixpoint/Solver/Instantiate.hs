@@ -47,7 +47,7 @@ mytracepp = notracepp
 --------------------------------------------------------------------------------
 -- | Strengthen Constraint Environments via PLE 
 --------------------------------------------------------------------------------
-instantiate :: (Loc a) => Config -> SInfo a -> IO (SInfo a)
+instantiate :: (Loc a) => Config -> SInfo s a -> IO (SInfo s a)
 instantiate cfg fi
   | rewriteAxioms cfg && noIncrPle cfg
   = instantiate' cfg fi
@@ -61,14 +61,14 @@ instantiate cfg fi
 ------------------------------------------------------------------------------- 
 -- | New "Incremental" PLE
 ------------------------------------------------------------------------------- 
-incrInstantiate' :: (Loc a) => Config -> SInfo a -> IO (SInfo a)
+incrInstantiate' :: (Loc a) => Config -> SInfo s a -> IO (SInfo s a)
 ------------------------------------------------------------------------------- 
 incrInstantiate' cfg fi = do 
     let cs = [ (i, c) | (i, c) <- M.toList (cm fi), isPleCstr aEnv i c ] 
     let t  = mkCTrie cs                                               -- 1. BUILD the Trie
     res   <- withProgress (1 + length cs) $ 
                withCtx cfg file sEnv (pleTrie t . instEnv cfg fi cs)  -- 2. TRAVERSE Trie to compute InstRes
-    return $ resSInfo cfg sEnv fi res                                 -- 3. STRENGTHEN SInfo using InstRes
+    return $ resSInfo cfg sEnv fi res                                 -- 3. STRENGTHEN SInfo s using InstRes
   where
     file   = srcFile cfg ++ ".evals"
     sEnv   = symbolEnv cfg fi
@@ -78,7 +78,7 @@ incrInstantiate' cfg fi = do
 
 ------------------------------------------------------------------------------- 
 -- | Step 1a: @instEnv@ sets up the incremental-PLE environment 
-instEnv :: (Loc a) => Config -> SInfo a -> [(SubcId, SimpC a)] -> SMT.Context -> InstEnv a 
+instEnv :: (Loc a) => Config -> SInfo s a -> [(SubcId, SimpC a)] -> SMT.Context -> InstEnv a 
 instEnv cfg fi cs ctx = InstEnv cfg ctx bEnv aEnv (M.fromList cs) γ s0
   where 
     bEnv              = bs fi
@@ -160,9 +160,9 @@ evalCandsLoop cfg ctx γ s0 cands = go [] cands
 
 
 ---------------------------------------------------------------------------------------------- 
--- | Step 3: @resSInfo@ uses incremental PLE result @InstRes@ to produce the strengthened SInfo 
+-- | Step 3: @resSInfo@ uses incremental PLE result @InstRes@ to produce the strengthened SInfo s 
 
-resSInfo :: Config -> SymEnv -> SInfo a -> InstRes -> SInfo a
+resSInfo :: Config -> SymEnv -> SInfo s a -> InstRes -> SInfo s a
 resSInfo cfg env fi res = strengthenBinds fi' res' 
   where
     res'                = M.fromList $ mytracepp  "ELAB-INST:  " $ zip is ps''
@@ -283,7 +283,7 @@ instance PPrint CTrie where
 --------------------------------------------------------------------------------
 -- | "Old" GLOBAL PLE 
 --------------------------------------------------------------------------------
-instantiate' :: (Loc a) => Config -> SInfo a -> IO (SInfo a)
+instantiate' :: (Loc a) => Config -> SInfo s a -> IO (SInfo s a)
 instantiate' cfg fi = sInfo cfg env fi <$> withCtx cfg file env act
   where
     act ctx         = forM cstrs $ \(i, c) ->
@@ -293,7 +293,7 @@ instantiate' cfg fi = sInfo cfg env fi <$> withCtx cfg file env act
     env             = symbolEnv cfg fi
     aenv            = {- mytracepp  "AXIOM-ENV" -} (ae fi)
 
-sInfo :: Config -> SymEnv -> SInfo a -> [((SubcId, SrcSpan), Expr)] -> SInfo a
+sInfo :: Config -> SymEnv -> SInfo s a -> [((SubcId, SrcSpan), Expr)] -> SInfo s a
 sInfo cfg env fi ips = strengthenHyp fi' (mytracepp  "ELAB-INST:  " $ zip (fst <$> is) ps'')
   where
     (is, ps)         = unzip ips

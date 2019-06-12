@@ -314,7 +314,7 @@ instance (Hashable a, Eq a, B.Binary a) => B.Binary (S.HashSet a) where
 -- | Constraint Pack Sets ------------------------------------------------------
 --------------------------------------------------------------------------------
 
-newtype Packs = Packs { packm :: M.HashMap KVar Int }
+newtype Packs = Packs { packm :: M.HashMap KVar s Int }
                deriving (Eq, Show, Generic)
 
 instance Fixpoint Packs where
@@ -332,10 +332,10 @@ instance Monoid Packs where
   mempty  = Packs mempty
   mappend = (<>)
 
-getPack :: KVar -> Packs -> Maybe Int
+getPack :: KVar s -> Packs -> Maybe Int
 getPack k (Packs m) = M.lookup k m
 
-makePack :: [S.HashSet KVar] -> Packs
+makePack :: [S.HashSet (KVar s)] -> Packs
 makePack kvss = Packs (M.fromList kIs)
   where
     kIs       = [ (k, i) | (i, ks) <- kPacks, k <- ks ]

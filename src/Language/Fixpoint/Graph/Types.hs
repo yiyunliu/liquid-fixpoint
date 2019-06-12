@@ -64,11 +64,11 @@ import qualified Data.HashSet              as S
 import GHC.Stack
 --------------------------------------------------------------------------------
 
-data CVertex = KVar  !KVar    -- ^ real kvar vertex
-             | DKVar !KVar    -- ^ dummy to ensure each kvar has a successor
-             | EBind !F.FixSymbol  -- ^ existentially bound "ghost paramter" to solve for
-             | Cstr  !Integer -- ^ constraint-id which creates a dependency
-               deriving (Eq, Ord, Show, Generic)
+data CVertex s = KVar  !(KVar s)    -- ^ real kvar vertex
+               | DKVar !(KVar s)    -- ^ dummy to ensure each kvar has a successor
+               | EBind !F.FixSymbol  -- ^ existentially bound "ghost paramter" to solve for
+               | Cstr  !Integer -- ^ constraint-id which creates a dependency
+                deriving (Eq, Ord, Show, Generic)
 
 instance PPrint CVertex where
   pprintTidy _ (KVar k)  = doubleQuotes $ pprint $ kv k
@@ -79,7 +79,7 @@ instance PPrint CVertex where
 
 instance Hashable CVertex
 
-data KVGraph    = KVGraph { kvgEdges :: [(CVertex, CVertex, [CVertex])] }
+data KVGraph s  = KVGraph { kvgEdges :: [(CVertex s, CVertex s, [CVertex s])] }
 type CEdge      = (CVertex, CVertex)
 type Comps a    = [[a]]
 type KVComps    = Comps CVertex
@@ -131,7 +131,7 @@ txEdges es = concatMap iEs is
 ---------------------------------------------------------------------------
 -- | Dramatis Personae
 ---------------------------------------------------------------------------
-type KVRead  = M.HashMap F.KVar [F.SubcId]
+type KVRead  = M.HashMap (F.KVar s) [F.SubcId]
 type DepEdge = (F.SubcId, F.SubcId, [F.SubcId])
 
 data Slice = Slice { slKVarCs :: [F.SubcId]     -- ^ F.SubcIds that transitively "reach" below
@@ -158,7 +158,7 @@ lookupCMap rm i = safeLookup err i rm
 --------------------------------------------------------------------------------
 
 data CDeps = CDs { cSucc   :: !(F.CMap [F.SubcId]) -- ^ Constraints *written by* a SubcId
-                 , cPrev   :: !(F.CMap [F.KVar])   -- ^ (Cut) KVars *read by*    a SubcId
+                 , cPrev   :: !(F.CMap [F.KVar s])   -- ^ (Cut) KVars *read by*    a SubcId
                  , cRank   :: !(F.CMap Rank)       -- ^ SCC rank of a SubcId
                  , cNumScc :: !Int                 -- ^ Total number of Sccs
                  }
@@ -180,7 +180,7 @@ instance PPrint Rank where
 --------------------------------------------------------------------------------
 data SolverInfo a b = SI
   { siSol     :: !(F.Sol b F.QBind)             -- ^ the initial solution
-  , siQuery   :: !(F.SInfo a)                   -- ^ the whole input query
+  , siQuery   :: !(F.SInfo s a)                   -- ^ the whole input query
   , siDeps    :: !CDeps                         -- ^ dependencies between constraints/ranks etc.
-  , siVars    :: !(S.HashSet F.KVar)            -- ^ set of KVars to actually solve for
+  , siVars    :: !(S.HashSet (F.KVar s))            -- ^ set of KVars to actually solve for
   }

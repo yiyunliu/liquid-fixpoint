@@ -52,7 +52,7 @@ import           Data.List (sortBy)
 -- | Constraint Partition Container --------------------------------------------
 --------------------------------------------------------------------------------
 
-data CPart c a = CPart { pws :: !(M.HashMap F.KVar (F.WfC a))
+data CPart c a = CPart { pws :: !(M.HashMap (F.KVar s) (F.WfC s a))
                        , pcm :: !(M.HashMap Integer (c a))
                        }
   
@@ -170,7 +170,7 @@ dumpPartitions cfg fis =
 --   mkPartition' are the two primary functions that conform to this interface
 type PartitionCtor c a b = F.GInfo c a
                        -> M.HashMap Int [(Integer, c a)]
-                       -> M.HashMap Int [(F.KVar, F.WfC a)]
+                       -> M.HashMap Int [(F.KVar s, F.WfC s a)]
                        -> Int
                        -> b -- ^ typically a F.FInfo a or F.CPart a
 
@@ -194,7 +194,7 @@ partitionByConstraints f fi kvss = f fi icM iwM <$> js
 
 mkPartition :: F.GInfo c a
             -> M.HashMap Int [(Integer, c a)]
-            -> M.HashMap Int [(F.KVar, F.WfC a)]
+            -> M.HashMap Int [(F.KVar s, F.WfC s a)]
             -> Int
             -> F.GInfo c a
 mkPartition fi icM iwM j
@@ -204,7 +204,7 @@ mkPartition fi icM iwM j
 
 mkPartition' :: F.GInfo c a
              -> M.HashMap Int [(Integer, c a)]
-             -> M.HashMap Int [(F.KVar, F.WfC a)]
+             -> M.HashMap Int [(F.KVar s, F.WfC s a)]
              -> Int
              -> CPart c a
 mkPartition' _ icM iwM j

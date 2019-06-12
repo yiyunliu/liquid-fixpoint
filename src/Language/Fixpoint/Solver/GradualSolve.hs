@@ -33,7 +33,7 @@ import           Control.DeepSeq
 import qualified Language.Fixpoint.Types           as F
 import           Language.Fixpoint.Types.Config hiding (stats)
 
-solveGradual :: (NFData a, F.Fixpoint a) => Config -> F.SInfo a -> IO (F.Result (Integer, a))
+solveGradual :: (NFData a, F.Fixpoint a) => Config -> F.SInfo s a -> IO (F.Result (Integer, a))
 solveGradual = undefined
 
 
@@ -47,13 +47,13 @@ withProgressFI :: SolverInfo a b -> IO b -> IO b
 withProgressFI = withProgress . fromIntegral . cNumScc . siDeps
 --------------------------------------------------------------------------------
 
-printStats :: F.SInfo a ->  W.Worklist a -> Stats -> IO ()
+printStats :: F.SInfo s a ->  W.Worklist a -> Stats -> IO ()
 printStats fi w s = putStrLn "\n" >> ppTs [ ptable fi, ptable s, ptable w ]
   where
     ppTs          = putStrLn . showpp . mconcat
 
 --------------------------------------------------------------------------------
-solverInfo :: Config -> F.SInfo a -> SolverInfo a b
+solverInfo :: Config -> F.SInfo s a -> SolverInfo a b
 --------------------------------------------------------------------------------
 solverInfo cfg fI
   | useElim cfg = E.solverInfo cfg fI
@@ -61,7 +61,7 @@ solverInfo cfg fI
   where
     cD          = elimDeps fI (kvEdges fI) mempty
 
-siKvars :: F.SInfo a -> S.HashSet F.KVar
+siKvars :: F.SInfo s a -> S.HashSet F.KVar
 siKvars = S.fromList . M.keys . F.ws
 
 
@@ -84,7 +84,7 @@ tidyPred :: F.Expr s -> F.Expr s
 tidyPred = F.substf (F.eVar . F.tidySymbol)
 
 
-predKs :: F.Expr s -> [(F.KVar, F.Subst)]
+predKs :: F.Expr s -> [(F.KVar s, F.Subst)]
 predKs (F.PAnd ps)    = concatMap predKs ps
 predKs (F.PKVar k su) = [(k, su)]
 predKs _              = []
@@ -92,8 +92,8 @@ predKs _              = []
 
 
 --------------------------------------------------------------------------------
-minimizeResult :: Config -> M.HashMap F.KVar F.Expr s
-               -> SolveM (M.HashMap F.KVar F.Expr)
+minimizeResult :: Config -> M.HashMap (F.KVar s) F.Expr s
+               -> SolveM (M.HashMap (F.KVar s) F.Expr)
 --------------------------------------------------------------------------------
 minimizeResult cfg s
   | minimalSol cfg = mapM minimizeConjuncts s
@@ -132,7 +132,7 @@ isValid p q = (not . null) <$> filterValid p [(q, ())]
 -- | solve with edits to allow Gradual types ----------------------------------
 -------------------------------------------------------------------------------
 
-solveGradual :: (NFData a, F.Fixpoint a) => Config -> F.SInfo a -> IO (F.Result (Integer, a))
+solveGradual :: (NFData a, F.Fixpoint a) => Config -> F.SInfo s a -> IO (F.Result (Integer, a))
 -- solveGradual = undefined
 
 solveGradual cfg fi = do
@@ -150,9 +150,9 @@ solveGradual cfg fi = do
 --------------------------------------------------------------------------------
 solveGradual_ :: (NFData a, F.Fixpoint a)
        => Config
-       -> F.SInfo a
+       -> F.SInfo s a
        -> Sol.GSolution
-       -> S.HashSet F.KVar
+       -> S.HashSet (F.KVar s)
        -> W.Worklist a
        -> SolveM (F.Result (Integer, a), Stats)
 --------------------------------------------------------------------------------
@@ -172,7 +172,7 @@ filterLocal sol = do
   where
     gs = M.toList $ Sol.gMap sol
 
-initGBind :: Sol.GSolution -> (F.KVar, (((F.FixSymbol, F.Sort s), F.Expr), Sol.GBind)) -> SolveM (F.KVar, (((F.FixSymbol, F.Sort s), F.Expr), Sol.GBind))
+initGBind :: Sol.GSolution -> (F.KVar s, (((F.FixSymbol, F.Sort s), F.Expr), Sol.GBind)) -> SolveM (F.KVar s, (((F.FixSymbol, F.Sort s), F.Expr), Sol.GBind))
 initGBind sol (k, (e, gb)) = do
    elems0  <- filterM (isLocal e) (Sol.gbEquals gb)
    elems   <- sortEquals elems0
@@ -256,7 +256,7 @@ refineC _i s c
                      _i (show _ci) (showpp ks) (length xs) (length ys)
 
 
-rhsCands :: Sol.GSolution -> F.SimpC a -> ([F.KVar], Sol.Cand (F.KVar, Sol.EQual))
+rhsCands :: Sol.GSolution -> F.SimpC a -> ([F.KVar s], Sol.Cand (F.KVar s, Sol.EQual))
 rhsCands s c    = (fst <$> ks, kqs)
   where
     kqs         = [ (p, (k, q)) | (k, su) <- ks, (p, q)  <- cnd k su ]
@@ -285,7 +285,7 @@ result_  w s = res <$> filterM (isUnsat s) cs
     res []   = F.Safe
     res cs'  = F.Unsafe cs'
 
-solResult :: Config -> Sol.GSolution -> SolveM (M.HashMap F.KVar F.Expr)
+solResult :: Config -> Sol.GSolution -> SolveM (M.HashMap (F.KVar s) F.Expr)
 solResult cfg
   = minimizeResult cfg . Sol.result
 

@@ -21,7 +21,7 @@ import           Control.DeepSeq     (NFData, ($!!))
 -- import Debug.Trace (trace)
 
 --------------------------------------------------------------------------------
-renameAll    :: SInfo a -> SInfo a
+renameAll    :: SInfo s a -> SInfo s a
 --------------------------------------------------------------------------------
 renameAll fi2 = fi6
   where
@@ -37,7 +37,7 @@ renameAll fi2 = fi6
 -- | `dropUnusedBinds` replaces the refinements of "unused" binders with "true".
 --   see tests/pos/unused.fq for an example of why this phase is needed.
 --------------------------------------------------------------------------------
-dropUnusedBinds :: SInfo a -> SInfo a
+dropUnusedBinds :: SInfo s a -> SInfo s a
 dropUnusedBinds fi = fi {bs = filterBindEnv isUsed (bs fi)}-- { bs = mapBindEnv tx (bs fi) }
   where
     -- _tx i (x, r)
@@ -67,7 +67,7 @@ type IdMap = M.HashMap Ref (S.HashSet BindId)
 type RenameMap = M.HashMap FixSymbol [(Sort s, Maybe FixSymbol)]
 
 --------------------------------------------------------------------------------
-mkIdMap :: SInfo a -> IdMap
+mkIdMap :: SInfo s a -> IdMap
 --------------------------------------------------------------------------------
 mkIdMap fi = M.foldlWithKey' (updateIdMap $ bs fi) M.empty $ cm fi
 
@@ -115,11 +115,11 @@ addDupId m sym t i
 -- | `renameVars` seems to do the actual work of renaming all the binders
 --   to use their sort-specific names.
 --------------------------------------------------------------------------------
-renameVars :: SInfo a -> RenameMap -> IdMap -> SInfo a
+renameVars :: SInfo s a -> RenameMap -> IdMap -> SInfo s a
 --------------------------------------------------------------------------------
 renameVars fi rnMap idMap = M.foldlWithKey' (updateRef rnMap) fi idMap
 
-updateRef :: RenameMap -> SInfo a -> Ref -> S.HashSet BindId -> SInfo a
+updateRef :: RenameMap -> SInfo s a -> Ref -> S.HashSet BindId -> SInfo s a
 updateRef rnMap fi rf bset = applySub (mkSubst subs) fi rf
   where
     symTList = [second sr_sort $ lookupBindEnv i $ bs fi | i <- S.toList bset]
@@ -130,7 +130,7 @@ mkSubUsing m (sym, t) = do
   newName <- fromJust $ L.lookup t $ mlookup m sym
   return (sym, eVar newName)
 
-applySub :: Subst s -> SInfo a -> Ref -> SInfo a
+applySub :: Subst s -> SInfo s a -> Ref -> SInfo s a
 applySub sub fi (RB i) = fi { bs = adjustBindEnv go i (bs fi) }
   where
     go (sym, sr)       = (sym, subst sub sr)
@@ -140,7 +140,7 @@ applySub sub fi (RI i) = fi { cm = M.adjust go i (cm fi) }
     go c               = c { _crhs = subst sub (_crhs c) }
 
 --------------------------------------------------------------------------------
-renameBinds :: SInfo a -> RenameMap -> SInfo a
+renameBinds :: SInfo s a -> RenameMap -> SInfo s a
 --------------------------------------------------------------------------------
 renameBinds fi m = fi { bs = bindEnvFromList $ renameBind m <$> beList }
   where

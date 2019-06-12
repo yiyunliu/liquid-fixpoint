@@ -96,7 +96,7 @@ import           Text.PrettyPrint.HughesPJ.Compat
 --------------------------------------------------------------------------------
 -- | Update Solution -----------------------------------------------------------
 --------------------------------------------------------------------------------
-update :: Sol a QBind -> [KVar] -> [(KVar, EQual)] -> (Bool, Sol a QBind)
+update :: Sol a QBind -> [KVar s] -> [(KVar s, EQual)] -> (Bool, Sol a QBind)
 --------------------------------------------------------------------------------
 update s ks kqs = {- tracepp msg -} (or bs, s')
   where
@@ -111,12 +111,12 @@ folds f b = L.foldl' step ([], b)
        where
          (c, x')      = f acc x
 
-groupKs :: [KVar] -> [(KVar, EQual)] -> [(KVar, QBind)]
+groupKs :: [KVar s] -> [(KVar s, EQual)] -> [(KVar s, QBind)]
 groupKs ks kqs = [ (k, QB eqs) | (k, eqs) <- M.toList $ groupBase m0 kqs ]
   where
     m0         = M.fromList $ (,[]) <$> ks
 
-update1 :: Sol a QBind -> (KVar, QBind) -> (Bool, Sol a QBind)
+update1 :: Sol a QBind -> (KVar s, QBind) -> (Bool, Sol a QBind)
 update1 s (k, qs) = (change, updateK k qs s)
   where
     oldQs         = lookupQBind s k
@@ -134,7 +134,7 @@ newtype GBind  = GB [[EQual]] deriving (Show, Data, Typeable, Generic)
 emptyGMap :: GSolution -> GSolution
 emptyGMap sol = mapGMap sol (\(x,_) -> (x, GB []))
 
-updateGMapWithKey :: [(KVar, QBind)] -> GSolution -> GSolution
+updateGMapWithKey :: [(KVar s, QBind)] -> GSolution -> GSolution
 updateGMapWithKey kqs sol = sol {gMap =  foldl (\m (k, (QB eq)) -> M.adjust (\(x, GB eqs) -> (x, GB (if eq `elem` eqs then eqs else eq:eqs))) k m) (gMap sol) kqs }
 
 qb :: [EQual] -> QBind
@@ -206,17 +206,17 @@ updateEbind s i !e = case M.lookup i (sEbd s) of
 --------------------------------------------------------------------------------
 data Sol b a = Sol
   { sEnv :: !SymEnv                      -- ^ Environment used to elaborate solutions
-  , sMap :: !(M.HashMap KVar a)          -- ^ Actual solution (for cut kvar)
-  , gMap :: !(M.HashMap KVar b)          -- ^ Solution for gradual variables
-  , sHyp :: !(M.HashMap KVar Hyp)        -- ^ Defining cubes  (for non-cut kvar)
-  , sScp :: !(M.HashMap KVar IBindEnv)   -- ^ Set of allowed binders for kvar
+  , sMap :: !(M.HashMap (KVar s) a)          -- ^ Actual solution (for cut kvar)
+  , gMap :: !(M.HashMap (KVar s) b)          -- ^ Solution for gradual variables
+  , sHyp :: !(M.HashMap (KVar s) Hyp)        -- ^ Defining cubes  (for non-cut kvar)
+  , sScp :: !(M.HashMap (KVar s) IBindEnv)   -- ^ Set of allowed binders for kvar
   , sEbd :: !(M.HashMap BindId EbindSol) -- ^ EbindSol for each existential binder
   , sxEnv :: !(SEnv (BindId, Sort s))      --   TODO: merge with sEnv? used for sorts of ebinds to solve ebinds in lhsPred
   } deriving (Generic)
 
 deriving instance (NFData b, NFData a) => NFData (Sol b a)
 
-updateGMap :: Sol b a -> M.HashMap KVar b -> Sol b a
+updateGMap :: Sol b a -> M.HashMap (KVar s) b -> Sol b a
 updateGMap sol gmap = sol {gMap = gmap}
 
 mapGMap :: Sol b a -> (b -> b) -> Sol b a
@@ -269,13 +269,13 @@ instance PPrint Cube where
 instance Show Cube where
   show = showpp
 --------------------------------------------------------------------------------
-result :: Sol a QBind -> M.HashMap KVar (Expr s)
+result :: Sol a QBind -> M.HashMap (KVar s) (Expr s)
 --------------------------------------------------------------------------------
 result s = sMap $ (pAnd . fmap eqPred . qbEQuals) <$> s
 
 
 --------------------------------------------------------------------------------
-resultGradual :: GSolution -> M.HashMap KVar (Expr, [Expr])
+resultGradual :: GSolution -> M.HashMap (KVar s) (Expr, [Expr])
 --------------------------------------------------------------------------------
 resultGradual s = fmap go' (gMap s)
   where
@@ -287,10 +287,10 @@ resultGradual s = fmap go' (gMap s)
 -- | Create a Solution ---------------------------------------------------------
 --------------------------------------------------------------------------------
 fromList :: SymEnv 
-         -> [(KVar, a)] 
-         -> [(KVar, b)] 
-         -> [(KVar, Hyp)] 
-         -> M.HashMap KVar IBindEnv 
+         -> [(KVar s, a)] 
+         -> [(KVar s, b)] 
+         -> [(KVar s, Hyp)] 
+         -> M.HashMap (KVar s) IBindEnv 
          -> [(BindId, EbindSol)]
          -> SEnv (BindId, Sort s)
          -> Sol a b
@@ -316,14 +316,14 @@ qbPreds msg s su (QB eqs) = [ (elabPred eq, eq) | eq <- eqs ]
 --------------------------------------------------------------------------------
 -- | Read / Write Solution at KVar ---------------------------------------------
 --------------------------------------------------------------------------------
-lookupQBind :: Sol a QBind -> KVar -> QBind
+lookupQBind :: Sol a QBind -> KVar s -> QBind
 --------------------------------------------------------------------------------
 lookupQBind s k = {- tracepp _msg $ -} Mb.fromMaybe (QB []) (lookupElab s k)
   where
     _msg        = "lookupQB: k = " ++ show k
 
 --------------------------------------------------------------------------------
-glookup :: GSolution -> KVar -> Either Hyp (Either QBind (((FixSymbol, Sort s), Expr), GBind))
+glookup :: GSolution -> KVar s -> Either Hyp (Either QBind (((FixSymbol, Sort s), Expr), GBind))
 --------------------------------------------------------------------------------
 glookup s k
   | Just gbs <- M.lookup k (gMap s)
@@ -338,7 +338,7 @@ glookup s k
 
 
 --------------------------------------------------------------------------------
-lookup :: Sol a QBind -> KVar -> Either Hyp QBind
+lookup :: Sol a QBind -> KVar s -> Either Hyp QBind
 --------------------------------------------------------------------------------
 lookup s k
   | Just cs  <- M.lookup k (sHyp s) -- non-cut variable, return its cubes
@@ -348,11 +348,11 @@ lookup s k
   | otherwise
   = errorstar $ "solLookup: Unknown kvar " ++ show k
 
-lookupElab :: Sol b QBind -> KVar -> Maybe QBind
+lookupElab :: Sol b QBind -> KVar s -> Maybe QBind
 lookupElab s k = M.lookup k (sMap s)
 
 --------------------------------------------------------------------------------
-updateK :: KVar -> a -> Sol b a -> Sol b a
+updateK :: KVar s -> a -> Sol b a -> Sol b a
 --------------------------------------------------------------------------------
 updateK k qs s = s { sMap = M.insert k qs (sMap s)
 --                 , sBot = M.delete k    (sBot s)
@@ -369,7 +369,7 @@ type Cand a   = [(Expr, a)]
 -- | Instantiated Qualifiers ---------------------------------------------------
 --------------------------------------------------------------------------------
 data EQual = EQL
-  { eqQual :: !Qualifier
+  { eqQual :: !(Qualifier s)
   , eqPred  :: !(Expr s)
   , _eqArgs :: ![Expr]
   } deriving (Eq, Show, Data, Typeable, Generic)
@@ -386,7 +386,7 @@ instance PPrint EQual where
 instance NFData EQual
 
 {- EQL :: q:_ -> p:_ -> ListX F.Expr {q_params q} -> _ @-}
-eQual :: Qualifier -> [FixSymbol] -> EQual
+eQual :: Qualifier s -> [FixSymbol] -> EQual
 eQual q xs = {- tracepp "eQual" $ -} EQL q p es
   where
     p      = subst su $  qBody q
@@ -399,7 +399,7 @@ eQual q xs = {- tracepp "eQual" $ -} EQL q p es
 --------------------------------------------------------------------------------
 data KIndex = KIndex { kiBIndex :: !BindId
                      , kiPos    :: !Int
-                     , kiKVar   :: !KVar
+                     , kiKVar   :: !(KVar s)
                      }
               deriving (Eq, Ord, Show, Generic)
 
@@ -441,7 +441,7 @@ instance PPrint BindPred where
 data Index = FastIdx
   { bindExpr   :: !(BindId |-> BindPred) -- ^ BindPred for each BindId
   , kvUse      :: !(KIndex |-> KVSub s)    -- ^ Definition of each `KIndex`
-  , kvDef      :: !(KVar   |-> Hyp)      -- ^ Constraints defining each `KVar`
+  , kvDef      :: !(KVar s   |-> Hyp)      -- ^ Constraints defining each `KVar`
   , envBinds   :: !(CMap IBindEnv)       -- ^ Binders of each Subc
   , envTx      :: !(CMap [SubcId])       -- ^ Transitive closure oof all dependent binders
   , envSorts   :: !(SEnv (Sort s))           -- ^ Sorts for all symbols
