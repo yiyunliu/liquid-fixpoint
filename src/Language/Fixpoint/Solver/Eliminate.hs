@@ -38,7 +38,7 @@ solverInfo cfg sI = SI sHyp sI' cD cKs
 
 
 --------------------------------------------------------------------------------
-kvScopes :: SInfo s a -> [CEdge] -> M.HashMap (KVar s) IBindEnv
+kvScopes :: SInfo s a -> [CEdge s] -> M.HashMap (KVar s) IBindEnv
 kvScopes sI es = is2env <$> kiM
   where
     is2env = foldr1 intersectionIBindEnv . fmap (senv . getSubC sI)
@@ -55,7 +55,7 @@ cutSInfo si kI cKs = si { ws = ws', cm = cm' }
     cs    = S.fromList      (concatMap kCs cKs)
     kCs k = M.lookupDefault [] k kI
 
-kutVars :: Config -> SInfo s a -> ([CEdge], S.HashSet (KVar s), S.HashSet (KVar s))
+kutVars :: Config -> SInfo s a -> ([CEdge s], S.HashSet (KVar s), S.HashSet (KVar s))
 kutVars cfg si   = (es, depCuts ds, depNonCuts ds)
   where
     (es, ds)     = elimVars cfg si

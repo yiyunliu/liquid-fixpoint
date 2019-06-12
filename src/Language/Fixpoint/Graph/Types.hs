@@ -70,50 +70,50 @@ data CVertex s = KVar  !(KVar s)    -- ^ real kvar vertex
                | Cstr  !Integer -- ^ constraint-id which creates a dependency
                 deriving (Eq, Ord, Show, Generic)
 
-instance PPrint CVertex where
+instance PPrint (CVertex s) where
   pprintTidy _ (KVar k)  = doubleQuotes $ pprint $ kv k
   pprintTidy _ (EBind s)  = doubleQuotes $ pprint $ s
   pprintTidy _ (Cstr i)  = text "id_" <-> pprint i
   pprintTidy _ (DKVar k) = pprint k   <-> text "*"
 
 
-instance Hashable CVertex
+instance Hashable (CVertex s)
 
 data KVGraph s  = KVGraph { kvgEdges :: [(CVertex s, CVertex s, [CVertex s])] }
-type CEdge      = (CVertex, CVertex)
+type CEdge s      = (CVertex s, CVertex s)
 type Comps a    = [[a]]
-type KVComps    = Comps CVertex
+type KVComps    = Comps (CVertex s)
 
-instance PPrint KVGraph where
+instance PPrint (KVGraph s) where
   pprintTidy _ = pprint . kvgEdges
 
 --------------------------------------------------------------------------------
-writeGraph :: FilePath -> KVGraph -> IO ()
+writeGraph :: FilePath -> KVGraph s -> IO ()
 --------------------------------------------------------------------------------
 writeGraph f = writeEdges f . graphEdges
   where
-    graphEdges :: KVGraph -> [CEdge]
+    graphEdges :: KVGraph s -> [CEdge s]
     graphEdges (KVGraph g) = [ (v, v') | (v,_,vs) <- g, v' <- vs]
 
 --------------------------------------------------------------------------------
-writeEdges :: FilePath -> [CEdge] -> IO ()
+writeEdges :: FilePath -> [CEdge s] -> IO ()
 --------------------------------------------------------------------------------
 writeEdges f = writeFile f . render . ppEdges
 
-ppEdges :: [CEdge] -> Doc
+ppEdges :: [CEdge s] -> Doc
 ppEdges             = vcat . wrap ["digraph Deps {"] ["}"]
                            . map ppE
                            . (if True then filter isRealEdge else txEdges)  -- RJ: use this to collapse "constraint" vertices
   where
     ppE (v, v')     = pprint v <+> "->" <+> pprint v'
 
-isRealEdge :: CEdge -> Bool
+isRealEdge :: CEdge s -> Bool
 isRealEdge (DKVar _, _)     = False
 isRealEdge (_, DKVar _)     = False
 isRealEdge (Cstr _, Cstr _) = False
 isRealEdge _                = True
 
-txEdges    :: [CEdge] -> [CEdge]
+txEdges    :: [CEdge s] -> [CEdge s]
 txEdges es = concatMap iEs is
   where
     is     = [i | (Cstr i, Cstr _) <- es]
