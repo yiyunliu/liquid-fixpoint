@@ -43,8 +43,8 @@ import qualified Data.HashMap.Strict as M
 -------------------------------------------------------------------------------
 -- | @HVar@ is a Horn variable 
 -------------------------------------------------------------------------------
-data Var a = HVar
-  { hvName :: !F.FixSymbol                         -- ^ name of the variable $k1, $k2 etc.
+data Var s a = HVar
+  { hvName :: !F.Symbol s                         -- ^ name of the variable $k1, $k2 etc.
   , hvArgs :: ![F.Sort s] {- len hvArgs > 0 -}    -- ^ sorts of its parameters i.e. of the relation defined by the @HVar@
   , hvMeta :: a                                 -- ^ meta-data
   }
@@ -55,7 +55,7 @@ data Var a = HVar
 -------------------------------------------------------------------------------
 data Pred 
   = Reft  !(F.Expr s)                               -- ^ r 
-  | Var   !F.FixSymbol ![F.FixSymbol]                 -- ^ $k(y1..yn) 
+  | Var   !(F.Symbol s) ![F.Symbol s]                 -- ^ $k(y1..yn) 
   | PAnd  ![Pred]                               -- ^ p1 /\ .../\ pn 
   deriving (Data, Typeable, Generic, Eq)
 
@@ -64,7 +64,7 @@ quals :: Cstr a -> [F.Qualifier s]
 -------------------------------------------------------------------------------
 quals = F.tracepp "horn.quals" . cstrQuals F.emptySEnv F.vv_  
 
-cstrQuals :: F.SEnv (F.Sort s) -> F.FixSymbol -> Cstr a -> [F.Qualifier s] 
+cstrQuals :: F.SEnv (F.Sort s) -> F.Symbol s -> Cstr a -> [F.Qualifier s] 
 cstrQuals = go 
   where
     go env v (Head p _)  = predQuals env v p
@@ -79,15 +79,15 @@ bindQuals env b c = predQuals env' bx (bPred b) ++ cstrQuals env' bx c
     bx            = bSym b
     bt            = bSort b
 
-predQuals :: F.SEnv (F.Sort s) -> F.FixSymbol -> Pred -> [F.Qualifier s]
+predQuals :: F.SEnv (F.Sort s) -> F.Symbol s -> Pred -> [F.Qualifier s]
 predQuals env v (Reft p)  = exprQuals env v p
 predQuals env v (PAnd ps) = concatMap (predQuals env v) ps
 predQuals _   _ _         = [] 
 
-exprQuals :: F.SEnv (F.Sort s) -> F.FixSymbol -> F.Expr s -> [F.Qualifier s]
+exprQuals :: F.SEnv (F.Sort s) -> F.Symbol s -> F.Expr s -> [F.Qualifier s]
 exprQuals env v e = mkQual env v <$> F.conjuncts e
 
-mkQual :: F.SEnv (F.Sort s) -> F.FixSymbol -> F.Expr s -> F.Qualifier s
+mkQual :: F.SEnv (F.Sort s) -> F.Symbol s -> F.Expr s -> F.Qualifier s
 mkQual env v p = case envSort env <$> (v:xs) of
                    (_,so):xts -> F.mkQ "Auto" ((v, so) : xts) p junk 
                    _          -> F.panic "impossible"
@@ -95,7 +95,7 @@ mkQual env v p = case envSort env <$> (v:xs) of
     xs         = L.delete v $ Misc.hashNub (F.syms p)
     junk       = F.dummyPos "mkQual" 
 
-envSort :: F.SEnv (F.Sort s) -> F.FixSymbol -> (F.FixSymbol, F.Sort s)
+envSort :: F.SEnv (F.Sort s) -> F.Symbol s -> (F.Symbol s, F.Sort s)
 envSort env x = case F.lookupSEnv x env of
                    Just t -> (x, t) 
                    _      -> F.panic $ "unbound symbol in scrape: " ++ F.showpp x
@@ -113,7 +113,7 @@ envSort env x = case F.lookupSEnv x env of
 -------------------------------------------------------------------------------
 -- Note that a @Bind@ is a simplified @F.SortedReft@ ...
 data Bind = Bind 
-  { bSym  :: !F.FixSymbol 
+  { bSym  :: !(F.Symbol s) 
   , bSort :: !(F.Sort s) 
   , bPred :: !Pred 
   }
@@ -151,8 +151,8 @@ data Query a = Query
   { qQuals :: ![F.Qualifier s]                    -- ^ qualifiers over which to solve cstrs
   , qVars  :: ![Var a]                          -- ^ kvars, with parameter-sorts
   , qCstr  :: !(Cstr a)                         -- ^ list of constraints
-  , qCon   :: M.HashMap (F.FixSymbol) (F.Sort s)     -- ^ list of constants (uninterpreted functions
-  , qDis   :: M.HashMap (F.FixSymbol) (F.Sort s)     -- ^ list of constants (uninterpreted functions
+  , qCon   :: M.HashMap (F.Symbol s) (F.Sort s)     -- ^ list of constants (uninterpreted functions
+  , qDis   :: M.HashMap (F.Symbol s) (F.Sort s)     -- ^ list of constants (uninterpreted functions
   }
   deriving (Data, Typeable, Generic, Functor)
 

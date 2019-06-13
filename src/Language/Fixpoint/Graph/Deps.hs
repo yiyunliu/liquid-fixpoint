@@ -224,11 +224,11 @@ ebindEdges ebs bs c =  [(EBind k, Cstr i ) | k  <- envEbinds xs bs c ]
     xs         = fst . flip F.lookupBindEnv bs <$> ebs
 
 envEbinds :: (F.TaggedC c a, Foldable t) =>
-             t F.FixSymbol -> F.BindEnv -> c a -> [F.FixSymbol]
+             t (F.Symbol s) -> F.BindEnv -> c a -> [F.Symbol s]
 envEbinds xs be c = [ x | x <- envBinds , x `elem` xs ]
   where envBinds = fst <$> F.clhs be c
 rhsEbinds :: (Foldable t, F.TaggedC c a) =>
-             t F.FixSymbol -> c a -> [F.FixSymbol]
+             t (F.Symbol s) -> c a -> [F.Symbol s]
 rhsEbinds xs c = [ x | x <- F.syms (F.crhs c) , x `elem` xs ]
 
 subcEdges :: (F.TaggedC c a) => F.BindEnv -> c a -> [CEdge s]
@@ -240,7 +240,7 @@ subcEdges bs c =  [(KVar k, Cstr i ) | k  <- V.envKVars bs c]
 --------------------------------------------------------------------------------
 -- | Eliminated Dependencies
 --------------------------------------------------------------------------------
-elimDeps :: (F.TaggedC c a) => F.GInfo c a -> [CEdge s] -> S.HashSet (F.KVar s) -> S.HashSet F.FixSymbol -> CDeps
+elimDeps :: (F.TaggedC c a) => F.GInfo c a -> [CEdge s] -> S.HashSet (F.KVar s) -> S.HashSet (F.Symbol s) -> CDeps
 elimDeps si es nonKutVs ebs = graphDeps si es'
   where
     es'                 = graphElim es nonKutVs ebs
@@ -254,7 +254,7 @@ elimDeps si es nonKutVs ebs = graphDeps si es'
 
           ki ------------> c
 -}
-graphElim :: [CEdge s] -> S.HashSet (F.KVar s) -> S.HashSet F.FixSymbol -> [CEdge s]
+graphElim :: [CEdge s] -> S.HashSet (F.KVar s) -> S.HashSet (F.Symbol s) -> [CEdge s]
 graphElim es ks _ebs = ikvgEdges $ -- elimEs (S.map EBind ebs) $
                                   elimKs (S.map KVar ks)   $ edgesIkvg es
   where

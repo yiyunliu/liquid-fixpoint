@@ -172,7 +172,7 @@ filterLocal sol = do
   where
     gs = M.toList $ Sol.gMap sol
 
-initGBind :: Sol.GSolution -> (F.KVar s, (((F.FixSymbol, F.Sort s), F.Expr), Sol.GBind)) -> SolveM (F.KVar s, (((F.FixSymbol, F.Sort s), F.Expr), Sol.GBind))
+initGBind :: Sol.GSolution -> (F.KVar s, (((F.Symbol s, F.Sort s), F.Expr), Sol.GBind)) -> SolveM (F.KVar s, (((F.Symbol s, F.Sort s), F.Expr), Sol.GBind))
 initGBind sol (k, (e, gb)) = do
    elems0  <- filterM (isLocal e) (Sol.gbEquals gb)
    elems   <- sortEquals elems0

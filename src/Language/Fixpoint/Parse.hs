@@ -313,13 +313,13 @@ condIdP initP okChars p
 -- lowerIdP :: Parser FixSymbol
 -- lowerIdP = symbol <$> (identifier <* blanks)
 
-upperIdP :: Parser FixSymbol
+upperIdP :: Parser (Symbol s)
 upperIdP  = condIdP upper                  symChars (const True)
 
-lowerIdP :: Parser FixSymbol
+lowerIdP :: Parser (Symbol s)
 lowerIdP  = condIdP (lower <|> char '_')   symChars isNotReserved
 
-symCharsP :: Parser FixSymbol
+symCharsP :: Parser (Symbol s)
 symCharsP = condIdP (letter <|> char '_')  symChars isNotReserved
 
 isNotReserved :: String -> Bool
@@ -340,7 +340,7 @@ locUpperIdP = locParserP upperIdP
 locSymbolP  = locParserP symbolP
 
 -- | Arbitrary Symbols
-symbolP :: Parser FixSymbol
+symbolP :: Parser (Symbol s)
 symbolP = symbol <$> symCharsP
 
 -- | (Integer) Constants
@@ -390,7 +390,7 @@ exprCastP
        so <- sortP
        return $ ECst e so
 
-charsExpr :: FixSymbol -> Expr s
+charsExpr :: Symbol s -> Expr s
 charsExpr cs
   | isSmall (headSym cs) = expr cs
   | otherwise            = EVar cs
@@ -675,7 +675,7 @@ refaP =  try (pAnd <$> brackets (sepBy predP semi))
 
 
 -- | (Sorted) Refinements with configurable sub-parsers
-refBindP :: Parser FixSymbol -> Parser (Expr s) -> Parser (Reft s -> a) -> Parser a
+refBindP :: Parser (Symbol s) -> Parser (Expr s) -> Parser (Reft s -> a) -> Parser a
 refBindP bp rp kindP
   = braces $ do
       x  <- bp
@@ -687,10 +687,10 @@ refBindP bp rp kindP
 
 -- bindP      = symbol    <$> (lowerIdP <* colon)
 -- | Binder (lowerIdP <* colon)
-bindP :: Parser FixSymbol
+bindP :: Parser (Symbol s)
 bindP = symbolP <* colon
 
-optBindP :: FixSymbol -> Parser FixSymbol
+optBindP :: Symbol s -> Parser (Symbol s)
 optBindP x = try bindP <|> return x
 
 -- | (Sorted) Refinements
@@ -698,7 +698,7 @@ refP :: Parser (Reft s -> a) -> Parser a
 refP       = refBindP bindP refaP
 
 -- | (Sorted) Refinements with default binder
-refDefP :: FixSymbol -> Parser (Expr s) -> Parser (Reft s -> a) -> Parser a
+refDefP :: Symbol s -> Parser (Expr s) -> Parser (Reft s -> a) -> Parser a
 refDefP x  = refBindP (optBindP x)
 
 --------------------------------------------------------------------------------
@@ -753,7 +753,7 @@ qualStrPatP
 qpVarP :: Parser Int
 qpVarP = char '$' *> intP 
 
-symBindP :: Parser a -> Parser (FixSymbol, a)
+symBindP :: Parser a -> Parser (Symbol s, a)
 symBindP = pairP symbolP colon
 
 pairP :: Parser a -> Parser z -> Parser b -> Parser (a, b)
@@ -786,13 +786,13 @@ data Def a
   | Axm !(Expr s)
   | Cst !(SubC a)
   | Wfc !(WfC s a)
-  | Con !FixSymbol !(Sort s)
-  | Dis !FixSymbol !(Sort s)
+  | Con !(Symbol s) !(Sort s)
+  | Dis !(Symbol s) !(Sort s)
   | Qul !(Qualifier s)
   | Kut !(KVar s)
   | Pack !(KVar s) !Int
-  | IBind !Int !FixSymbol !(SortedReft s)
-  | EBind !Int !FixSymbol !(Sort s) 
+  | IBind !Int !(Symbol s) !(SortedReft s)
+  | EBind !Int !(Symbol s) !(Sort s) 
   | Opt !String
   | Def !Equation
   | Mat !Rewrite
@@ -926,7 +926,7 @@ crashP pp = do
 predSolP :: Parser (Expr s)
 predSolP = parens (predP  <* (comma >> iQualP))
 
-iQualP :: Parser [FixSymbol]
+iQualP :: Parser [Symbol s]
 iQualP = upperIdP >> parens (sepBy symbolP comma)
 
 solution1P :: Parser (KVar s, Expr)
@@ -1014,7 +1014,7 @@ class Inputable a where
   rr' _ = rr
   rr    = rr' ""
 
-instance Inputable FixSymbol where
+instance Inputable (Symbol s) where
   rr' = doParse' symbolP
 
 instance Inputable (Constant s) where
@@ -1134,7 +1134,7 @@ b13 = rr "x:(Int, [Bool]) -> [(String, String)]"
 m1 = ["len :: [a] -> Int", "len (Nil) = 0", "len (Cons x xs) = 1 + len(xs)"]
 m2 = ["tog :: LL a -> Int", "tog (Nil) = 100", "tog (Cons y ys) = 200"]
 
-me1, me2 :: Measure.Measure BareType FixSymbol
+me1, me2 :: Measure.Measure BareType (Symbol s)
 me1 = (rr $ intercalate "\n" m1)
 me2 = (rr $ intercalate "\n" m2)
 -}

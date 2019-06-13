@@ -64,7 +64,7 @@ dropAdtAenv ds ae = ae { F.aenvSimpl = filter (not . isAdt) (F.aenvSimpl ae) }
     isAdt         = (`S.member` adtSyms) . F.smName
     adtSyms       = adtSymbols ds
 
-adtSymbols :: [F.DataDecl s] -> S.HashSet F.FixSymbol
+adtSymbols :: [F.DataDecl s] -> S.HashSet (F.Symbol s)
 adtSymbols = S.fromList . map fst . concatMap Thy.dataDeclSymbols
 
 --------------------------------------------------------------------------------
@@ -167,7 +167,7 @@ restrictWf kve k w = w { F.wenv = F.filterIBindEnv f (F.wenv w) }
 --   where `y` is not in the env.
 
 type KvDom     = M.HashMap F.KVar s (F.SEnv F.BindId)
-type KvBads    = M.HashMap F.KVar s [F.FixSymbol]
+type KvBads    = M.HashMap F.KVar s [F.Symbol s]
 
 safeKvarEnv :: F.SInfo s a -> KvDom
 safeKvarEnv si = L.foldl' (dropKvarEnv si) env0 cs
@@ -185,7 +185,7 @@ dropBadParams kBads k kEnv = L.foldl' (flip F.deleteSEnv) kEnv xs
   where
     xs                     = M.lookupDefault mempty k kBads
 
-badParams :: F.SInfo s a -> F.SimpC a -> M.HashMap (F.KVar s) [F.FixSymbol]
+badParams :: F.SInfo s a -> F.SimpC a -> M.HashMap (F.KVar s) [F.Symbol s]
 badParams si c = Misc.group bads
   where
     bads       = [ (k, x) | (v, k, F.Su su) <- subcKSubs xsrs c
@@ -196,13 +196,13 @@ badParams si c = Misc.group bads
     sEnv       = S.fromList (fst <$> xsrs)
     xsrs       = F.envCs (F.bs si) (F.senv c)
 
-badArg :: S.HashSet F.FixSymbol -> F.Expr s -> Bool
+badArg :: S.HashSet (F.Symbol s) -> F.Expr s -> Bool
 badArg sEnv (F.EVar y) = not (y `S.member` sEnv)
 badArg _    _          = True
 
-type KSub s = (Maybe F.FixSymbol, F.KVar s, F.Subst s)
+type KSub s = (Maybe (F.Symbol s), F.KVar s, F.Subst s)
 
-subcKSubs :: [(F.FixSymbol, F.SortedReft s)] -> F.SimpC a -> [KSub]
+subcKSubs :: [(F.Symbol s, F.SortedReft s)] -> F.SimpC a -> [KSub]
 subcKSubs xsrs c = rhs ++ lhs
   where
     lhs          = [ (Just v, k, su) | (_, sr) <- xsrs
@@ -232,13 +232,13 @@ banConstraintFreeVars fi0 = Misc.applyNonNull (Right fi0) (Left . badCs) bads
     bads    = [(c, fs) | c <- M.elems $ F.cm fi, Just fs <- [cNoFreeVars fi k c]]
     k       = known fi
 
-known :: F.SInfo s a -> F.FixSymbol -> Bool
+known :: F.SInfo s a -> F.Symbol s -> Bool
 known fi  = \x -> F.memberSEnv x lits || F.memberSEnv x prims
   where
     lits  = F.gLits fi
     prims = Thy.theorySymbols . F.ddecls $ fi
 
-cNoFreeVars :: F.SInfo s a -> (F.FixSymbol -> Bool) -> F.SimpC a -> Maybe [F.FixSymbol]
+cNoFreeVars :: F.SInfo s a -> (F.Symbol s -> Bool) -> F.SimpC a -> Maybe [F.Symbol s]
 cNoFreeVars fi known c = if S.null fv then Nothing else Just (S.toList fv)
   where
     be   = F.bs fi
@@ -247,7 +247,7 @@ cNoFreeVars fi known c = if S.null fv then Nothing else Just (S.toList fv)
     cRng = concat [S.toList . F.reftFreeVars . F.sr_reft . snd $ F.lookupBindEnv i be | i <- ids]
     fv   = (`Misc.nubDiff` cDom) . filter (not . known) $ cRng 
 
-badCs :: Misc.ListNE (F.SimpC a, [F.FixSymbol]) -> E.Error
+badCs :: Misc.ListNE (F.SimpC a, [F.Symbol s]) -> E.Error
 badCs = E.catErrors . map (E.errFreeVarInConstraint . Misc.mapFst F.subcId)
 
 
@@ -264,7 +264,7 @@ banQualifFreeVars fi = Misc.applyNonNull (Right fi) (Left . badQuals) bads
     -- lits    = fst <$> F.toListSEnv (F.gLits fi)
     -- free q  = S.toList $ F.syms (F.qBody q) `nubDiff` (lits ++ F.prims ++ F.syms (F.qpSym <$> F.qParams q))
 
-badQuals     :: Misc.ListNE (F.Qualifier s, Misc.ListNE F.FixSymbol) -> E.Error
+badQuals     :: Misc.ListNE (F.Qualifier s, Misc.ListNE (F.Symbol s)) -> E.Error
 badQuals bqs = E.catErrors [ E.errFreeVarInQual q xs | (q, xs) <- bqs]
 
 
@@ -307,10 +307,10 @@ symbolEnv cfg si = F.symEnv sEnv tEnv ds (F.dLits si) (ts ++ ts')
     xts          = symbolSorts cfg si
 
 
-symbolSorts :: Config -> F.GInfo c a -> [(F.FixSymbol, F.Sort s)]
+symbolSorts :: Config -> F.GInfo c a -> [(F.Symbol s, F.Sort s)]
 symbolSorts cfg fi = either E.die id $ symbolSorts' cfg fi
 
-symbolSorts' :: Config -> F.GInfo c a -> SanitizeM [(F.FixSymbol, F.Sort s)]
+symbolSorts' :: Config -> F.GInfo c a -> SanitizeM [(F.Symbol s, F.Sort s)]
 symbolSorts' cfg fi  = (normalize . compact . (defs ++)) =<< bindSorts fi
   where
     normalize       = fmap (map (unShadow txFun dm))
@@ -321,7 +321,7 @@ symbolSorts' cfg fi  = (normalize . compact . (defs ++)) =<< bindSorts fi
       | allowHO cfg = id
       | otherwise   = defuncSort
 
-unShadow :: (F.Sort s -> F.Sort s) -> M.HashMap F.FixSymbol a -> (F.FixSymbol, F.Sort s) -> (F.FixSymbol, F.Sort s)
+unShadow :: (F.Sort s -> F.Sort s) -> M.HashMap F.Symbol s a -> (F.Symbol s, F.Sort s) -> (F.Symbol s, F.Sort s)
 unShadow tx dm (x, t)
   | M.member x dm  = (x, t)
   | otherwise      = (x, tx t)
@@ -330,7 +330,7 @@ defuncSort :: F.Sort s -> F.Sort s
 defuncSort (F.FFunc {}) = F.funcSort
 defuncSort t            = t
 
-compact :: [(F.FixSymbol, F.Sort s)] -> Either E.Error [(F.FixSymbol, F.Sort s)]
+compact :: [(F.Symbol s, F.Sort s)] -> Either E.Error [(F.Symbol s, F.Sort s)]
 compact xts
   | null bad  = Right [(x, t) | (x, [t]) <- ok ]
   | otherwise = Left $ dupBindErrors bad'
@@ -340,7 +340,7 @@ compact xts
     binds     = M.toList . M.map Misc.sortNub . Misc.group
 
 --------------------------------------------------------------------------------
-bindSorts  :: F.GInfo c a -> Either E.Error [(F.FixSymbol, F.Sort s)]
+bindSorts  :: F.GInfo c a -> Either E.Error [(F.Symbol s, F.Sort s)]
 --------------------------------------------------------------------------------
 bindSorts fi
   | null bad   = Right [ (x, t) | (x, [(t, _)]) <- ok ]
@@ -353,7 +353,7 @@ bindSorts fi
 multiSorted :: (x, [t]) -> Bool
 multiSorted = (1 <) . length . snd
 
-dupBindErrors :: [(F.FixSymbol, [(F.Sort s, [F.BindId] )])] -> E.Error
+dupBindErrors :: [(F.Symbol s, [(F.Sort s, [F.BindId] )])] -> E.Error
 dupBindErrors = foldr1 E.catError . map dbe
   where
    dbe (x, y) = E.err E.dummySpan $ vcat [ "Multiple sorts for" <+> pprint x
@@ -368,9 +368,9 @@ symBinds  = {- THIS KILLS ELEM: tracepp "symBinds" . -}
           . Misc.group
           . binders
 
-type SymBinds = (F.FixSymbol, [(F.Sort s, [F.BindId])])
+type SymBinds = (F.Symbol s, [(F.Sort s, [F.BindId])])
 
-binders :: F.BindEnv -> [(F.FixSymbol, (F.Sort s, F.BindId))]
+binders :: F.BindEnv -> [(F.Symbol s, (F.Sort s, F.BindId))]
 binders be = [(x, (F.sr_sort t, i)) | (i, x, t) <- F.bindEnvToList be]
 
 
@@ -435,7 +435,7 @@ dropBinders f g fi  = fi { F.bs    = bs'
     ws'             = deleteWfCBinds  discards   <$> F.ws fi
     lits'           = F.filterSEnv g (F.gLits fi)
 
-type KeepBindF = F.FixSymbol -> F.Sort s -> Bool
+type KeepBindF = F.Symbol s -> F.Sort s -> Bool
 type KeepSortF = F.Sort s -> Bool
 
 deleteSubCBinds :: [F.BindId] -> F.SimpC a -> F.SimpC a

@@ -81,7 +81,7 @@ mcup  = "smt_map_cup"
 mdef  = "smt_map_def"
 
 
-setEmpty, setEmp, setCap, setSub, setAdd, setMem, setCom, setCup, setDif, setSng :: FixSymbol
+setEmpty, setEmp, setCap, setSub, setAdd, setMem, setCom, setCup, setDif, setSng :: Symbol s
 setEmpty = "Set_empty"
 setEmp   = "Set_emp"
 setCap   = "Set_cap"
@@ -93,13 +93,13 @@ setCup   = "Set_cup"
 setDif   = "Set_dif"
 setSng   = "Set_sng"
 
-mapSel, mapSto, mapCup, mapDef :: FixSymbol
+mapSel, mapSto, mapCup, mapDef :: Symbol s
 mapSel   = "Map_select"
 mapSto   = "Map_store"
 mapCup   = "Map_union"
 mapDef   = "Map_default"
 
-strLen, strSubstr, strConcat :: (IsString a) => a -- FixSymbol
+strLen, strSubstr, strConcat :: (IsString a) => a -- Symbol s
 strLen    = "strLen"
 strSubstr = "subString"
 strConcat = "concatString"
@@ -235,7 +235,7 @@ stringPreamble _
 --------------------------------------------------------------------------------
 -- | Exported API --------------------------------------------------------------
 --------------------------------------------------------------------------------
-smt2Symbol :: SymEnv -> FixSymbol -> Maybe Builder.Builder
+smt2Symbol :: SymEnv -> Symbol s -> Maybe Builder.Builder
 smt2Symbol env x = Builder.fromLazyText . tsRaw <$> symEnvTheory x env
 
 instance SMTLIB2 SmtSort where
@@ -257,7 +257,7 @@ smt2SmtSort (SData c ts) = build "({} {})" (symbolBuilder c        , smt2SmtSort
 smt2SmtSorts :: [SmtSort] -> Builder.Builder
 smt2SmtSorts = buildMany . fmap smt2SmtSort
 
-type VarAs = SymEnv -> FixSymbol -> Sort s -> Builder.Builder
+type VarAs = SymEnv -> Symbol s -> Sort s -> Builder.Builder
 --------------------------------------------------------------------------------
 smt2App :: VarAs -> SymEnv -> Expr s -> [Builder.Builder] -> Maybe Builder.Builder
 --------------------------------------------------------------------------------
@@ -321,13 +321,13 @@ preamble u _    = smtlibPreamble u
 
 -- | `theorySymbols` contains the list of ALL SMT symbols with interpretations,
 --   i.e. which are given via `define-fun` (as opposed to `declare-fun`)
-theorySymbols :: [DataDecl s] -> SEnv TheorySymbol -- M.HashMap FixSymbol TheorySymbol
+theorySymbols :: [DataDecl s] -> SEnv (TheorySymbol s) -- M.HashMap FixSymbol TheorySymbol
 theorySymbols ds = fromListSEnv $  -- SHIFTLAM uninterpSymbols
                                   interpSymbols
                                ++ concatMap dataDeclSymbols ds
 
 --------------------------------------------------------------------------------
-interpSymbols :: [(FixSymbol, TheorySymbol)]
+interpSymbols :: [(Symbol s, TheorySymbol)]
 --------------------------------------------------------------------------------
 interpSymbols =
   [ interpSym setEmp   emp  (FAbs 0 $ FFunc (setSort $ FVar 0) boolSort)
@@ -371,22 +371,22 @@ interpSymbols =
     bvBopSort  = FFunc bitVecSort $ FFunc bitVecSort bitVecSort
 
 
-interpSym :: FixSymbol -> Raw -> Sort s -> (FixSymbol, TheorySymbol)
+interpSym :: Symbol s -> Raw -> Sort s -> (Symbol s, TheorySymbol)
 interpSym x n t = (x, Thy x n t Theory)
 
 maxLamArg :: Int
 maxLamArg = 7
 
-axiomLiterals :: [(FixSymbol, Sort s)] -> [Expr]
+axiomLiterals :: [(Symbol s, Sort s)] -> [Expr]
 axiomLiterals lts = catMaybes [ lenAxiom l <$> litLen l | (l, t) <- lts, isString t ]
   where
-    lenAxiom l n  = EEq (EApp (expr (strLen :: FixSymbol)) (expr l)) (expr n `ECst` intSort)
+    lenAxiom l n  = EEq (EApp (expr (strLen :: Symbol s)) (expr l)) (expr n `ECst` intSort)
     litLen        = fmap (Data.Text.length .  symbolText) . unLitSymbol
 
 --------------------------------------------------------------------------------
 -- | Constructors, Selectors and Tests from 'DataDecl'arations.
 --------------------------------------------------------------------------------
-dataDeclSymbols :: DataDecl s -> [(FixSymbol, TheorySymbol)]
+dataDeclSymbols :: DataDecl s -> [(Symbol s, TheorySymbol)]
 dataDeclSymbols d = ctorSymbols d ++ testSymbols d ++ selectSymbols d
 
 -- | 'selfSort d' returns the _self-sort_ of 'd' :: 'DataDecl'.
@@ -404,11 +404,11 @@ fldSort d (FTC c)
 fldSort _ s        = s
 
 --------------------------------------------------------------------------------
-ctorSymbols :: DataDecl s -> [(FixSymbol, TheorySymbol)]
+ctorSymbols :: DataDecl s -> [(Symbol s, TheorySymbol)]
 --------------------------------------------------------------------------------
 ctorSymbols d = ctorSort d <$> ddCtors d
 
-ctorSort :: DataDecl s -> DataCtor s -> (FixSymbol, TheorySymbol)
+ctorSort :: DataDecl s -> DataCtor s -> (Symbol s, TheorySymbol)
 ctorSort d ctor = (x, Thy x (symbolRaw x) t Ctor)
   where
     x           = symbol ctor
@@ -417,34 +417,34 @@ ctorSort d ctor = (x, Thy x (symbolRaw x) t Ctor)
     ts          = fldSort d . dfSort <$> dcFields ctor
 
 --------------------------------------------------------------------------------
-testSymbols :: DataDecl s -> [(FixSymbol, TheorySymbol)]
+testSymbols :: DataDecl s -> [(Symbol s, TheorySymbol)]
 --------------------------------------------------------------------------------
 testSymbols d = testTheory t . symbol <$> ddCtors d
   where
     t         = mkFFunc (ddVars d) [selfSort d, boolSort]
 
-testTheory :: Sort s -> FixSymbol -> (FixSymbol, TheorySymbol)
+testTheory :: Sort s -> Symbol s -> (Symbol s, TheorySymbol)
 testTheory t x = (sx, Thy sx raw t Test)
   where
     sx         = testSymbol x
     raw        = "is-" <> symbolRaw x
 
-symbolRaw :: FixSymbol -> T.Text
+symbolRaw :: Symbol s -> T.Text
 symbolRaw = T.fromStrict . symbolSafeText
 
 --------------------------------------------------------------------------------
-selectSymbols :: DataDecl s -> [(FixSymbol, TheorySymbol)]
+selectSymbols :: DataDecl s -> [(Symbol s, TheorySymbol)]
 --------------------------------------------------------------------------------
 selectSymbols d = theorify <$> concatMap (ctorSelectors d) (ddCtors d)
 
 -- | 'theorify' converts the 'Sort' into a full 'TheorySymbol'
-theorify :: (FixSymbol, Sort s) -> (FixSymbol, TheorySymbol)
+theorify :: (Symbol s, Sort s) -> (Symbol s, TheorySymbol)
 theorify (x, t) = (x, Thy x (symbolRaw x) t Field)
 
-ctorSelectors :: DataDecl s -> DataCtor s -> [(FixSymbol, Sort s)]
+ctorSelectors :: DataDecl s -> DataCtor s -> [(Symbol s, Sort s)]
 ctorSelectors d ctor = fieldSelector d <$> dcFields ctor
 
-fieldSelector :: DataDecl s -> DataField s -> (FixSymbol, Sort s)
+fieldSelector :: DataDecl s -> DataField s -> (Symbol s, Sort s)
 fieldSelector d f = (symbol f, mkFFunc n [selfSort d, ft])
   where
     ft            = fldSort d $ dfSort f

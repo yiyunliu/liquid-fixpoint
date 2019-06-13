@@ -223,7 +223,7 @@ instance Hashable s => Hashable (Expr s)
 --------------------------------------------------------------------------------
 -- | Substitutions -------------------------------------------------------------
 --------------------------------------------------------------------------------
-newtype Subst s = Su (M.HashMap FixSymbol (Expr s))
+newtype Subst s = Su (M.HashMap (Symbol s) (Expr s))
                 deriving (Eq, Data, Typeable, Generic)
 
 instance (Eq s, Fixpoint s) => Show (Subst s) where
@@ -238,7 +238,7 @@ instance (Eq s, Fixpoint s) => PPrint (Subst s) where
   pprintTidy _ = toFix
 
 data KVSub s = KVS
-  { ksuVV    :: FixSymbol
+  { ksuVV    :: Symbol s
   , ksuSort  :: Sort s
   , ksuKVar  :: KVar s
   , ksuSubst :: Subst s
@@ -286,8 +286,8 @@ data Expr s = ESym !SymConst
             | PIff   !(Expr s) !(Expr s)
             | PAtom  !Brel  !(Expr s) !(Expr s)
             | PKVar  !(KVar s) !(Subst s)
-            | PAll   ![(FixSymbol, Sort s)] !(Expr s)
-            | PExist ![(FixSymbol, Sort s)] !(Expr s)
+            | PAll   ![(Symbol s, Sort s)] !(Expr s)
+            | PExist ![(Symbol s, Sort s)] !(Expr s)
             | PGrad  !(KVar s) !(Subst s) !GradInfo !(Expr s)
             | ECoerc !(Sort s) !(Sort s) !(Expr s)  
             deriving (Eq, Show, Data, Typeable, Generic)
@@ -359,13 +359,13 @@ debruijnIndex = go
 
 -- | Parsed refinement of @FixSymbol@ as @Expr@
 --   e.g. in '{v: _ | e }' v is the @FixSymbol@ and e the @Expr@
-newtype Reft s = Reft (FixSymbol, Expr s)
+newtype Reft s = Reft (Symbol s, Expr s)
                deriving (Eq, Data, Typeable, Generic)
 
 data SortedReft s = RR { sr_sort :: !(Sort s), sr_reft :: !(Reft s) }
                   deriving (Eq, Data, Typeable, Generic)
 
-elit :: Located FixSymbol -> Sort s -> Expr s
+elit :: Located (Symbol s) -> Sort s -> Expr s
 elit l s = ECon $ L (symbolText $ val l) s
 
 instance (Eq s, Fixpoint s) => Fixpoint (Constant s) where
@@ -383,7 +383,7 @@ instance (Eq s, Fixpoint s) => Fixpoint (Constant s) where
 instance Symbolic SymConst where
   symbol = encodeSymConst
 
-encodeSymConst        :: SymConst -> FixSymbol
+encodeSymConst        :: SymConst -> Symbol s
 encodeSymConst (SL s) = litSymbol $ symbol s
 
 -- _decodeSymConst :: FixSymbol -> Maybe SymConst
@@ -620,7 +620,7 @@ instance (Eq s, Fixpoint s, PPrint s) => PPrint (Expr s) where
   pprintPrec _ _ (ETAbs e s)     = "ETAbs" <+> toFix e <+> toFix s
   pprintPrec z k (PGrad x _ _ e) = pprintPrec z k e <+> "&&" <+> toFix x -- "??"
 
-pprintQuant :: (Eq s, Fixpoint s, PPrint s) => Tidy -> Doc -> [(FixSymbol, Sort s)] -> Expr s -> Doc
+pprintQuant :: (Eq s, Fixpoint s, PPrint s) => Tidy -> Doc -> [(Symbol s, Sort s)] -> Expr s -> Doc
 pprintQuant k d xts p = (d <+> toFix xts)
                         $+$
                         ("  ." <+> pprintTidy k p)
@@ -754,7 +754,7 @@ propReft p    = Reft (vv_, PIff (eProp vv_) (prop p))
 predReft      :: (Predicate a s) => a -> Reft s
 predReft p    = Reft (vv_, prop p)
 
-reft :: FixSymbol -> Expr s -> Reft s
+reft :: Symbol s -> Expr s -> Reft s
 reft v p = Reft (v, p)
 
 mapPredReft :: (Expr s -> Expr s) -> Reft s -> Reft s
@@ -773,7 +773,7 @@ isNonTrivial = not . isTauto @r @s
 reftPred :: Reft s -> Expr s
 reftPred (Reft (_, p)) = p
 
-reftBind :: Reft s -> FixSymbol
+reftBind :: Reft s -> Symbol s
 reftBind (Reft (x, _)) = x
 
 ------------------------------------------------------------
@@ -797,7 +797,7 @@ symbolReft    = (exprReft :: Expr s -> Reft s) . (eVar :: a -> Expr s)
 usymbolReft   :: forall a s. (Expression a s, Symbolic a) => a -> Reft s
 usymbolReft   = (uexprReft :: Expr s -> Reft s) . (eVar :: a -> Expr s)
 
-vv_ :: FixSymbol
+vv_ :: Symbol s
 vv_ = vv Nothing
 
 trueSortedReft :: Sort s -> SortedReft s
@@ -839,13 +839,13 @@ instance Falseable (Reft s) where
 -------------------------------------------------------------------------
 
 class Subable a s where
-  syms   :: a -> [FixSymbol]                   -- ^ free symbols of a
-  substa :: (FixSymbol -> FixSymbol) -> a -> a
+  syms   :: a -> [Symbol s]                   -- ^ free symbols of a
+  substa :: (Symbol s -> Symbol s) -> a -> a
   -- substa f  = substf (EVar . f)
 
-  substf :: (FixSymbol -> Expr s) -> a -> a
+  substf :: (Symbol s -> Expr s) -> a -> a
   subst  :: Subst s -> a -> a
-  subst1 :: a -> (FixSymbol, Expr s) -> a
+  subst1 :: a -> (Symbol s, Expr s) -> a
   subst1 y (x, e) = subst (Su $ M.fromList [(x,e)]) y
 
 instance Subable a s => Subable (Located a) s where
@@ -869,4 +869,4 @@ class (Monoid r, Subable r s) => Reftable r s where
 
   toReft  :: r -> Reft s
   ofReft  :: Reft s -> r
-  params  :: r -> [FixSymbol]          -- ^ parameters for Reft, vv + others
+  params  :: r -> [Symbol s]          -- ^ parameters for Reft, vv + others

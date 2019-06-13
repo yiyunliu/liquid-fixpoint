@@ -73,7 +73,7 @@ maxLamArg = 7
 
 -- NIKI TODO: allow non integer lambda arguments
 -- sorts = [setSort intSort, bitVecSort intSort, mapSort intSort intSort, boolSort, realSort, intSort]
--- makeLamArg :: Sort s -> Int -> FixSymbol
+-- makeLamArg :: Sort s -> Int -> Symbol s
 -- makeLamArg _ = intArgName
 
 --------------------------------------------------------------------------------
@@ -133,7 +133,7 @@ normalize = snd . go
     unECst (ECst e _) = unECst e
     unECst e          = e
 
-shiftLam :: Int -> FixSymbol -> Sort s -> Expr s -> Expr s
+shiftLam :: Int -> Symbol s -> Sort s -> Expr s -> Expr s
 shiftLam i x t e = ELam (x_i, t) (e `subst1` (x, x_i_t))
   where
     x_i          = lamArgSymbol i
@@ -178,15 +178,15 @@ makeEqForAll e1 e2 = [ makeEq (closeLam su e1') (closeLam su e2') | su <- instan
     (xs2, e2')     = splitPAll [] e2
     xs             = L.nub (xs1 ++ xs2)
 
-closeLam :: [(FixSymbol, (FixSymbol, Sort s))] -> Expr s -> Expr s
+closeLam :: [(Symbol s, (Symbol s, Sort s))] -> Expr s -> Expr s
 closeLam ((x,(y,s)):su) e = ELam (y,s) (subst1 (closeLam su e) (x, EVar y))
 closeLam []             e = e
 
-splitPAll :: [(FixSymbol, Sort s)] -> Expr s -> ([(FixSymbol, Sort s)], Expr s)
+splitPAll :: [(Symbol s, Sort s)] -> Expr s -> ([(Symbol s, Sort s)], Expr s)
 splitPAll acc (PAll xs e) = splitPAll (acc ++ xs) e
 splitPAll acc e           = (acc, e)
 
-instantiate     :: [(FixSymbol, Sort s)] -> [[(FixSymbol, (FixSymbol, Sort s))]]
+instantiate     :: [(Symbol s, Sort s)] -> [[(Symbol s, (Symbol s, Sort s))]]
 instantiate      = choices . map inst1
   where
     inst1 (x, s) = [(x, (lamArgSymbol i, s)) | i <- [1..maxLamArg]]
@@ -242,10 +242,10 @@ instance Defunc (WfC s a)   where
 instance Defunc (SortedReft s) where
   defunc (RR s r) = RR s <$> defunc r
 
-instance Defunc (FixSymbol, SortedReft s) where
+instance Defunc (Symbol s, SortedReft s) where
   defunc (x, sr) = (x,) <$> defunc sr
 
-instance Defunc (FixSymbol, Sort s) where
+instance Defunc (Symbol s, Sort s) where
   defunc (x, t) = (x,) <$> defunc t
 
 instance Defunc (Reft s) where
@@ -325,7 +325,7 @@ makeInitDFState cfg si
 --------------------------------------------------------------------------------
 -- | Low level monad manipulation ----------------------------------------------
 --------------------------------------------------------------------------------
-freshSym :: Sort s -> DF FixSymbol
+freshSym :: Sort s -> DF (Symbol s)
 freshSym t = do
   n    <- gets dfFresh
   let x = intSymbol "lambda_fun_" n
@@ -379,6 +379,6 @@ getClosedField fld = do
 closeLams :: SEnv (Sort s) -> Expr s -> Expr s
 closeLams env e = PAll (freeBinds env e) e
 
-freeBinds :: SEnv (Sort s) -> Expr s -> [(FixSymbol, Sort s)]
+freeBinds :: SEnv (Sort s) -> Expr s -> [(Symbol s, Sort s)]
 freeBinds env e = [ (y, t) | y <- sortNub (syms e)
                            , t <- maybeToList (lookupSEnv y env) ]

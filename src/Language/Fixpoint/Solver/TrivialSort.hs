@@ -125,7 +125,7 @@ trivP :: Expr s -> Bool
 trivP (PKVar {}) = True
 trivP p          = isTautoPred p
 
-singP :: FixSymbol -> Expr s -> Bool
+singP :: Symbol s -> Expr s -> Bool
 singP v (PAtom Eq (EVar x) _)
   | v == x                    = True
 singP v (PAtom Eq _ (EVar x))

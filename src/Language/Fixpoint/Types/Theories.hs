@@ -174,7 +174,7 @@ isIntSmtSort env s = SInt == applySmtSort env s
 -- | 'TheorySymbol' represents the information about each interpreted 'FixSymbol'
 --------------------------------------------------------------------------------
 data TheorySymbol s  = Thy
-  { tsSym    :: !FixSymbol          -- ^ name
+  { tsSym    :: !(Symbol s)          -- ^ name
   , tsRaw    :: !Raw             -- ^ serialized SMTLIB2 name
   , tsSort   :: !(Sort s)            -- ^ sort
   , tsInterp :: !Sem             -- ^ TRUE = defined (interpreted), FALSE = declared (uninterpreted)

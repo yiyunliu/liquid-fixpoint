@@ -47,7 +47,7 @@ bvTyCon = symbolFTycon $ dummyLoc bitVecName
 sizeTyCon    :: BvSize -> FTycon s
 sizeTyCon    = symbolFTycon . dummyLoc . sizeName
 
-sizeName :: BvSize -> FixSymbol
+sizeName :: BvSize -> Symbol s
 sizeName S32 = size32Name
 sizeName S64 = size64Name
 
@@ -59,7 +59,7 @@ instance Expression Bv where
 eOp :: BvOp -> [Expr s] -> Expr s
 eOp b es = foldl EApp (EVar $ opName b) es
 
-opName :: BvOp -> FixSymbol
+opName :: BvOp -> Symbol s
 opName BvAnd = bvAndName
 opName BvOr  = bvOrName
 

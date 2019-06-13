@@ -64,7 +64,7 @@ type IdMap = M.HashMap Ref (S.HashSet BindId)
 -- | A `RenameMap` maps an old name and sort to new name,
 --   represented by a hashmap containing association lists.
 --   `Nothing` as new name means the name is the same as the old.
-type RenameMap = M.HashMap FixSymbol [(Sort s, Maybe FixSymbol)]
+type RenameMap = M.HashMap (Symbol s) [(Sort s, Maybe FixSymbol)]
 
 --------------------------------------------------------------------------------
 mkIdMap :: SInfo s a -> IdMap
@@ -80,14 +80,14 @@ updateIdMap be m scId s = M.insertWith S.union (RI scId) refSet m'
     symSet              = S.fromList $ syms $ crhs s
     refSet              = namesToIds symSet nameMap
 
-insertIdIdLinks :: BindEnv -> M.HashMap FixSymbol BindId -> IdMap -> BindId -> IdMap
+insertIdIdLinks :: BindEnv -> M.HashMap (Symbol s) BindId -> IdMap -> BindId -> IdMap
 insertIdIdLinks be nameMap m i = M.insertWith S.union (RB i) refSet m
   where
     sr     = snd $ lookupBindEnv i be
     symSet = reftFreeVars $ sr_reft sr
     refSet = namesToIds symSet nameMap
 
-namesToIds :: S.HashSet FixSymbol -> M.HashMap FixSymbol BindId -> S.HashSet BindId
+namesToIds :: S.HashSet (Symbol s) -> M.HashMap (Symbol s) BindId -> S.HashSet BindId
 namesToIds xs m = S.fromList $ catMaybes [M.lookup x m | x <- S.toList xs] --TODO why any Nothings?
 
 --------------------------------------------------------------------------------
@@ -104,7 +104,7 @@ addId be m i
   where
     (sym, t)       = second sr_sort $ lookupBindEnv i be
 
-addDupId :: RenameMap -> FixSymbol -> Sort s -> BindId -> RenameMap
+addDupId :: RenameMap -> Symbol s -> Sort s -> BindId -> RenameMap
 addDupId m sym t i
   | isJust $ L.lookup t mapping = m
   | otherwise                   = M.insert sym ((t, Just $ renameSymbol sym i) : mapping) m
@@ -125,7 +125,7 @@ updateRef rnMap fi rf bset = applySub (mkSubst subs) fi rf
     symTList = [second sr_sort $ lookupBindEnv i $ bs fi | i <- S.toList bset]
     subs     = catMaybes $ mkSubUsing rnMap <$> symTList
 
-mkSubUsing :: RenameMap -> (FixSymbol, Sort s) -> Maybe (FixSymbol, Expr)
+mkSubUsing :: RenameMap -> (Symbol s, Sort s) -> Maybe (Symbol s, Expr)
 mkSubUsing m (sym, t) = do
   newName <- fromJust $ L.lookup t $ mlookup m sym
   return (sym, eVar newName)
@@ -146,7 +146,7 @@ renameBinds fi m = fi { bs = bindEnvFromList $ renameBind m <$> beList }
   where
     beList       = bindEnvToList $ bs fi
 
-renameBind :: RenameMap -> (BindId, FixSymbol, SortedReft s) -> (BindId, FixSymbol, SortedReft s)
+renameBind :: RenameMap -> (BindId, Symbol s, SortedReft s) -> (BindId, Symbol s, SortedReft s)
 renameBind m (i, sym, sr)
   | Just newSym <- mnewSym = (i, newSym, sr)
   | otherwise              = (i, sym,    sr)

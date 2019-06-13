@@ -147,7 +147,7 @@ predExpr kve        = go
     go (H.Var k ys) = kvApp kve k ys
     go (H.PAnd  ps) = F.PAnd (go <$> ps)  
 
-kvApp :: KVEnv a -> F.FixSymbol -> [F.FixSymbol] -> F.Expr s 
+kvApp :: KVEnv a -> F.Symbol s -> [F.Symbol s] -> F.Expr s 
 kvApp kve k ys = F.PKVar (F.KV k) su 
   where 
     su         = F.mkSubst (zip params (F.eVar <$> ys))
@@ -176,17 +176,17 @@ kvInfo be k       = (be', KVInfo k (fst <$> xts) wfc)
     -- make the parameters
     xts           = [ (hvarArg k i, t) | (t, i) <- zip (H.hvArgs k) [0..] ]
 
-insertBE :: F.BindEnv -> (F.FixSymbol, F.Sort s) -> (F.BindEnv, F.BindId)
+insertBE :: F.BindEnv -> (F.Symbol s, F.Sort s) -> (F.BindEnv, F.BindId)
 insertBE be (x, t) = Tuple.swap $ F.insertBindEnv x (F.trueSortedReft t) be
 
 ----------------------------------------------------------------------------------
 -- | Data types and helpers for manipulating information about KVars
 ----------------------------------------------------------------------------------
-type KVEnv a  = M.HashMap F.FixSymbol (KVInfo a)
+type KVEnv a  = M.HashMap (F.Symbol s) (KVInfo a)
 
 data KVInfo a = KVInfo 
   { kvVar    :: !(H.Var a)
-  , kvParams :: ![F.FixSymbol]
+  , kvParams :: ![F.Symbol s]
   , kvWfC    :: !(F.WfC s a) 
   }
   deriving (Generic, Functor)
@@ -194,8 +194,8 @@ data KVInfo a = KVInfo
 kvEnvWfCs :: KVEnv a -> M.HashMap (F.KVar s) (F.WfC s a)
 kvEnvWfCs kve = M.fromList [ (F.KV k, kvWfC info) | (k, info) <- M.toList kve ]
 
-hvarArg :: H.Var a -> Int -> F.FixSymbol 
+hvarArg :: H.Var a -> Int -> F.Symbol s 
 hvarArg k i = F.intSymbol (F.suffixSymbol hvarPrefix (H.hvName k)) i 
 
-hvarPrefix :: F.FixSymbol 
+hvarPrefix :: F.Symbol s 
 hvarPrefix = F.symbol "nnf_arg" 
