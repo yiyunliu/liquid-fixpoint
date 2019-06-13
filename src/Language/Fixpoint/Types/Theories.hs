@@ -188,10 +188,10 @@ instance (B.Binary s) => B.Binary (TheorySymbol s)
 instance PPrint Sem where
   pprintTidy _ = text . show
 
-instance (Eq s, Fixpoint s) => Fixpoint (TheorySymbol s) where
+instance (PPrint s, Eq s, Fixpoint s) => Fixpoint (TheorySymbol s) where
   toFix (Thy x _ t d) = text "TheorySymbol" <+> pprint (x, t) <+> parens (pprint d)
 
-instance (Eq s, Fixpoint s) => PPrint (TheorySymbol s) where
+instance (PPrint s, Eq s, Fixpoint s) => PPrint (TheorySymbol s) where
   pprintTidy k (Thy x _ t d) = text "TheorySymbol" <+> pprintTidy k (x, t) <+> parens (pprint d)
 
 --------------------------------------------------------------------------------

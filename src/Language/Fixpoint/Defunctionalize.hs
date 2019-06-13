@@ -202,7 +202,7 @@ choices (xs:xss) = [a:as | a <- xs, as <- choices xss]
 class Defunc a where
   defunc :: a -> DF a
 
-instance (Defunc (c a), TaggedC c a) => Defunc (GInfo c a) where
+instance (Defunc (c a), TaggedC c a) => Defunc (GInfo c s a) where
   defunc fi = do
     cm'    <- defunc $ cm    fi
     ws'    <- defunc $ ws    fi

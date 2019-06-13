@@ -123,7 +123,7 @@ import           Text.PrettyPrint.HughesPJ.Compat
 -- import           Text.Printf               (printf)
 
 
-instance NFData (KVar s)
+instance (NFData s) => NFData (KVar s)
 instance NFData SrcSpan
 instance (NFData s) => NFData (Subst s)
 instance NFData GradInfo
@@ -141,18 +141,18 @@ instance (Hashable k, Eq k, B.Binary k, B.Binary v) => B.Binary (M.HashMap k v) 
 
 instance (Eq a, Hashable a, B.Binary a, B.Binary s) => B.Binary (TCEmb a s) 
 instance B.Binary SrcSpan
-instance B.Binary (KVar s)
-instance B.Binary s => B.Binary (Subst s)
+instance (B.Binary s) => B.Binary (KVar s)
+instance (Eq s, Hashable s, B.Binary s) => B.Binary (Subst s)
 instance B.Binary GradInfo
 instance B.Binary s => B.Binary (Constant s)
 instance B.Binary SymConst
 instance B.Binary Brel
 instance B.Binary Bop
-instance B.Binary s => B.Binary (Expr s)
-instance B.Binary s => B.Binary (Reft s)
-instance B.Binary s => B.Binary (SortedReft s)
+instance (Eq s, B.Binary s, Hashable s) => B.Binary (Expr s)
+instance (Hashable s, B.Binary s, Eq s) => B.Binary (Reft s)
+instance (Eq s, B.Binary s, Hashable s) => B.Binary (SortedReft s)
 
-reftConjuncts :: (Eq s, Fixpoint s) => Reft s -> [Reft s]
+reftConjuncts :: (Eq s, Fixpoint s, Ord s) => Reft s -> [Reft s]
 reftConjuncts (Reft (v, ra)) = [Reft (v, ra') | ra' <- ras']
   where
     ras'                     = if null ps then ks else ((pAnd ps) : ks)
@@ -162,14 +162,14 @@ isKvar :: Expr s -> Bool
 isKvar (PKVar _ _) = True
 isKvar _           = False
 
-class HasGradual a where
+class HasGradual a s | a -> s where
   isGradual :: a -> Bool
   gVars     :: a -> [KVar s]
   gVars _ = [] 
   ungrad    :: a -> a
   ungrad x = x 
 
-instance HasGradual (Expr s) where
+instance HasGradual (Expr s) s where
   isGradual (PGrad {}) = True
   isGradual (PAnd xs)  = any isGradual xs
   isGradual _          = False
@@ -183,12 +183,12 @@ instance HasGradual (Expr s) where
   ungrad e          = e
 
 
-instance HasGradual (Reft s) where
+instance HasGradual (Reft s) s where
   isGradual (Reft (_,r)) = isGradual r
   gVars (Reft (_,r))     = gVars r
   ungrad (Reft (x,r))    = Reft(x, ungrad r)
 
-instance HasGradual (SortedReft s) where
+instance HasGradual (SortedReft s) s where
   isGradual = isGradual . sr_reft
   gVars     = gVars . sr_reft
   ungrad r  = r {sr_reft = ungrad (sr_reft r)}
@@ -206,12 +206,12 @@ newtype KVar s = KV { kv :: Symbol s }
 instance IsString s => IsString (KVar s)
 
 intKvar :: Integer -> KVar s
-intKvar = KV . intSymbol "k_"
+intKvar = KV . FS . intSymbol "k_"
 
-instance Show (KVar s) where
+instance (Show s) => Show (KVar s) where
   show (KV x) = "$" ++ show x
 
-instance Hashable (KVar s)
+instance (Hashable s) => Hashable (KVar s)
 instance Hashable Brel
 instance Hashable Bop
 instance Hashable SymConst
@@ -226,15 +226,15 @@ instance Hashable s => Hashable (Expr s)
 newtype Subst s = Su (M.HashMap (Symbol s) (Expr s))
                 deriving (Eq, Data, Typeable, Generic)
 
-instance (Eq s, Fixpoint s) => Show (Subst s) where
+instance (Eq s, Fixpoint s, Ord s) => Show (Subst s) where
   show = showFix
 
-instance (Eq s, Fixpoint s) => Fixpoint (Subst s) where
+instance (Eq s, Fixpoint s, Ord s) => Fixpoint (Subst s) where
   toFix (Su m) = case hashMapToAscList m of
                    []  -> empty
                    xys -> hcat $ map (\(x,y) -> brackets $ toFix x <-> text ":=" <-> toFix y) xys
 
-instance (Eq s, Fixpoint s) => PPrint (Subst s) where
+instance (Eq s, Fixpoint s, Ord s) => PPrint (Subst s) where
   pprintTidy _ = toFix
 
 data KVSub s = KVS
@@ -244,7 +244,7 @@ data KVSub s = KVS
   , ksuSubst :: Subst s
   } deriving (Eq, Data, Typeable, Generic, Show)
 
-instance (Eq s, Fixpoint s) => PPrint (KVSub s) where
+instance (Eq s, Fixpoint s, PPrint s, Ord s) => PPrint (KVSub s) where
   pprintTidy k ksu = pprintTidy k (ksuVV ksu, ksuKVar ksu, ksuSubst ksu)
 
 --------------------------------------------------------------------------------
@@ -286,8 +286,8 @@ data Expr s = ESym !SymConst
             | PIff   !(Expr s) !(Expr s)
             | PAtom  !Brel  !(Expr s) !(Expr s)
             | PKVar  !(KVar s) !(Subst s)
-            | PAll   ![(Symbol s, Sort s)] !(Expr s)
-            | PExist ![(Symbol s, Sort s)] !(Expr s)
+            | PAll   ![(FixSymbol, Sort s)] !(Expr s)
+            | PExist ![(FixSymbol, Sort s)] !(Expr s)
             | PGrad  !(KVar s) !(Subst s) !GradInfo !(Expr s)
             | ECoerc !(Sort s) !(Sort s) !(Expr s)  
             deriving (Eq, Show, Data, Typeable, Generic)
@@ -366,7 +366,7 @@ data SortedReft s = RR { sr_sort :: !(Sort s), sr_reft :: !(Reft s) }
                   deriving (Eq, Data, Typeable, Generic)
 
 elit :: Located (Symbol s) -> Sort s -> Expr s
-elit l s = ECon $ L (symbolText $ val l) s
+elit l s = ECon $ L (symbolText . symbol $ val l) s
 
 instance (Eq s, Fixpoint s) => Fixpoint (Constant s) where
   toFix (I i)   = toFix i
@@ -383,7 +383,7 @@ instance (Eq s, Fixpoint s) => Fixpoint (Constant s) where
 instance Symbolic SymConst where
   symbol = encodeSymConst
 
-encodeSymConst        :: SymConst -> Symbol s
+encodeSymConst        :: SymConst -> FixSymbol
 encodeSymConst (SL s) = litSymbol $ symbol s
 
 -- _decodeSymConst :: FixSymbol -> Maybe SymConst
@@ -392,7 +392,7 @@ encodeSymConst (SL s) = litSymbol $ symbol s
 instance Fixpoint SymConst where
   toFix  = toFix . encodeSymConst
 
-instance Fixpoint (KVar s) where
+instance (Fixpoint s) => Fixpoint (KVar s) where
   toFix (KV k) = text "$" <-> toFix k
 
 instance Fixpoint Brel where
@@ -414,7 +414,7 @@ instance Fixpoint Bop where
   toFix RDiv   = text "/."
   toFix Mod    = text "mod"
 
-instance (Fixpoint s, Eq s) => Fixpoint (Expr s) where
+instance (Fixpoint s, Eq s, Ord s) => Fixpoint (Expr s) where
   toFix (ESym c)       = toFix $ encodeSymConst c
   toFix (ECon c)       = toFix c
   toFix (EVar s)       = toFix s
@@ -521,7 +521,7 @@ instance (Eq s, Fixpoint s) => PPrint (Sort s) where
 instance (Eq s, Fixpoint s, PPrint a) => PPrint (TCEmb a s) where 
   pprintTidy k = pprintTidy k . tceToList 
 
-instance PPrint (KVar s) where
+instance (PPrint s) => PPrint (KVar s) where
   pprintTidy _ (KV x) = text "$" <-> pprint x
 
 instance PPrint SymConst where
@@ -560,7 +560,7 @@ opPrec RTimes = 7
 opPrec Div    = 7
 opPrec RDiv   = 7
 
-instance (Eq s, Fixpoint s, PPrint s) => PPrint (Expr s) where
+instance (Eq s, Fixpoint s, PPrint s, Ord s) => PPrint (Expr s) where
   pprintPrec _ k (ESym c)        = pprintTidy k c
   pprintPrec _ k (ECon c)        = pprintTidy k c
   pprintPrec _ k (EVar s)        = pprintTidy k s
@@ -620,7 +620,7 @@ instance (Eq s, Fixpoint s, PPrint s) => PPrint (Expr s) where
   pprintPrec _ _ (ETAbs e s)     = "ETAbs" <+> toFix e <+> toFix s
   pprintPrec z k (PGrad x _ _ e) = pprintPrec z k e <+> "&&" <+> toFix x -- "??"
 
-pprintQuant :: (Eq s, Fixpoint s, PPrint s) => Tidy -> Doc -> [(Symbol s, Sort s)] -> Expr s -> Doc
+pprintQuant :: (Eq s, Fixpoint s, PPrint s, Ord s) => Tidy -> Doc -> [(FixSymbol, Sort s)] -> Expr s -> Doc
 pprintQuant k d xts p = (d <+> toFix xts)
                         $+$
                         ("  ." <+> pprintTidy k p)
@@ -640,7 +640,7 @@ vIntersperse _ []     = empty
 vIntersperse _ [d]    = d
 vIntersperse s (d:ds) = vcat (d : ((s <+>) <$> ds))
 
-pprintReft :: (Eq s, Fixpoint s, PPrint s) => Tidy -> Reft s -> Doc
+pprintReft :: (Eq s, Fixpoint s, PPrint s, Ord s) => Tidy -> Reft s -> Doc
 pprintReft k (Reft (_,ra)) = pprintBin z k trueD andD flat
   where
     flat = flattenRefas [ra]
@@ -676,6 +676,9 @@ instance Expression (Expr s) s where
 instance Expression FixSymbol s where
   expr s = eVar s
 
+instance Expression (Symbol s) s where
+  expr s = EVar s
+
 instance Expression Text s where
   expr = ESym . SL
 
@@ -704,26 +707,26 @@ eVar = EVar . FS . symbol
 eProp :: (Expression a s, Symbolic a) => a -> Expr s
 eProp = mkProp . eVar
 
-isSingletonExpr :: (Eq s) => FixSymbol -> Expr s -> Maybe (Expr s)
+isSingletonExpr :: (Eq s) => Symbol s -> Expr s -> Maybe (Expr s)
 isSingletonExpr v (PAtom r e1 e2)
-  | e1 == EVar (FS v) && isEq r = Just e2
-  | e2 == EVar (FS v) && isEq r = Just e1
+  | e1 == EVar v && isEq r = Just e2
+  | e2 == EVar v && isEq r = Just e1
 isSingletonExpr v (PIff e1 e2) 
-  | e1 == EVar (FS v)           = Just e2
-  | e2 == EVar (FS v)           = Just e1
+  | e1 == EVar v           = Just e2
+  | e2 == EVar v           = Just e1
 isSingletonExpr _ _        = Nothing
 
-pAnd, pOr     :: (Eq s, Fixpoint s) => ListNE (Pred s) -> Pred s
+pAnd, pOr     :: (Ord s, Eq s, Fixpoint s) => ListNE (Pred s) -> Pred s
 pAnd          = simplify . PAnd
 pOr           = simplify . POr
 
-(&.&) :: (Eq s, Fixpoint s) => Pred s -> Pred s -> Pred s
+(&.&) :: (Eq s, Fixpoint s, Ord s) => Pred s -> Pred s -> Pred s
 (&.&) p q = pAnd [p, q]
 
-(|.|) :: (Eq s, Fixpoint s) => Pred s -> Pred s -> Pred s
+(|.|) :: (Eq s, Fixpoint s, Ord s) => Pred s -> Pred s -> Pred s
 (|.|) p q = pOr [p, q]
 
-pIte :: (Eq s, Fixpoint s) => Pred s -> Expr s -> Expr s -> Expr s
+pIte :: (Eq s, Fixpoint s, Ord s) => Pred s -> Expr s -> Expr s -> Expr s
 pIte p1 p2 p3 = pAnd [p1 `PImp` p2, (PNot p1) `PImp` p3]
 
 pExist :: [(FixSymbol, Sort s)] -> Pred s -> Pred s
@@ -740,16 +743,16 @@ mkProp = id -- EApp (EVar propConName)
 isSingletonReft :: (Eq s) => Reft s -> Maybe (Expr s)
 isSingletonReft (Reft (v, ra)) = firstMaybe (isSingletonExpr v) $ conjuncts ra
 
-relReft :: (Expression a s) => Brel -> a -> Reft s
-relReft r e   = Reft (vv_, PAtom r (eVar vv_)  (expr e))
+relReft :: forall a s. (Expression a s) => Brel -> a -> Reft s
+relReft r e   = Reft (vv_, PAtom r (eVar (vv_ @s))  (expr e))
 
 exprReft, notExprReft, uexprReft ::  (Expression a s) => a -> Reft s
 exprReft      = relReft Eq
 notExprReft   = relReft Ne
 uexprReft     = relReft Ueq
 
-propReft      ::  (Predicate a s) => a -> Reft s
-propReft p    = Reft (vv_, PIff (eProp vv_) (prop p))
+propReft      ::  forall a s. (Predicate a s) => a -> Reft s
+propReft p    = Reft (vv_, PIff (eProp (vv_ @s)) (prop p))
 
 predReft      :: (Predicate a s) => a -> Reft s
 predReft p    = Reft (vv_, prop p)
@@ -779,10 +782,10 @@ reftBind (Reft (x, _)) = x
 ------------------------------------------------------------
 -- | Gradual Type Manipulation  ----------------------------
 ------------------------------------------------------------
-pGAnds :: (Fixpoint s, Eq s) => [Expr s] -> Expr s
+pGAnds :: (Fixpoint s, Eq s, Ord s) => [Expr s] -> Expr s
 pGAnds = foldl pGAnd PTrue
 
-pGAnd :: (Fixpoint s, Eq s) => Expr s -> Expr s -> Expr s
+pGAnd :: (Fixpoint s, Eq s, Ord s) => Expr s -> Expr s -> Expr s
 pGAnd (PGrad k su i p) q = PGrad k su i (pAnd [p, q])
 pGAnd p (PGrad k su i q) = PGrad k su i (pAnd [p, q])
 pGAnd p q              = pAnd [p,q]
@@ -798,7 +801,7 @@ usymbolReft   :: forall a s. (Expression a s, Symbolic a) => a -> Reft s
 usymbolReft   = (uexprReft :: Expr s -> Reft s) . (eVar :: a -> Expr s)
 
 vv_ :: Symbol s
-vv_ = vv Nothing
+vv_ = FS $ vv Nothing
 
 trueSortedReft :: Sort s -> SortedReft s
 trueSortedReft = (`RR` trueReft)
@@ -838,7 +841,7 @@ instance Falseable (Reft s) where
 -- | Class Predicates for Valid Refinements -----------------------------
 -------------------------------------------------------------------------
 
-class Subable a s where
+class (Eq s, Hashable s) =>  Subable a s where
   syms   :: a -> [Symbol s]                   -- ^ free symbols of a
   substa :: (Symbol s -> Symbol s) -> a -> a
   -- substa f  = substf (EVar . f)

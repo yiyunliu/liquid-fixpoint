@@ -73,7 +73,7 @@ solve cfg q = do
   q <- eliminate cfg ({- void $ -} q { H.qCstr = c })
   Solver.solve cfg (hornFInfo q)
 
-hornFInfo :: H.Query a -> F.FInfo a 
+hornFInfo :: H.Query a -> F.FInfo s a 
 hornFInfo q    = mempty 
   { F.cm       = cs 
   , F.bs       = be2  

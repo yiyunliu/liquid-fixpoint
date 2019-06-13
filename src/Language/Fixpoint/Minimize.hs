@@ -22,7 +22,7 @@ import           Control.DeepSeq
 ---------------------------------------------------------------------------
 -- polymorphic delta debugging implementation
 ---------------------------------------------------------------------------
-deltaDebug :: Bool -> Oracle a c -> Config -> Solver a -> FInfo a -> [c] -> [c] -> IO [c]
+deltaDebug :: Bool -> Oracle a c -> Config -> Solver a -> FInfo s a -> [c] -> [c] -> IO [c]
 deltaDebug min testSet cfg solve finfo set r = do
   let (s1, s2) = splitAt (length set `div` 2) set
   if length set == 1
@@ -48,17 +48,17 @@ deltaDebug1 False testSet cfg solve finfo set r = do
   test <- testSet cfg solve finfo r
   if test then return [] else return set
 
-type Oracle a c = (Config -> Solver a -> FInfo a -> [c] -> IO Bool)
+type Oracle a c = (Config -> Solver a -> FInfo s a -> [c] -> IO Bool)
 
-commonDebug :: (NFData a, Fixpoint a) => (FInfo a -> [c])
-                                      -> (FInfo a -> [c] -> FInfo a)
+commonDebug :: (NFData a, Fixpoint a) => (FInfo s a -> [c])
+                                      -> (FInfo s a -> [c] -> FInfo s a)
                                       -> (Result (Integer, a) -> Bool)
                                       -> Bool
                                       -> Config
                                       -> Solver a
-                                      -> FInfo a
+                                      -> FInfo s a
                                       -> Ext
-                                      -> (FInfo a -> [c] -> String)
+                                      -> (FInfo s a -> [c] -> String)
                                       -> IO (Result (Integer, a))
 commonDebug init updateFi checkRes min cfg solve fi ext formatter = do
   let cs0 = init fi
@@ -70,7 +70,7 @@ commonDebug init updateFi checkRes min cfg solve fi ext formatter = do
   return mempty
 
 ---------------------------------------------------------------------------
-minQuery :: (NFData a, Fixpoint a) => Config -> Solver a -> FInfo a
+minQuery :: (NFData a, Fixpoint a) => Config -> Solver a -> FInfo s a
          -> IO (Result (Integer, a))
 ---------------------------------------------------------------------------
 minQuery cfg solve fi = do
@@ -83,7 +83,7 @@ minQuery cfg solve fi = do
   commonDebug (M.toList . cm) update (not . isSafe) True cfg' solve failFi Min format
 
 ---------------------------------------------------------------------------
-minQuals :: (NFData a, Fixpoint a) => Config -> Solver a -> FInfo a
+minQuals :: (NFData a, Fixpoint a) => Config -> Solver a -> FInfo s a
          -> IO (Result (Integer, a))
 ---------------------------------------------------------------------------
 minQuals cfg solve fi = do
@@ -94,7 +94,7 @@ minQuals cfg solve fi = do
   commonDebug quals update isSafe False cfg' solve fi MinQuals format
 
 ---------------------------------------------------------------------------
-minKvars :: (NFData a, Fixpoint a) => Config -> Solver a -> FInfo a
+minKvars :: (NFData a, Fixpoint a) => Config -> Solver a -> FInfo s a
          -> IO (Result (Integer, a))
 ---------------------------------------------------------------------------
 minKvars cfg solve fi = do
@@ -103,7 +103,7 @@ minKvars cfg solve fi = do
                   ++ "; Total KVars: "  ++ show (length $ ws fi)
   commonDebug (M.keys . ws) removeOtherKs isSafe False cfg' solve fi MinKVars format
 
-removeOtherKs :: FInfo a -> [KVar s] -> FInfo a
+removeOtherKs :: FInfo s a -> [KVar s] -> FInfo s a
 removeOtherKs fi0 ks = fi1 { ws = ws', cm = cm' }
   where
     fi1 = mapKVars go fi0
@@ -118,7 +118,7 @@ removeOtherKs fi0 ks = fi1 { ws = ws', cm = cm' }
 addExt :: Ext -> Config -> Config
 addExt ext cfg = cfg { srcFile = queryFile ext cfg }
 
-mkOracle :: (NFData a, Fixpoint a) => (FInfo a -> [c] -> FInfo a)
+mkOracle :: (NFData a, Fixpoint a) => (FInfo s a -> [c] -> FInfo s a)
                                    -> (Result (Integer, a) -> Bool)
                                    -> Oracle a c
 mkOracle updateFi checkRes cfg solve fi qs = do

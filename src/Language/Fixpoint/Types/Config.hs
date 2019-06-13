@@ -75,7 +75,7 @@ data Config = Config
   , metadata    :: Bool                -- ^ print meta-data associated with constraints
   , stats       :: Bool                -- ^ compute constraint statistics
   , parts       :: Bool                -- ^ partition FInfo into separate fq files
-  , save        :: Bool                -- ^ save FInfo as .bfq and .fq file
+  , save        :: Bool                -- ^ save FInfo s as .bfq and .fq file
   , minimize    :: Bool                -- ^ min .fq by delta debug (unsat with min constraints)
   , minimizeQs  :: Bool                -- ^ min .fq by delta debug (sat with min qualifiers)
   , minimizeKs  :: Bool                -- ^ min .fq by delta debug (sat with min kvars)

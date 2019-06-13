@@ -19,14 +19,14 @@ import           Text.Printf
 import           Debug.Trace
 
 -------------------------------------------------------------------------
-nontrivsorts :: (Fixpoint a) => Config -> FInfo a -> IO (Result a)
+nontrivsorts :: (Fixpoint a) => Config -> FInfo s a -> IO (Result a)
 -------------------------------------------------------------------------
 nontrivsorts cfg fi = do
   let fi' = simplify' cfg fi
   writeFInfo cfg fi' $ queryFile Out cfg
   return mempty
 
-simplify' :: Config -> FInfo a -> FInfo a
+simplify' :: Config -> FInfo s a -> FInfo s a
 simplify' _ fi = simplifyFInfo (mkNonTrivSorts fi) fi
 
 --------------------------------------------------------------------
@@ -39,7 +39,7 @@ type TrivInfo     = (NonTrivSorts, KVarMap)
 --------------------------------------------------------------------
 
 --------------------------------------------------------------------
-mkNonTrivSorts :: FInfo a -> NonTrivSorts
+mkNonTrivSorts :: FInfo s a -> NonTrivSorts
 --------------------------------------------------------------------
 mkNonTrivSorts = {- tracepp "mkNonTrivSorts: " . -}  nonTrivSorts . trivInfo
 
@@ -72,7 +72,7 @@ data NTV = NTV
 instance Hashable NTV
 
 --------------------------------------------------------------------
-trivInfo :: FInfo a -> TrivInfo
+trivInfo :: FInfo s a -> TrivInfo
 --------------------------------------------------------------------
 trivInfo fi = updTISubCs (M.elems $ cm fi)
             . updTIBinds (bs fi)
@@ -133,7 +133,7 @@ singP v (PAtom Eq _ (EVar x))
 singP _ _                     = False
 
 -------------------------------------------------------------------------
-simplifyFInfo :: NonTrivSorts -> FInfo a -> FInfo a
+simplifyFInfo :: NonTrivSorts -> FInfo s a -> FInfo s a
 -------------------------------------------------------------------------
 simplifyFInfo tm fi = fi {
      cm   = simplifySubCs   tm $ cm fi

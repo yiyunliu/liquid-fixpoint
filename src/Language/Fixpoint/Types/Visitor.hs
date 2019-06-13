@@ -144,7 +144,7 @@ instance Visitable (SubC a) where
     rhs' <- visit v c (srhs x)
     return x { slhs = lhs', srhs = rhs' }
 
-instance (Visitable (c a)) => Visitable (GInfo c a) where
+instance (Visitable (c a)) => Visitable (GInfo c s a) where
   visit v c x = do
     cm' <- mapM (visit v c) (cm x)
     bs' <- visit v c (bs x)
@@ -393,14 +393,14 @@ dataCtorSorts = map dfSort . dcFields
 -- | String Constants -----------------------------------------
 ---------------------------------------------------------------
 
--- symConstLits    :: FInfo a -> [(Symbol s, Sort s)]
+-- symConstLits    :: FInfo s a -> [(Symbol s, Sort s)]
 -- symConstLits fi = [(symbol c, strSort) | c <- symConsts fi]
 
 class SymConsts a where
   symConsts :: a -> [SymConst]
 
--- instance  SymConsts (FInfo a) where
-instance (SymConsts (c a)) => SymConsts (GInfo c a) where
+-- instance  SymConsts (FInfo s a) where
+instance (SymConsts (c a)) => SymConsts (GInfo c s a) where
   symConsts fi = Misc.sortNub $ csLits ++ bsLits ++ qsLits
     where
       csLits   = concatMap symConsts $ M.elems  $  cm    fi

@@ -74,7 +74,7 @@ resultExitCode r = do
     eCode   = resultExit . resStatus
     statStr = render . resultDoc 
 
-ignoreQualifiers :: Config -> FInfo a -> FInfo a
+ignoreQualifiers :: Config -> FInfo s a -> FInfo s a
 ignoreQualifiers cfg fi
   | eliminate cfg == All = fi { quals = [] }
   | otherwise            = fi
@@ -178,7 +178,7 @@ loudDump i cfg si = when False (writeLoud $ msg ++ render (toFixpoint cfg si))
     msg           = "fq file after Uniqify & Rename " ++ show i ++ "\n"
 
 simplifyFInfo :: (NFData a, Fixpoint a, Show a, Loc a)
-               => Config -> FInfo a -> IO (SInfo a)
+               => Config -> FInfo s a -> IO (SInfo a)
 simplifyFInfo !cfg !fi0 = do
   -- writeLoud $ "fq file in: \n" ++ render (toFixpoint cfg fi)
   -- rnf fi0 `seq` donePhase Loud "Read Constraints"
@@ -219,11 +219,11 @@ solveNative' !cfg !fi0 = do
 --------------------------------------------------------------------------------
 -- | Parse External Qualifiers -------------------------------------------------
 --------------------------------------------------------------------------------
-parseFInfo :: [FilePath] -> IO (FInfo a)
+parseFInfo :: [FilePath] -> IO (FInfo s a)
 --------------------------------------------------------------------------------
 parseFInfo fs = mconcat <$> mapM parseFI fs
 
-parseFI :: FilePath -> IO (FInfo a)
+parseFI :: FilePath -> IO (FInfo s a)
 parseFI f = do
   str   <- readFile f
   let fi = rr' f str :: FInfo ()

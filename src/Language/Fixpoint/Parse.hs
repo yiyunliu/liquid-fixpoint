@@ -884,7 +884,7 @@ boolP :: Parser Bool
 boolP = (reserved "True" >> return True)
     <|> (reserved "False" >> return False)
 
-defsFInfo :: [Def a] -> FInfo a
+defsFInfo :: [Def a] -> FInfo s a
 defsFInfo defs = {-# SCC "defsFI" #-} FI cm ws bs ebs lts dts kts qs binfo adts mempty mempty ae
   where
     cm         = Misc.safeFromList 

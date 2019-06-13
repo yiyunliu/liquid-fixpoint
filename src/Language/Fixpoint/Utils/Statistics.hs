@@ -18,14 +18,14 @@ import qualified Data.HashMap.Strict            as M
 import           Data.List (sort,group)
 import           Text.PrettyPrint.HughesPJ
 
-statistics :: Config -> F.FInfo a -> IO (F.Result (Integer, a))
+statistics :: Config -> F.FInfo s a -> IO (F.Result (Integer, a))
 statistics _ fi = do
   let fis = partition' Nothing fi
   putStrLn $ render $ pprint $ partitionStats fis
   donePhase Loud "Statistics"
   return mempty
 
-partitionStats :: [F.FInfo a] -> Maybe Stats
+partitionStats :: [F.FInfo s a] -> Maybe Stats
 partitionStats fis = info
   where
     css            = [M.keys $ F.cm fi | fi <- fis]

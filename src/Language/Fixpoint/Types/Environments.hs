@@ -263,7 +263,7 @@ instance (Eq s, Fixpoint s) => Fixpoint (EBindEnv s) where
     where
       toFixBind (i, (x, r)) = "ebind" <+> toFix i <+> toFix x <+> ": { " <+> toFix (sr_sort r) <+> " }"
 
-instance (Fixpoint s, Eq s) => Fixpoint (BindEnv s) where
+instance (Fixpoint s, Eq s, Ord s) => Fixpoint (BindEnv s) where
   toFix (BE _ m) = vcat $ map toFixBind $ hashMapToAscList m
     where
       toFixBind (i, (x, r)) = "bind" <+> toFix i <+> toFix x <+> ":" <+> toFix r
@@ -297,14 +297,14 @@ instance Fixpoint (IBindEnv) where
 
 --------------------------------------------------------------------------------
 
-instance NFData Packs
+instance (NFData s) => NFData (Packs s)
 instance NFData IBindEnv
 instance (NFData s) => NFData (BindEnv s)
 instance (NFData a, NFData s) => NFData (SEnv s a)
 
-instance B.Binary Packs
+instance (Eq s, Hashable s, B.Binary s) => B.Binary (Packs s)
 instance B.Binary IBindEnv
-instance (B.Binary s) => B.Binary (BindEnv s)
+instance (Eq s, Hashable s, B.Binary s) => B.Binary (BindEnv s)
 instance (B.Binary a, B.Binary s, Hashable s, Eq s) => B.Binary (SEnv s a)
 instance (Hashable a, Eq a, B.Binary a) => B.Binary (S.HashSet a) where
   put = B.put . S.toList
@@ -314,28 +314,28 @@ instance (Hashable a, Eq a, B.Binary a) => B.Binary (S.HashSet a) where
 -- | Constraint Pack Sets ------------------------------------------------------
 --------------------------------------------------------------------------------
 
-newtype Packs = Packs { packm :: M.HashMap KVar s Int }
+newtype Packs s = Packs { packm :: M.HashMap (KVar s) Int }
                deriving (Eq, Show, Generic)
 
-instance Fixpoint Packs where
+instance (Fixpoint s) => Fixpoint (Packs s) where
   toFix (Packs m) = vcat $ (("pack" <+>) . toFix) <$> kIs
     where
       kIs = L.sortBy (compare `on` snd) . M.toList $ m
 
-instance PPrint Packs where
+instance (Fixpoint s) => PPrint (Packs s) where
   pprintTidy _ = toFix
 
-instance Semigroup Packs where
+instance (Eq s, Hashable s) => Semigroup (Packs s) where
   m1 <> m2 = Packs $ M.union (packm m1) (packm m2)
 
-instance Monoid Packs where
+instance (Eq s, Hashable s) => Monoid (Packs s) where
   mempty  = Packs mempty
   mappend = (<>)
 
-getPack :: KVar s -> Packs -> Maybe Int
+getPack :: (Eq s, Hashable s) => KVar s -> Packs s -> Maybe Int
 getPack k (Packs m) = M.lookup k m
 
-makePack :: [S.HashSet (KVar s)] -> Packs
+makePack :: (Ord s, Hashable s) => [S.HashSet (KVar s)] -> Packs s
 makePack kvss = Packs (M.fromList kIs)
   where
     kIs       = [ (k, i) | (i, ks) <- kPacks, k <- ks ]

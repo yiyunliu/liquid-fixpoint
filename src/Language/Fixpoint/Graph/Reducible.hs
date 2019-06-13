@@ -16,7 +16,7 @@ import qualified Language.Fixpoint.Types              as F
 
 
 --------------------------------------------------------------------------------
-isReducible :: (F.TaggedC c a) => F.GInfo c a -> Bool
+isReducible :: (F.TaggedC c a) => F.GInfo c s a -> Bool
 --------------------------------------------------------------------------------
 isReducible fi = all (isReducibleWithStart g) vs
   where
@@ -32,7 +32,7 @@ isReducibleWithStart g x = all (isBackEdge domList) rEdges
 
 
 
-convertToGraph :: (F.TaggedC c a) => F.GInfo c a -> Gr Int ()
+convertToGraph :: (F.TaggedC c a) => F.GInfo c s a -> Gr Int ()
 convertToGraph fi = mkGraph vs es
   where
     subCs        = M.elems (F.cm fi)

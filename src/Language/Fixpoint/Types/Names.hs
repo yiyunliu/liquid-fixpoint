@@ -141,6 +141,7 @@ import           GHC.Generics                (Generic)
 import           Text.PrettyPrint.HughesPJ   (text)
 import           Language.Fixpoint.Types.PrettyPrint
 import           Language.Fixpoint.Types.Spans
+import           Language.Fixpoint.Types.Errors (panic)
 
 ---------------------------------------------------------------
 -- | Symbols --------------------------------------------------
@@ -251,6 +252,9 @@ sCache = mkCache
 
 instance IsString FixSymbol where
   fromString = textSymbol . T.pack
+
+instance IsString (Symbol s) where
+  fromString = FS . textSymbol . T.pack
 
 instance Show FixSymbol where
   show = show . symbolRaw
@@ -559,9 +563,9 @@ class Symbolic a where
 symbolicString :: (Symbolic a) => a -> String
 symbolicString = symbolString . symbol
 
-instance (Symbolic s) => Symbolic (Symbol s) where
+instance Symbolic (Symbol s) where
   symbol (FS s) = s
-  symbol (AS as) = symbol . abstractSymbol $ as
+  symbol _ = panic "Coercing Symbol s into FixSymbol! Potential loss of GHC Information!"
 
 instance Symbolic T.Text where
   symbol = textSymbol

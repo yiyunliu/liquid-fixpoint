@@ -431,13 +431,13 @@ setSort :: Sort s -> Sort s
 setSort    = FApp (FTC setFTyCon)
 
 bitVecSort :: Eq s => Sort s
-bitVecSort = FApp (FTC $ symbolFTycon' bitVecName) (FTC $ symbolFTycon' size32Name)
+bitVecSort = FApp (FTC $ symbolFTycon' (FS bitVecName)) (FTC $ symbolFTycon' (FS size32Name))
 
 mapSort :: Eq s => Sort s -> Sort s -> Sort s
-mapSort = FApp . FApp (FTC (symbolFTycon' mapConName))
+mapSort = FApp . FApp (FTC (symbolFTycon' (FS mapConName)))
 
 symbolFTycon' :: Eq s => Symbol s -> FTycon s
-symbolFTycon' = symbolFTycon . dummyLoc . FS
+symbolFTycon' = symbolFTycon . dummyLoc
 
 fTyconSort :: Eq s => FTycon s -> Sort s
 fTyconSort c
@@ -450,9 +450,9 @@ basicSorts :: Eq s => [Sort s]
 basicSorts = [FInt, boolSort] 
 
 ------------------------------------------------------------------------
-sortSubst                  :: M.HashMap (Symbol s) (Sort s) -> Sort s -> Sort s
+sortSubst                  :: (Eq s, Hashable s) => M.HashMap (Symbol s) (Sort s) -> Sort s -> Sort s
 ------------------------------------------------------------------------
-sortSubst θ t@(FObj (FS s))    = fromMaybe t (M.lookup s θ)
+sortSubst θ t@(FObj s)    = fromMaybe t (M.lookup s θ)
 sortSubst θ (FFunc t1 t2) = FFunc (sortSubst θ t1) (sortSubst θ t2)
 sortSubst θ (FApp t1 t2)  = FApp  (sortSubst θ t1) (sortSubst θ t2)
 sortSubst θ (FAbs i t)    = FAbs i (sortSubst θ t)
