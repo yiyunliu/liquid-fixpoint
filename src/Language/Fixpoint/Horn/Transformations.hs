@@ -651,7 +651,7 @@ forallElim :: (F.Subable t, Visitable t) => F.Symbol s -> t -> F.Expr s -> F.Exp
 forallElim x p e = forallElim' x eqs p e
   where
   eqs = fold eqVis () [] p
-  eqVis             = (defaultVisitor :: Visitor (F.Expr s) t) { accExpr = kv' }
+  eqVis             = (defaultVisitor :: Visitor s (F.Expr s) t) { accExpr = kv' }
   kv' _ e@(F.PAtom F.Eq a b)
     | F.EVar x == a || F.EVar x == b
     = [e]

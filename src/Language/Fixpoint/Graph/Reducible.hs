@@ -57,6 +57,6 @@ isBackEdge t (u,v) = v `elem` xs
   where
     (Just xs) = lookup u t
 
-subcEdges' :: (F.TaggedC c a) => (F.KVar s -> Node) -> F.BindEnv -> c a -> [(Node, Node)]
+subcEdges' :: (F.TaggedC c a) => (F.KVar s -> Node) -> F.BindEnv s -> c a -> [(Node, Node)]
 subcEdges' kvI be c = [(kvI k1, kvI k2) | k1 <- V.envKVars be c
                                         , k2 <- V.kvars $ F.crhs c]

@@ -175,7 +175,7 @@ safeKvarEnv si = L.foldl' (dropKvarEnv si) env0 cs
     cs         = M.elems  (F.cm si)
     env0       = initKvarEnv si
 
-dropKvarEnv :: F.SInfo s a -> KvDom -> F.SimpC a -> KvDom
+dropKvarEnv :: F.SInfo s a -> KvDom -> F.SimpC s a -> KvDom
 dropKvarEnv si kve c = M.mapWithKey (dropBadParams kBads) kve
   where
     kBads            = badParams si c
@@ -185,7 +185,7 @@ dropBadParams kBads k kEnv = L.foldl' (flip F.deleteSEnv) kEnv xs
   where
     xs                     = M.lookupDefault mempty k kBads
 
-badParams :: F.SInfo s a -> F.SimpC a -> M.HashMap (F.KVar s) [F.Symbol s]
+badParams :: F.SInfo s a -> F.SimpC s a -> M.HashMap (F.KVar s) [F.Symbol s]
 badParams si c = Misc.group bads
   where
     bads       = [ (k, x) | (v, k, F.Su su) <- subcKSubs xsrs c
@@ -202,7 +202,7 @@ badArg _    _          = True
 
 type KSub s = (Maybe (F.Symbol s), F.KVar s, F.Subst s)
 
-subcKSubs :: [(F.Symbol s, F.SortedReft s)] -> F.SimpC a -> [KSub]
+subcKSubs :: [(F.Symbol s, F.SortedReft s)] -> F.SimpC s a -> [KSub]
 subcKSubs xsrs c = rhs ++ lhs
   where
     lhs          = [ (Just v, k, su) | (_, sr) <- xsrs
@@ -238,7 +238,7 @@ known fi  = \x -> F.memberSEnv x lits || F.memberSEnv x prims
     lits  = F.gLits fi
     prims = Thy.theorySymbols . F.ddecls $ fi
 
-cNoFreeVars :: F.SInfo s a -> (F.Symbol s -> Bool) -> F.SimpC a -> Maybe [F.Symbol s]
+cNoFreeVars :: F.SInfo s a -> (F.Symbol s -> Bool) -> F.SimpC s a -> Maybe [F.Symbol s]
 cNoFreeVars fi known c = if S.null fv then Nothing else Just (S.toList fv)
   where
     be   = F.bs fi
@@ -247,7 +247,7 @@ cNoFreeVars fi known c = if S.null fv then Nothing else Just (S.toList fv)
     cRng = concat [S.toList . F.reftFreeVars . F.sr_reft . snd $ F.lookupBindEnv i be | i <- ids]
     fv   = (`Misc.nubDiff` cDom) . filter (not . known) $ cRng 
 
-badCs :: Misc.ListNE (F.SimpC a, [F.Symbol s]) -> E.Error
+badCs :: Misc.ListNE (F.SimpC s a, [F.Symbol s]) -> E.Error
 badCs = E.catErrors . map (E.errFreeVarInConstraint . Misc.mapFst F.subcId)
 
 
@@ -279,10 +279,10 @@ banMixedRhs fi = Misc.applyNonNull (Right fi) (Left . badRhs) bads
     bads       = [(i, c) | (i, c) <- ics, not $ isOk c]
     isOk c     = isKvarC c || isConcC c
 
-badRhs :: Misc.ListNE (Integer, F.SimpC a) -> E.Error
+badRhs :: Misc.ListNE (Integer, F.SimpC s a) -> E.Error
 badRhs = E.catErrors . map badRhs1
 
-badRhs1 :: (Integer, F.SimpC a) -> E.Error
+badRhs1 :: (Integer, F.SimpC s a) -> E.Error
 badRhs1 (i, c) = E.err E.dummySpan $ vcat [ "Malformed RHS for constraint id" <+> pprint i
                                           , nest 4 (pprint (F.crhs c)) ]
 
@@ -360,7 +360,7 @@ dupBindErrors = foldr1 E.catError . map dbe
                                          , nest 4 (pprint y) ]
 
 --------------------------------------------------------------------------------
-symBinds  :: F.BindEnv -> [SymBinds]
+symBinds  :: F.BindEnv s -> [SymBinds]
 --------------------------------------------------------------------------------
 symBinds  = {- THIS KILLS ELEM: tracepp "symBinds" . -}
             M.toList
@@ -370,7 +370,7 @@ symBinds  = {- THIS KILLS ELEM: tracepp "symBinds" . -}
 
 type SymBinds = (F.Symbol s, [(F.Sort s, [F.BindId])])
 
-binders :: F.BindEnv -> [(F.Symbol s, (F.Sort s, F.BindId))]
+binders :: F.BindEnv s -> [(F.Symbol s, (F.Sort s, F.BindId))]
 binders be = [(x, (F.sr_sort t, i)) | (i, x, t) <- F.bindEnvToList be]
 
 
@@ -438,13 +438,13 @@ dropBinders f g fi  = fi { F.bs    = bs'
 type KeepBindF = F.Symbol s -> F.Sort s -> Bool
 type KeepSortF = F.Sort s -> Bool
 
-deleteSubCBinds :: [F.BindId] -> F.SimpC a -> F.SimpC a
+deleteSubCBinds :: [F.BindId] -> F.SimpC s a -> F.SimpC s a
 deleteSubCBinds bs sc = sc { F._cenv = foldr F.deleteIBindEnv (F.senv sc) bs }
 
 deleteWfCBinds :: [F.BindId] -> F.WfC s a -> F.WfC s a
 deleteWfCBinds bs wf = wf { F.wenv = foldr F.deleteIBindEnv (F.wenv wf) bs }
 
-filterBindEnv :: KeepBindF -> F.BindEnv -> (F.BindEnv, [F.BindId])
+filterBindEnv :: KeepBindF -> F.BindEnv s -> (F.BindEnv s, [F.BindId])
 filterBindEnv f be  = (F.bindEnvFromList keep, discard')
   where
     (keep, discard) = L.partition f' $ F.bindEnvToList be

@@ -90,8 +90,8 @@ hornFInfo q    = mempty
     hCst       = H.qCstr q
 
 ----------------------------------------------------------------------------------
-hornSubCs :: F.BindEnv -> KVEnv a -> H.Cstr a 
-          -> (F.BindEnv, [F.BindId], M.HashMap F.SubcId (F.SubC a)) 
+hornSubCs :: F.BindEnv s -> KVEnv a -> H.Cstr a 
+          -> (F.BindEnv s, [F.BindId], M.HashMap F.SubcId (F.SubC a)) 
 ----------------------------------------------------------------------------------
 hornSubCs be kve c = (be', ebs, M.fromList (F.addIds cs)) 
   where
@@ -101,16 +101,16 @@ hornSubCs be kve c = (be', ebs, M.fromList (F.addIds cs))
 -- | @goS@ recursively traverses the NNF constraint to build up a list 
 --   of the vanilla @SubC@ constraints.
 
-goS :: KVEnv a -> F.IBindEnv -> F.SortedReft s -> F.BindEnv -> H.Cstr a 
-    -> (F.BindEnv, [F.BindId], [F.SubC a])
+goS :: KVEnv a -> F.IBindEnv -> F.SortedReft s -> F.BindEnv s -> H.Cstr a 
+    -> (F.BindEnv s, [F.BindId], [F.SubC a])
 
 goS kve env lhs be c = (be', mEbs, subcs)
   where
     (be', ecs) = goS' kve env lhs be c
     (mEbs, subcs) = partitionEithers ecs
 
-goS' :: KVEnv a -> F.IBindEnv -> F.SortedReft s -> F.BindEnv -> H.Cstr a 
-    -> (F.BindEnv, [Either F.BindId (F.SubC a)])
+goS' :: KVEnv a -> F.IBindEnv -> F.SortedReft s -> F.BindEnv s -> H.Cstr a 
+    -> (F.BindEnv s, [Either F.BindId (F.SubC a)])
 goS' kve env lhs be (H.Head p l) = (be, [Right subc])
   where 
     subc                        = F.mkSubC env lhs rhs Nothing [] l 
@@ -155,7 +155,7 @@ kvApp kve k ys = F.PKVar (F.KV k) su
     err1       = F.panic ("Unknown Horn variable: " ++ F.showpp k) 
 
 ----------------------------------------------------------------------------------
-hornWfs :: F.BindEnv -> [H.Var a] -> (F.BindEnv, KVEnv a) 
+hornWfs :: F.BindEnv s -> [H.Var a] -> (F.BindEnv s, KVEnv a) 
 ----------------------------------------------------------------------------------
 hornWfs be vars = (be', kve) 
   where 
@@ -163,7 +163,7 @@ hornWfs be vars = (be', kve)
     (be', is)   = L.mapAccumL kvInfo be vars 
     kname       = H.hvName . kvVar 
 
-kvInfo :: F.BindEnv -> H.Var a -> (F.BindEnv, KVInfo a)
+kvInfo :: F.BindEnv s -> H.Var a -> (F.BindEnv s, KVInfo a)
 kvInfo be k       = (be', KVInfo k (fst <$> xts) wfc) 
   where 
     -- make the WfC 
@@ -176,7 +176,7 @@ kvInfo be k       = (be', KVInfo k (fst <$> xts) wfc)
     -- make the parameters
     xts           = [ (hvarArg k i, t) | (t, i) <- zip (H.hvArgs k) [0..] ]
 
-insertBE :: F.BindEnv -> (F.Symbol s, F.Sort s) -> (F.BindEnv, F.BindId)
+insertBE :: F.BindEnv s -> (F.Symbol s, F.Sort s) -> (F.BindEnv s, F.BindId)
 insertBE be (x, t) = Tuple.swap $ F.insertBindEnv x (F.trueSortedReft t) be
 
 ----------------------------------------------------------------------------------

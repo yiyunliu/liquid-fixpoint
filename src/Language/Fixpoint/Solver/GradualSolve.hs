@@ -118,7 +118,7 @@ showUnsat u i lP rP = {- when u $ -} do
 --------------------------------------------------------------------------------
 -- | Predicate corresponding to RHS of constraint in current solution
 --------------------------------------------------------------------------------
-rhsPred :: F.SimpC a -> F.Expr s
+rhsPred :: F.SimpC s a -> F.Expr s
 --------------------------------------------------------------------------------
 rhsPred c
   | isTarget c = F.crhs c
@@ -239,7 +239,7 @@ refine s w
 ---------------------------------------------------------------------------
 -- | Single Step Refinement -----------------------------------------------
 ---------------------------------------------------------------------------
-refineC :: Int -> Sol.GSolution -> F.SimpC a -> SolveM (Bool, Sol.GSolution)
+refineC :: Int -> Sol.GSolution -> F.SimpC s a -> SolveM (Bool, Sol.GSolution)
 ---------------------------------------------------------------------------
 refineC _i s c
   | null rhs  = return (False, s)
@@ -256,7 +256,7 @@ refineC _i s c
                      _i (show _ci) (showpp ks) (length xs) (length ys)
 
 
-rhsCands :: Sol.GSolution -> F.SimpC a -> ([F.KVar s], Sol.Cand (F.KVar s, Sol.EQual))
+rhsCands :: Sol.GSolution -> F.SimpC s a -> ([F.KVar s], Sol.Cand (F.KVar s, Sol.EQual))
 rhsCands s c    = (fst <$> ks, kqs)
   where
     kqs         = [ (p, (k, q)) | (k, su) <- ks, (p, q)  <- cnd k su ]
@@ -278,7 +278,7 @@ result cfg wkl s = do
   where
     ci c = (F.subcId c, F.sinfo c)
 
-result_ :: Fixpoint a =>  W.Worklist a -> Sol.GSolution -> SolveM (F.FixResult (F.SimpC a))
+result_ :: Fixpoint a =>  W.Worklist a -> Sol.GSolution -> SolveM (F.FixResult (F.SimpC s a))
 result_  w s = res <$> filterM (isUnsat s) cs
   where
     cs       = W.unsatCandidates w
@@ -295,7 +295,7 @@ solResultGradual w _cfg sol
   = F.toGFixSol . Sol.resultGradual <$> updateGradualSolution (W.unsatCandidates w) sol
 
 --------------------------------------------------------------------------------
-updateGradualSolution :: [F.SimpC a] -> Sol.GSolution -> SolveM (Sol.GSolution)
+updateGradualSolution :: [F.SimpC s a] -> Sol.GSolution -> SolveM (Sol.GSolution)
 --------------------------------------------------------------------------------
 updateGradualSolution cs sol = foldM f (Sol.emptyGMap sol) cs
   where
@@ -315,7 +315,7 @@ firstValid rhs ((y,lhs):xs) = do
 
 
 --------------------------------------------------------------------------------
-isUnsat :: Fixpoint a => Sol.GSolution -> F.SimpC a -> SolveM Bool
+isUnsat :: Fixpoint a => Sol.GSolution -> F.SimpC s a -> SolveM Bool
 --------------------------------------------------------------------------------
 isUnsat s c = do
   -- lift   $ printf "isUnsat %s" (show (F.subcId c))

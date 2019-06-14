@@ -88,9 +88,9 @@ uniquify fi = fi{cm = cm', ws = ws', bs = bs'}
   ws'            = expandWF km (ws fi)
 
 uniquifyCS :: (NFData a, Fixpoint a, Loc a)
-           => BindEnv
-           -> M.HashMap SubcId (SimpC a)
-           -> (M.HashMap SubcId (SimpC a), M.HashMap (KVar s) [(KVar s, Maybe SrcSpan)], BindEnv)
+           => BindEnv s
+           -> M.HashMap SubcId (SimpC s a)
+           -> (M.HashMap SubcId (SimpC s a), M.HashMap (KVar s) [(KVar s, Maybe SrcSpan)], BindEnv s)
 uniquifyCS bs cs
   = (x, km, benv st)
 --   = (x, km, mapBindEnv (\i (x,r) -> if i `elem` ubs st then (x, ungrad r) else (x, r)) $ benv st)
@@ -106,7 +106,7 @@ class Unique a where
 instance Unique a => Unique (M.HashMap SubcId a) where
   uniq m = M.fromList <$> mapM (\(i,x) -> (i,) <$> uniq x) (M.toList m)
 
-instance Loc a => Unique (SimpC a) where
+instance Loc a => Unique (SimpC s a) where
   uniq cs = do
     updateLoc $ srcSpan $ _cinfo cs
     rhs <- uniq (_crhs cs)
@@ -156,7 +156,7 @@ data UniqueST
              , cache   :: M.HashMap (KVar s) (KVar s)
              , uloc    :: Maybe SrcSpan
              , ubs     :: [BindId]
-             , benv    :: BindEnv
+             , benv    :: BindEnv s
              }
 
 updateLoc :: SrcSpan -> UniqueM ()
@@ -175,7 +175,7 @@ emptyCache = modify $ \s -> s{cache = mempty}
 addCache :: KVar s -> KVar s -> UniqueM ()
 addCache k k' = modify $ \s -> s{cache = M.insert k k' (cache s)}
 
-updateBEnv :: BindId -> BindEnv -> UniqueM ()
+updateBEnv :: BindId -> BindEnv s -> UniqueM ()
 updateBEnv i bs = modify $ \s -> s{benv = bs, ubs = i:(ubs s)}
 
 setChange :: UniqueM ()
@@ -184,7 +184,7 @@ setChange = modify $ \s -> s{change = True}
 resetChange :: UniqueM ()
 resetChange = modify $ \s -> s{change = False}
 
-initUniqueST :: BindEnv ->  UniqueST
+initUniqueST :: BindEnv s ->  UniqueST
 initUniqueST = UniqueST 0 mempty False mempty Nothing mempty
 
 freshK, freshK' :: KVar s -> UniqueM (KVar s)
@@ -246,7 +246,7 @@ instance Gradual (Reft s) where
 instance Gradual (SortedReft s) where
   gsubst su r = r {sr_reft = gsubst su (sr_reft r)}
 
-instance Gradual (SimpC a) where
+instance Gradual (SimpC s a) where
   gsubst su c = c {_crhs = gsubst su (_crhs c)}
 
 instance Gradual BindEnv where

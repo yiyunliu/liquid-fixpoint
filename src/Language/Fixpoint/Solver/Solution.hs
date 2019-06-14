@@ -168,7 +168,7 @@ okInst env v t eq = isNothing tc
 --------------------------------------------------------------------------------
 -- | Predicate corresponding to LHS of constraint in current solution
 --------------------------------------------------------------------------------
-lhsPred :: (F.Loc a) => F.BindEnv -> Sol.Solution -> F.SimpC a -> F.Expr s
+lhsPred :: (F.Loc a) => F.BindEnv s -> Sol.Solution -> F.SimpC s a -> F.Expr s
 lhsPred be s c = F.notracepp _msg $ fst $ apply g s bs
   where
     g          = CEnv ci be bs (F.srcSpan c)
@@ -178,7 +178,7 @@ lhsPred be s c = F.notracepp _msg $ fst $ apply g s bs
 
 data CombinedEnv = CEnv 
   { ceCid  :: !Cid
-  , ceBEnv :: !F.BindEnv
+  , ceBEnv :: !F.BindEnv s
   , ceIEnv :: !F.IBindEnv 
   , ceSpan :: !F.SrcSpan
   }
@@ -475,7 +475,7 @@ cstrDefs si = [(cid, x) | (cid, c) <- M.toList (cm si)
   where 
     be      = F.bs si
 
-cstrDef :: F.BindEnv -> F.SimpC a -> Maybe (F.Symbol s) 
+cstrDef :: F.BindEnv s -> F.SimpC s a -> Maybe (F.Symbol s) 
 cstrDef be c 
   | Just (F.EVar x) <- e = Just x 
   | otherwise            = Nothing 

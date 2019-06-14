@@ -78,7 +78,7 @@ sliceKVars fi sl = S.fromList $ concatMap (subcKVars be) cs
     be           = F.bs fi
     cm           = F.cm fi
 
-subcKVars :: (F.TaggedC c a) => F.BindEnv -> c a -> [F.KVar s]
+subcKVars :: (F.TaggedC c a) => F.BindEnv s -> c a -> [F.KVar s]
 subcKVars be c = V.envKVars be c ++ V.rhsKVars c
 
 --------------------------------------------------------------------------------
@@ -216,7 +216,7 @@ kvEdges fi = selfes ++ concatMap (subcEdges bs) cs ++ concatMap (ebindEdges ebs 
 fiKVars :: F.GInfo c s a -> [F.KVar s]
 fiKVars = M.keys . F.ws
 
-ebindEdges :: (F.TaggedC c a) => [F.BindId] -> F.BindEnv -> c a -> [CEdge s]
+ebindEdges :: (F.TaggedC c a) => [F.BindId] -> F.BindEnv s -> c a -> [CEdge s]
 ebindEdges ebs bs c =  [(EBind k, Cstr i ) | k  <- envEbinds xs bs c ]
                     ++ [(Cstr i, EBind k') | k' <- rhsEbinds xs c ]
   where
@@ -224,14 +224,14 @@ ebindEdges ebs bs c =  [(EBind k, Cstr i ) | k  <- envEbinds xs bs c ]
     xs         = fst . flip F.lookupBindEnv bs <$> ebs
 
 envEbinds :: (F.TaggedC c a, Foldable t) =>
-             t (F.Symbol s) -> F.BindEnv -> c a -> [F.Symbol s]
+             t (F.Symbol s) -> F.BindEnv s -> c a -> [F.Symbol s]
 envEbinds xs be c = [ x | x <- envBinds , x `elem` xs ]
   where envBinds = fst <$> F.clhs be c
 rhsEbinds :: (Foldable t, F.TaggedC c a) =>
              t (F.Symbol s) -> c a -> [F.Symbol s]
 rhsEbinds xs c = [ x | x <- F.syms (F.crhs c) , x `elem` xs ]
 
-subcEdges :: (F.TaggedC c a) => F.BindEnv -> c a -> [CEdge s]
+subcEdges :: (F.TaggedC c a) => F.BindEnv s -> c a -> [CEdge s]
 subcEdges bs c =  [(KVar k, Cstr i ) | k  <- V.envKVars bs c]
                ++ [(Cstr i, KVar k') | k' <- V.rhsKVars c ]
   where
@@ -573,5 +573,5 @@ nonLinearKVars fi = S.unions $ nlKVarsC bs <$> cs
     bs            = F.bs fi
     cs            = M.elems (F.cm fi)
 
-nlKVarsC :: (F.TaggedC c a) => F.BindEnv -> c a -> S.HashSet (F.KVar s)
+nlKVarsC :: (F.TaggedC c a) => F.BindEnv s -> c a -> S.HashSet (F.KVar s)
 nlKVarsC bs c = S.fromList [ k |  (k, n) <- V.envKVarsN bs c, n >= 2]

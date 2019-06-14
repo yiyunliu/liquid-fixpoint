@@ -127,7 +127,7 @@ refine s w
 ---------------------------------------------------------------------------
 -- | Single Step Refinement -----------------------------------------------
 ---------------------------------------------------------------------------
-refineC :: (F.Loc a) => Int -> Sol.Solution -> F.SimpC a
+refineC :: (F.Loc a) => Int -> Sol.Solution -> F.SimpC s a
         -> SolveM (Bool, Sol.Solution)
 ---------------------------------------------------------------------------
 refineC _i s c
@@ -144,7 +144,7 @@ refineC _i s c
     _msg ks xs ys = printf "refineC: iter = %d, sid = %s, s = %s, rhs = %d, rhs' = %d \n"
                      _i (show _ci) (showpp ks) (length xs) (length ys)
 
-rhsCands :: Sol.Solution -> F.SimpC a -> ([F.KVar s], Sol.Cand (F.KVar s, Sol.EQual))
+rhsCands :: Sol.Solution -> F.SimpC s a -> ([F.KVar s], Sol.Cand (F.KVar s, Sol.EQual))
 rhsCands s c    = (fst <$> ks, kqs)
   where
     kqs         = [ (p, (k, q)) | (k, su) <- ks, (p, q)  <- cnd k su ]
@@ -174,14 +174,14 @@ result cfg wkl s = do
 solResult :: Config -> Sol.Solution -> SolveM (M.HashMap (F.KVar s) F.Expr)
 solResult cfg = minimizeResult cfg . Sol.result
 
-result_ :: (F.Loc a, NFData a) => Config -> W.Worklist a -> Sol.Solution -> SolveM (F.FixResult (F.SimpC a))
+result_ :: (F.Loc a, NFData a) => Config -> W.Worklist a -> Sol.Solution -> SolveM (F.FixResult (F.SimpC s a))
 result_  cfg w s = res <$> filterM (isUnsat s) cs
   where
     cs           = isChecked cfg (W.unsatCandidates w)
     res []       = F.Safe
     res cs'      = F.Unsafe cs'
 
-isChecked :: Config -> [F.SimpC a] -> [F.SimpC a]
+isChecked :: Config -> [F.SimpC s a] -> [F.SimpC s a]
 isChecked cfg cs = case checkCstr cfg of 
   []   -> cs 
   ids  -> let s = S.fromList ids in 
@@ -213,7 +213,7 @@ minimizeConjuncts p = F.pAnd <$> go (F.conjuncts p) []
                               else go ps (p:acc)
 
 --------------------------------------------------------------------------------
-isUnsat :: (F.Loc a, NFData a) => Sol.Solution -> F.SimpC a -> SolveM Bool
+isUnsat :: (F.Loc a, NFData a) => Sol.Solution -> F.SimpC s a -> SolveM Bool
 --------------------------------------------------------------------------------
 isUnsat s c = do
   -- lift   $ printf "isUnsat %s" (show (F.subcId c))
@@ -234,7 +234,7 @@ showUnsat u i lP rP = {- when u $ -} do
 --------------------------------------------------------------------------------
 -- | Predicate corresponding to RHS of constraint in current solution
 --------------------------------------------------------------------------------
-rhsPred :: F.SimpC a -> F.Expr s
+rhsPred :: F.SimpC s a -> F.Expr s
 --------------------------------------------------------------------------------
 rhsPred c
   | isTarget c = F.crhs c
@@ -245,7 +245,7 @@ isValid :: F.SrcSpan -> F.Expr s -> F.Expr s -> SolveM Bool
 --------------------------------------------------------------------------------
 isValid sp p q = (not . null) <$> filterValid sp p [(q, ())]
 
-cstrSpan :: (F.Loc a) => F.SimpC a -> F.SrcSpan
+cstrSpan :: (F.Loc a) => F.SimpC s a -> F.SrcSpan
 cstrSpan = F.srcSpan . F.sinfo
 
 {-

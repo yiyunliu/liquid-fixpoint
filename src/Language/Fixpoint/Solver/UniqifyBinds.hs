@@ -71,7 +71,7 @@ mkIdMap :: SInfo s a -> IdMap
 --------------------------------------------------------------------------------
 mkIdMap fi = M.foldlWithKey' (updateIdMap $ bs fi) M.empty $ cm fi
 
-updateIdMap :: BindEnv -> IdMap -> Integer -> SimpC a -> IdMap
+updateIdMap :: BindEnv s -> IdMap -> Integer -> SimpC s a -> IdMap
 updateIdMap be m scId s = M.insertWith S.union (RI scId) refSet m'
   where
     ids                 = elemsIBindEnv (senv s)
@@ -80,7 +80,7 @@ updateIdMap be m scId s = M.insertWith S.union (RI scId) refSet m'
     symSet              = S.fromList $ syms $ crhs s
     refSet              = namesToIds symSet nameMap
 
-insertIdIdLinks :: BindEnv -> M.HashMap (Symbol s) BindId -> IdMap -> BindId -> IdMap
+insertIdIdLinks :: BindEnv s -> M.HashMap (Symbol s) BindId -> IdMap -> BindId -> IdMap
 insertIdIdLinks be nameMap m i = M.insertWith S.union (RB i) refSet m
   where
     sr     = snd $ lookupBindEnv i be
@@ -91,13 +91,13 @@ namesToIds :: S.HashSet (Symbol s) -> M.HashMap (Symbol s) BindId -> S.HashSet B
 namesToIds xs m = S.fromList $ catMaybes [M.lookup x m | x <- S.toList xs] --TODO why any Nothings?
 
 --------------------------------------------------------------------------------
-mkRenameMap :: BindEnv -> RenameMap
+mkRenameMap :: BindEnv s -> RenameMap
 --------------------------------------------------------------------------------
 mkRenameMap be = foldl' (addId be) M.empty ids
   where
     ids = fst3 <$> bindEnvToList be
 
-addId :: BindEnv -> RenameMap -> BindId -> RenameMap
+addId :: BindEnv s -> RenameMap -> BindId -> RenameMap
 addId be m i
   | M.member sym m = addDupId m sym t i
   | otherwise      = M.insert sym [(t, Nothing)] m

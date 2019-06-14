@@ -224,7 +224,7 @@ instance (Defunc (c a), TaggedC c a) => Defunc (GInfo c s a) where
 instance (Defunc a) => Defunc (Triggered a) where
   defunc (TR t e) = TR t <$> defunc e
 
-instance Defunc (SimpC a) where
+instance Defunc (SimpC s a) where
   defunc sc = do crhs' <- defunc $ _crhs sc
                  return $ sc {_crhs = crhs'}
 

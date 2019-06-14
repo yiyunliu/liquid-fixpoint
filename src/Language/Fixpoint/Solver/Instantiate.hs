@@ -78,7 +78,7 @@ incrInstantiate' cfg fi = do
 
 ------------------------------------------------------------------------------- 
 -- | Step 1a: @instEnv@ sets up the incremental-PLE environment 
-instEnv :: (Loc a) => Config -> SInfo s a -> [(SubcId, SimpC a)] -> SMT.Context -> InstEnv a 
+instEnv :: (Loc a) => Config -> SInfo s a -> [(SubcId, SimpC s a)] -> SMT.Context -> InstEnv a 
 instEnv cfg fi cs ctx = InstEnv cfg ctx bEnv aEnv (M.fromList cs) γ s0
   where 
     bEnv              = bs fi
@@ -88,7 +88,7 @@ instEnv cfg fi cs ctx = InstEnv cfg ctx bEnv aEnv (M.fromList cs) γ s0
 
 ---------------------------------------------------------------------------------------------- 
 -- | Step 1b: @mkCTrie@ builds the @Trie@ of constraints indexed by their environments 
-mkCTrie :: [(SubcId, SimpC a)] -> CTrie 
+mkCTrie :: [(SubcId, SimpC s a)] -> CTrie 
 mkCTrie ics  = mytracepp  "TRIE" $ T.fromList [ (cBinds c, i) | (i, c) <- ics ]
   where
     cBinds   = L.sort . elemsIBindEnv . senv 
@@ -179,7 +179,7 @@ data InstEnv a = InstEnv
   , ieSMT   :: !SMT.Context
   , ieBEnv  :: !BindEnv
   , ieAenv  :: !AxiomEnv 
-  , ieCstrs :: !(M.HashMap SubcId (SimpC a))
+  , ieCstrs :: !(M.HashMap SubcId (SimpC s a))
   , ieKnowl :: !Knowledge
   , ieEvEnv :: !EvalEnv
   } 
@@ -274,7 +274,7 @@ updCtx InstEnv {..} ctx delta cidMb
     binds     = [ lookupBindEnv i ieBEnv | i <- delta ] 
     subMb     = getCstr ieCstrs <$> cidMb
 
-getCstr :: M.HashMap SubcId (SimpC a) -> SubcId -> SimpC a 
+getCstr :: M.HashMap SubcId (SimpC s a) -> SubcId -> SimpC s a 
 getCstr env cid = Misc.safeLookup "Instantiate.getCstr" cid env
 
 instance PPrint CTrie where 
@@ -302,7 +302,7 @@ sInfo cfg env fi ips = strengthenHyp fi' (mytracepp  "ELAB-INST:  " $ zip (fst <
     axs'             = elaborate (atLoc dummySpan "PLE2") env <$> axs
     fi'              = fi { asserts = axs' ++ asserts fi }
 
-instSimpC :: Config -> SMT.Context -> BindEnv -> AxiomEnv -> SubcId -> SimpC a -> IO (Expr s)
+instSimpC :: Config -> SMT.Context -> BindEnv s -> AxiomEnv -> SubcId -> SimpC s a -> IO (Expr s)
 instSimpC cfg ctx bds aenv sid sub 
   | isPleCstr aenv sid sub = do
     let is0       = mytracepp  "INITIAL-STUFF" $ eqBody <$> L.filter (null . eqArgs) (aenvEqs aenv) 
@@ -312,10 +312,10 @@ instSimpC cfg ctx bds aenv sid sub
     return        $ pAnd (is0 ++ evalEqs)  
   | otherwise     = return PTrue
 
-isPleCstr :: AxiomEnv -> SubcId -> SimpC a -> Bool
+isPleCstr :: AxiomEnv -> SubcId -> SimpC s a -> Bool
 isPleCstr aenv sid c = isTarget c && M.lookupDefault False sid (aenvExpand aenv) 
 
-cstrExprs :: BindEnv -> SimpC a -> ([(Symbol s, SortedReft s)], [Expr s])
+cstrExprs :: BindEnv s -> SimpC s a -> ([(Symbol s, SortedReft s)], [Expr s])
 cstrExprs bds sub = (unElab <$> binds, unElab <$> es)
   where
     es            = (crhs sub) : (expr <$> binds)

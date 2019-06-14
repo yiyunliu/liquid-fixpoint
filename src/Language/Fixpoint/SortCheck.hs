@@ -177,7 +177,7 @@ instance Elaborate BindEnv where
       z' i  x sr  = z { val = (val z) ++ msg i x sr }
       msg i x sr  = unwords [" elabBE",  show i, show x, show sr]
 
-instance (Loc a) => Elaborate (SimpC a) where
+instance (Loc a) => Elaborate (SimpC s a) where
   elaborate msg env c = c {_crhs = elaborate msg' env (_crhs c) }
     where msg'        = atLoc c (val msg)
 --------------------------------------------------------------------------------

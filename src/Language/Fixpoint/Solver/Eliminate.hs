@@ -82,16 +82,16 @@ nonCutHyp kI si k = nonCutCube <$> cs
   where
     cs            = getSubC   si <$> M.lookupDefault [] k kI
 
-nonCutCube :: SimpC a -> Sol.Cube
+nonCutCube :: SimpC s a -> Sol.Cube
 nonCutCube c = Sol.Cube (senv c) (rhsSubst c) (subcId c) (stag c)
 
-rhsSubst :: SimpC a -> Subst s
+rhsSubst :: SimpC s a -> Subst s
 rhsSubst             = rsu . crhs
   where
     rsu (PKVar _ su) = su
     rsu _            = errorstar "Eliminate.rhsSubst called on bad input"
 
-getSubC :: SInfo s a -> Integer -> SimpC a
+getSubC :: SInfo s a -> Integer -> SimpC s a
 getSubC si i = safeLookup msg i (cm si)
   where
     msg = "getSubC: " ++ show i

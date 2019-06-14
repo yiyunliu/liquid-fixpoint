@@ -36,6 +36,7 @@ module Language.Fixpoint.Solver.UniqifyKVars (wfcUniqify) where
 import           Language.Fixpoint.Types
 import           Language.Fixpoint.Types.Visitor (mapKVarSubsts)
 import qualified Data.HashMap.Strict as M
+import           Data.Hashable
 import           Data.Foldable       (foldl')
 
 --------------------------------------------------------------------------------
@@ -46,21 +47,23 @@ wfcUniqify fi = updateWfcs $ remakeSubsts fi
 
 -- mapKVarSubsts (\k su -> restrict table k su xs)
 --------------------------------------------------------------------------------
-remakeSubsts :: SInfo s a -> SInfo s a
+remakeSubsts :: (Eq s) => SInfo s a -> SInfo s a
 --------------------------------------------------------------------------------
 remakeSubsts fi = mapKVarSubsts (remakeSubst fi) fi
 
-remakeSubst :: SInfo s a -> KVar s -> Subst s -> Subst s
+remakeSubst :: (Hashable s, Eq s) => SInfo s a -> KVar s -> Subst s -> Subst s
 remakeSubst fi k su = foldl' (updateSubst k) su (kvarDomain fi k)
 
-updateSubst :: KVar s -> Subst s -> Symbol s -> Subst s
+updateSubst :: (Eq s, Hashable s) => KVar s -> Subst s -> Symbol s -> Subst s
 updateSubst k (Su su) sym
   = case M.lookup sym su of
       Just z  -> Su $ M.delete sym $ M.insert ksym z          su
       Nothing -> Su $                M.insert ksym (eVar sym) su
     where
       kx      = kv k
-      ksym    = kArgSymbol sym kx
+      ksym    = kArgSymbolF sym kx
+      kArgSymbolF (FS s) (FS k) = FS (kArgSymbol s k)
+      kArgSymbolF _ _     = error "updateSubst: cannot apply kArgSymbol to Symbol s "
 
 -- / | sym `M.member` su = Su $ M.delete sym $ M.insert ksym (su M.! sym) su
 -- /  | otherwise         = Su $                M.insert ksym (eVar sym)   su
@@ -70,7 +73,7 @@ updateWfcs :: SInfo s a -> SInfo s a
 --------------------------------------------------------------------------------
 updateWfcs fi = M.foldl' updateWfc fi (ws fi)
 
-updateWfc :: SInfo s a -> WfC s a -> SInfo s a
+updateWfc :: (Hashable s) => SInfo s a -> WfC s a -> SInfo s a
 updateWfc fi w    = fi'' { ws = M.insert k w' (ws fi) }
   where
     w'            = updateWfCExpr (subst su) w''
@@ -78,8 +81,11 @@ updateWfc fi w    = fi'' { ws = M.insert k w' (ws fi) }
     (_, fi'')     = newTopBind v' (trueSortedReft t) fi'
     (fi', newIds) = foldl' (accumBindsIfValid k) (fi, []) (elemsIBindEnv $ wenv w)
     (v, t, k)     = wrft w
-    v'            = kArgSymbol v (kv k)
-    su            = mkSubst ((v, EVar v'):[(x, eVar $ kArgSymbol x (kv k)) | x <- kvarDomain fi k])
+    v'            = kArgSymbolF v (kv k)
+    su            = mkSubst ((v, EVar v'):[(x, eVar $ kArgSymbolF x (kv k)) | x <- kvarDomain fi k])
+    kArgSymbolF (FS s) (FS k) = FS (kArgSymbol s k)
+    kArgSymbolF _ _     = error "updateWfc: cannot apply kArgSymbol to Symbol s "
+    
 
 accumBindsIfValid :: KVar s -> (SInfo s a, [BindId]) -> BindId -> (SInfo s a, [BindId])
 accumBindsIfValid k (fi, ids) i = if renamable then accumBinds k (fi, ids) i else (fi, i : ids)

@@ -39,7 +39,7 @@ import           Text.PrettyPrint.HughesPJ (text)
 data Worklist a = WL { wCs     :: !WorkSet
                      , wPend   :: !(CMap ())
                      , wDeps   :: !(CMap [F.SubcId])
-                     , wCm     :: !(CMap (F.SimpC a))
+                     , wCm     :: !(CMap (F.SimpC s a))
                      , wRankm  :: !(CMap Rank)
                      , wLast   :: !(Maybe F.SubcId)
                      , wRanks  :: !Int
@@ -112,13 +112,13 @@ init sI    = WL { wCs     = items
 ---------------------------------------------------------------------------
 -- | Candidate Constraints to be checked AFTER computing Fixpoint ---------
 ---------------------------------------------------------------------------
-unsatCandidates   :: Worklist a -> [F.SimpC a]
+unsatCandidates   :: Worklist a -> [F.SimpC s a]
 ---------------------------------------------------------------------------
 unsatCandidates w = [ lookupCMap (wCm w) i | i <- wConcCs w ]
 
 
 ---------------------------------------------------------------------------
-pop  :: Worklist a -> Maybe (F.SimpC a, Worklist a, Bool, Int)
+pop  :: Worklist a -> Maybe (F.SimpC s a, Worklist a, Bool, Int)
 ---------------------------------------------------------------------------
 pop w = do
   (i, is) <- sPop $ wCs w
@@ -145,7 +145,7 @@ rank :: Worklist a -> F.SubcId -> Int
 rank w i = rScc $ lookupCMap (wRankm w) i
 
 ---------------------------------------------------------------------------
-push :: F.SimpC a -> Worklist a -> Worklist a
+push :: F.SimpC s a -> Worklist a -> Worklist a
 ---------------------------------------------------------------------------
 push c w = w { wCs   = sAdds (wCs w) wis'
              , wTime = 1 + t

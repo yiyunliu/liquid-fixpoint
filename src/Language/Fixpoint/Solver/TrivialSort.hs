@@ -84,7 +84,7 @@ updTISubCs cs ti = foldl' (flip updTISubC) ti cs
 updTISubC :: SubC a -> TrivInfo -> TrivInfo
 updTISubC c = updTI Lhs (slhs c) . updTI Rhs (srhs c)
 
-updTIBinds :: BindEnv -> TrivInfo -> TrivInfo
+updTIBinds :: BindEnv s -> TrivInfo -> TrivInfo
 updTIBinds be ti = foldl' (flip (updTI Lhs)) ti ts
   where
     ts           = [t | (_,_,t) <- bindEnvToList be]
@@ -141,7 +141,7 @@ simplifyFInfo tm fi = fi {
    , bs   = simplifyBindEnv tm $ bs fi
 }
 
-simplifyBindEnv :: NonTrivSorts -> BindEnv -> BindEnv
+simplifyBindEnv :: NonTrivSorts -> BindEnv s -> BindEnv s
 simplifyBindEnv tm = mapBindEnv (\_ (x, sr) -> (x, simplifySortedReft tm sr))
 
 simplifyWfCs :: NonTrivSorts -> M.HashMap (KVar s) (WfC s a) -> M.HashMap (KVar s) (WfC s a)
