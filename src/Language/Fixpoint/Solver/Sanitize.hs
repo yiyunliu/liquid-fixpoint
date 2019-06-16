@@ -166,7 +166,7 @@ restrictWf kve k w = w { F.wenv = F.filterIBindEnv f (F.wenv w) }
 --   `x` which appear in substitutions of the form `K[x := y]`
 --   where `y` is not in the env.
 
-type KvDom     = M.HashMap F.KVar s (F.SEnv F.BindId)
+type KvDom     = M.HashMap F.KVar s (F.SEnv s F.BindId)
 type KvBads    = M.HashMap F.KVar s [F.Symbol s]
 
 safeKvarEnv :: F.SInfo s a -> KvDom
@@ -180,7 +180,7 @@ dropKvarEnv si kve c = M.mapWithKey (dropBadParams kBads) kve
   where
     kBads            = badParams si c
 
-dropBadParams :: KvBads -> F.KVar s -> F.SEnv F.BindId -> F.SEnv F.BindId
+dropBadParams :: KvBads -> F.KVar s -> F.SEnv s F.BindId -> F.SEnv F.BindId
 dropBadParams kBads k kEnv = L.foldl' (flip F.deleteSEnv) kEnv xs
   where
     xs                     = M.lookupDefault mempty k kBads
@@ -215,7 +215,7 @@ subcKSubs xsrs c = rhs ++ lhs
 initKvarEnv :: F.SInfo s a -> KvDom
 initKvarEnv si = initEnv si <$> F.ws si
 
-initEnv :: F.SInfo s a -> F.WfC s a -> F.SEnv F.BindId
+initEnv :: F.SInfo s a -> F.WfC s a -> F.SEnv s F.BindId
 initEnv si w = F.fromListSEnv [ (bind i, i) | i <- is ]
   where
     is       = F.elemsIBindEnv $ F.wenv w
@@ -294,7 +294,7 @@ badRhs1 (i, c) = E.err E.dummySpan $ vcat [ "Malformed RHS for constraint id" <+
 --   function definitions inside the `AxiomEnv` which cannot be elaborated as 
 --   it makes it hard to actually find the fundefs within (breaking PLE.)
 --------------------------------------------------------------------------------
-symbolEnv :: Config -> F.SInfo s a -> F.SymEnv
+symbolEnv :: Config -> F.SInfo s a -> F.SymEnv s
 symbolEnv cfg si = F.symEnv sEnv tEnv ds (F.dLits si) (ts ++ ts')
   where
     ts'          = applySorts ae' 

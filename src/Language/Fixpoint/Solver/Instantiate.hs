@@ -162,7 +162,7 @@ evalCandsLoop cfg ctx γ s0 cands = go [] cands
 ---------------------------------------------------------------------------------------------- 
 -- | Step 3: @resSInfo@ uses incremental PLE result @InstRes@ to produce the strengthened SInfo s 
 
-resSInfo :: Config -> SymEnv -> SInfo s a -> InstRes -> SInfo s a
+resSInfo :: Config -> SymEnv s -> SInfo s a -> InstRes -> SInfo s a
 resSInfo cfg env fi res = strengthenBinds fi' res' 
   where
     res'                = M.fromList $ mytracepp  "ELAB-INST:  " $ zip is ps''
@@ -293,7 +293,7 @@ instantiate' cfg fi = sInfo cfg env fi <$> withCtx cfg file env act
     env             = symbolEnv cfg fi
     aenv            = {- mytracepp  "AXIOM-ENV" -} (ae fi)
 
-sInfo :: Config -> SymEnv -> SInfo s a -> [((SubcId, SrcSpan), Expr)] -> SInfo s a
+sInfo :: Config -> SymEnv s -> SInfo s a -> [((SubcId, SrcSpan), Expr)] -> SInfo s a
 sInfo cfg env fi ips = strengthenHyp fi' (mytracepp  "ELAB-INST:  " $ zip (fst <$> is) ps'')
   where
     (is, ps)         = unzip ips
@@ -374,7 +374,7 @@ data EvalEnv = EvalEnv
   { evId        :: !Int
   , evSequence  :: [(Expr,Expr)]
   , _evAEnv     :: !AxiomEnv
-  , evEnv       :: !SymEnv
+  , evEnv       :: !SymEnv s
   , _evCfg      :: !Config
   }
 
@@ -541,7 +541,7 @@ evalAppAc _ _ _ (f, es)
 --   argument values. We must also substitute the sort-variables that appear
 --   as coercions. See tests/proof/ple1.fq
 --------------------------------------------------------------------------------
-substEq :: SEnv (Sort s) -> SubstOp -> Equation -> [Expr s] -> Expr s -> Expr s
+substEq :: SEnv s (Sort s) -> SubstOp -> Equation -> [Expr s] -> Expr s -> Expr s
 substEq env o eq es bd = substEqVal o eq es (substEqCoerce env eq es bd)
 
 data SubstOp = PopIf | Normal
@@ -554,7 +554,7 @@ substEqVal o eq es bd = case o of
     xes    =  zip xs es
     xs     =  eqArgNames eq
 
-substEqCoerce :: SEnv (Sort s) -> Equation -> [Expr s] -> Expr s -> Expr s
+substEqCoerce :: SEnv s (Sort s) -> Equation -> [Expr s] -> Expr s -> Expr s
 substEqCoerce env eq es bd = Vis.applyCoSub coSub bd
   where 
     ts    = snd    <$> eqArgs eq
@@ -562,7 +562,7 @@ substEqCoerce env eq es bd = Vis.applyCoSub coSub bd
     eTs   = sortExpr sp env <$> es
     coSub = mytracepp  ("substEqCoerce" ++ showpp (eqName eq, es, eTs, ts)) $ mkCoSub env eTs ts
 
-mkCoSub :: SEnv (Sort s) -> [Sort s] -> [Sort s] -> Vis.CoSub
+mkCoSub :: SEnv s (Sort s) -> [Sort s] -> [Sort s] -> Vis.CoSub s
 mkCoSub env eTs xTs = M.fromList [ (x, unite ys) | (x, ys) <- Misc.groupList xys ] 
   where
     unite ts    = mytracepp ("UNITE: " ++ showpp ts) $ Mb.fromMaybe (uError ts) (unifyTo1 senv ts)
@@ -730,7 +730,7 @@ makeSimplifications sis (dc, es, e)
    go _
      = []
 
-getDCEquality :: SymEnv -> Expr s -> Expr s -> Maybe (Symbol s, [Expr s], Expr s)
+getDCEquality :: SymEnv s -> Expr s -> Expr s -> Maybe (Symbol s, [Expr s], Expr s)
 getDCEquality senv e1 e2
   | Just dc1 <- f1
   , Just dc2 <- f2
@@ -748,7 +748,7 @@ getDCEquality senv e1 e2
     (f2, es2) = Misc.mapFst (getDC senv) (splitEApp e2)
 
 -- TODO: Stringy hacks
-getDC :: SymEnv s -> Expr s -> Maybe (Symbol s)
+getDC :: SymEnv s s -> Expr s -> Maybe (Symbol s)
 getDC senv (EVar x)
   | isUpperSymbol x && Mb.isNothing (symEnvTheory x senv)
   = Just x
@@ -808,7 +808,7 @@ assertSelectors γ e = do
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-withCtx :: Config -> FilePath -> SymEnv -> (SMT.Context -> IO a) -> IO a
+withCtx :: Config -> FilePath -> SymEnv s -> (SMT.Context -> IO a) -> IO a
 withCtx cfg file env k = do
   ctx <- SMT.makeContextWithSEnv cfg file env
   _   <- SMT.smtPush ctx

@@ -41,10 +41,10 @@ import           Language.Fixpoint.Types.Visitor   (mapMExpr, stripCasts)
 defunctionalize :: (Fixpoint a) => Config -> SInfo s a -> SInfo s a
 defunctionalize cfg si = evalState (defunc si) (makeInitDFState cfg si)
 
-defuncAny :: Defunc a => Config -> SymEnv -> a -> a
+defuncAny :: Defunc a => Config -> SymEnv s -> a -> a
 defuncAny cfg env e = evalState (defunc e) (makeDFState cfg env emptyIBindEnv)
 
-defuncAxioms :: (Defunc a) => Config -> SymEnv -> a -> (a, [Triggered Expr])
+defuncAxioms :: (Defunc a) => Config -> SymEnv s -> a -> (a, [Triggered Expr])
 defuncAxioms cfg env z = flip evalState (makeDFState cfg env emptyIBindEnv) $ do
   z' <- defunc z
   as <- map noTrigger <$> makeAxioms
@@ -84,7 +84,7 @@ makeAxioms = do
   env     <- gets dfEnv
   return   $ filter (validAxiom env) (alphEqs ++ betaEqs)
 
-validAxiom :: SymEnv -> Expr s -> Bool
+validAxiom :: SymEnv s -> Expr s -> Bool
 validAxiom env = isJust . checkSortExpr dummySpan (seSort env)
 
 --------------------------------------------------------------------------------
@@ -254,7 +254,7 @@ instance Defunc (Reft s) where
 instance Defunc (Expr s) where
   defunc = txExpr
 
-instance Defunc a => Defunc (SEnv a) where
+instance Defunc a => Defunc (SEnv s a) where
   defunc = mapMSEnv defunc
 
 instance Defunc BindEnv   where
@@ -295,10 +295,10 @@ data DFST = DFST
   , dfLNorm :: !Bool
   , dfLams  :: ![Expr]      -- ^ lambda expressions appearing in the expressions
   , dfRedex :: ![Expr]      -- ^ redexes appearing in the expressions
-  , dfBinds :: !(SEnv (Sort s)) -- ^ sorts of new lambda-binders
+  , dfBinds :: !(SEnv s (Sort s)) -- ^ sorts of new lambda-binders
   }
 
-makeDFState :: Config -> SymEnv -> IBindEnv -> DFST
+makeDFState :: Config -> SymEnv s -> IBindEnv -> DFST
 makeDFState cfg env ibind = DFST
   { dfFresh = 0
   , dfEnv   = env
@@ -376,9 +376,9 @@ getClosedField fld = do
   es  <- gets fld
   return (closeLams env <$> es)
 
-closeLams :: SEnv (Sort s) -> Expr s -> Expr s
+closeLams :: SEnv s (Sort s) -> Expr s -> Expr s
 closeLams env e = PAll (freeBinds env e) e
 
-freeBinds :: SEnv (Sort s) -> Expr s -> [(Symbol s, Sort s)]
+freeBinds :: SEnv s (Sort s) -> Expr s -> [(Symbol s, Sort s)]
 freeBinds env e = [ (y, t) | y <- sortNub (syms e)
                            , t <- maybeToList (lookupSEnv y env) ]

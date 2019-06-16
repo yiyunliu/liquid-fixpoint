@@ -64,7 +64,7 @@ quals :: Cstr a -> [F.Qualifier s]
 -------------------------------------------------------------------------------
 quals = F.tracepp "horn.quals" . cstrQuals F.emptySEnv F.vv_  
 
-cstrQuals :: F.SEnv (F.Sort s) -> F.Symbol s -> Cstr a -> [F.Qualifier s] 
+cstrQuals :: F.SEnv s (F.Sort s) -> F.Symbol s -> Cstr a -> [F.Qualifier s] 
 cstrQuals = go 
   where
     go env v (Head p _)  = predQuals env v p
@@ -72,22 +72,22 @@ cstrQuals = go
     go env _ (All  b c)  = bindQuals env b c 
     go env _ (Any  b c)  = bindQuals env b c
 
-bindQuals  :: F.SEnv (F.Sort s) -> Bind -> Cstr a -> [F.Qualifier s] 
+bindQuals  :: F.SEnv s (F.Sort s) -> Bind -> Cstr a -> [F.Qualifier s] 
 bindQuals env b c = predQuals env' bx (bPred b) ++ cstrQuals env' bx c 
   where 
     env'          = F.insertSEnv bx bt env
     bx            = bSym b
     bt            = bSort b
 
-predQuals :: F.SEnv (F.Sort s) -> F.Symbol s -> Pred -> [F.Qualifier s]
+predQuals :: F.SEnv s (F.Sort s) -> F.Symbol s -> Pred -> [F.Qualifier s]
 predQuals env v (Reft p)  = exprQuals env v p
 predQuals env v (PAnd ps) = concatMap (predQuals env v) ps
 predQuals _   _ _         = [] 
 
-exprQuals :: F.SEnv (F.Sort s) -> F.Symbol s -> F.Expr s -> [F.Qualifier s]
+exprQuals :: F.SEnv s (F.Sort s) -> F.Symbol s -> F.Expr s -> [F.Qualifier s]
 exprQuals env v e = mkQual env v <$> F.conjuncts e
 
-mkQual :: F.SEnv (F.Sort s) -> F.Symbol s -> F.Expr s -> F.Qualifier s
+mkQual :: F.SEnv s (F.Sort s) -> F.Symbol s -> F.Expr s -> F.Qualifier s
 mkQual env v p = case envSort env <$> (v:xs) of
                    (_,so):xts -> F.mkQ "Auto" ((v, so) : xts) p junk 
                    _          -> F.panic "impossible"
@@ -95,7 +95,7 @@ mkQual env v p = case envSort env <$> (v:xs) of
     xs         = L.delete v $ Misc.hashNub (F.syms p)
     junk       = F.dummyPos "mkQual" 
 
-envSort :: F.SEnv (F.Sort s) -> F.Symbol s -> (F.Symbol s, F.Sort s)
+envSort :: F.SEnv s (F.Sort s) -> F.Symbol s -> (F.Symbol s, F.Sort s)
 envSort env x = case F.lookupSEnv x env of
                    Just t -> (x, t) 
                    _      -> F.panic $ "unbound symbol in scrape: " ++ F.showpp x

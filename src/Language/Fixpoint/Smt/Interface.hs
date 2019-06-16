@@ -122,7 +122,7 @@ checkValidWithContext me xts p q =
     checkValid' me xts p q
 
 -- | type ClosedPred E = {v:Pred | subset (vars v) (keys E) }
--- checkValid :: e:Env -> ClosedPred e -> ClosedPred e -> IO Bool
+-- checkValid :: e:Env s -> ClosedPred e -> ClosedPred e -> IO Bool
 checkValid :: Config -> FilePath -> [(Symbol s, Sort s)] -> Expr s -> Expr s -> IO Bool
 checkValid cfg f xts p q = do
   me <- makeContext cfg f
@@ -137,7 +137,7 @@ checkValid' me xts p q = do
 -- | If you already HAVE a context, where all the variables have declared types
 --   (e.g. if you want to make MANY repeated Queries)
 
--- checkValid :: e:Env -> [ClosedPred e] -> IO [Bool]
+-- checkValid :: e:Env s -> [ClosedPred e] -> IO [Bool]
 checkValids :: Config -> FilePath -> [(Symbol s, Sort s)] -> [Expr] -> IO [Bool]
 checkValids cfg f xts ps
   = do me <- makeContext cfg f
@@ -154,7 +154,7 @@ checkValids cfg f xts ps
 --------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
-command              :: Context -> Command -> IO Response
+command              :: Context -> Command s -> IO (Response s)
 --------------------------------------------------------------------------------
 command me !cmd       = say cmd >> hear cmd
   where
@@ -168,7 +168,7 @@ command me !cmd       = say cmd >> hear cmd
 smtWrite :: Context -> Raw -> IO ()
 smtWrite me !s = smtWriteRaw me s
 
-smtRead :: Context -> IO Response
+smtRead :: Context -> IO (Response s)
 smtRead me = {-# SCC "smtRead" #-} do
   when (ctxVerbose me) $ LTIO.putStrLn "SMT READ"
   ln  <- smtReadRaw me
@@ -182,13 +182,13 @@ smtRead me = {-# SCC "smtRead" #-} do
 
 type SmtParser a = Parser T.Text a
 
-responseP :: SmtParser Response
+responseP :: SmtParser (Response s)
 responseP = {-# SCC "responseP" #-} A.char '(' *> sexpP
          <|> A.string "sat"     *> return Sat
          <|> A.string "unsat"   *> return Unsat
          <|> A.string "unknown" *> return Unknown
 
-sexpP :: SmtParser Response
+sexpP :: SmtParser (Response s)
 sexpP = {-# SCC "sexpP" #-} A.string "error" *> (Error <$> errorP)
      <|> Values <$> valuesP
 
@@ -251,7 +251,7 @@ makeContext cfg f
     where
        smtFile = extFileName Smt2 f
 
-makeContextWithSEnv :: Config -> FilePath -> SymEnv -> IO Context
+makeContextWithSEnv :: Config -> FilePath -> SymEnv s -> IO Context
 makeContextWithSEnv cfg f env = do
   ctx     <- makeContext cfg f
   let ctx' = ctx {ctxSymEnv = env}
@@ -355,7 +355,7 @@ smtDecl me x t = interact' me ({- notracepp msg $ -} Declare x ins' out')
     _msg        = "smtDecl: " ++ showpp (x, t, ins, out)
     env        = seData (ctxSymEnv me)
 
-smtFuncDecl :: Context -> Symbol s -> ([SmtSort],  SmtSort) -> IO ()
+smtFuncDecl :: Context -> Symbol s -> ([SmtSort s],  SmtSort s) -> IO ()
 smtFuncDecl me x (ts, t) = interact' me (Declare x ts t)
 
 smtDataDecl :: Context -> [DataDecl s] -> IO ()
@@ -396,13 +396,13 @@ smtBracket me _msg a   = do
   smtPop me
   return r
 
-respSat :: Response -> Bool
+respSat :: Response s -> Bool
 respSat Unsat   = True
 respSat Sat     = False
 respSat Unknown = False
 respSat r       = die $ err dummySpan $ text ("crash: SMTLIB2 respSat = " ++ show r)
 
-interact' :: Context -> Command -> IO ()
+interact' :: Context -> Command s -> IO ()
 interact' me cmd  = void $ command me cmd
 
 
@@ -455,16 +455,16 @@ declare me = do
     tx         = elaborate    "declare" env
     ats        = funcSortVars env
 
-symbolSorts :: F.SEnv (F.Sort s) -> [(F.Symbol s, F.Sort s)]
+symbolSorts :: F.SEnv s (F.Sort s) -> [(F.Symbol s, F.Sort s)]
 symbolSorts env = [(x, tx t) | (x, t) <- F.toListSEnv env ]
  where
   tx t@(FObj a) = fromMaybe t (F.lookupSEnv a env)
   tx t          = t
 
-dataDeclarations :: SymEnv -> [[DataDecl s]]
+dataDeclarations :: SymEnv s -> [[DataDecl s]]
 dataDeclarations = orderDeclarations . map snd . F.toListSEnv . F.seData
 
-funcSortVars :: F.SymEnv -> [(F.Symbol s, ([F.SmtSort], F.SmtSort))]
+funcSortVars :: F.SymEnv s -> [(F.Symbol s, ([F.SmtSort s], F.SmtSort s))]
 funcSortVars env  = [(var applyName  t       , appSort t) | t <- ts]
                  ++ [(var coerceName t       , ([t1],t2)) | t@(t1, t2) <- ts]
                  ++ [(var lambdaName t       , lamSort t) | t <- ts]
@@ -481,7 +481,7 @@ funcSortVars env  = [(var applyName  t       , appSort t) | t <- ts]
 --   1 = Theory-Declaration,
 --   2 = Query-Binder
 
-symKind :: F.SymEnv -> F.Symbol s -> Int
+symKind :: F.SymEnv s -> F.Symbol s -> Int
 symKind env x = case F.tsInterp <$> F.symEnvTheory x env of
                   Just F.Theory   -> 0
                   Just F.Ctor     -> 0

@@ -53,19 +53,19 @@ init cfg si ks = Sol.fromList senv mempty keqs [] mempty ebs xEnv
     xEnv       = F.fromListSEnv [ (x, (i, F.sr_sort sr)) | (i,x,sr) <- F.bindEnvToList (F.bs si)]
 
 --------------------------------------------------------------------------------
-refine :: F.SInfo s a -> [F.Qualifier s] -> F.SEnv (F.Sort s) -> F.WfC s a -> (F.KVar s, Sol.QBind)
+refine :: F.SInfo s a -> [F.Qualifier s] -> F.SEnv s (F.Sort s) -> F.WfC s a -> (F.KVar s, Sol.QBind)
 refine fi qs genv w = refineK (allowHOquals fi) env qs $ F.wrft w
   where
     env             = wenv <> genv
     wenv            = F.sr_sort <$> F.fromListSEnv (F.envCs (F.bs fi) (F.wenv w))
 
-instConstants :: F.SInfo s a -> F.SEnv (F.Sort s)
+instConstants :: F.SInfo s a -> F.SEnv s (F.Sort s)
 instConstants = F.fromListSEnv . filter notLit . F.toListSEnv . F.gLits
   where
     notLit    = not . F.isLitSymbol . fst
 
 
-refineK :: Bool -> F.SEnv (F.Sort s) -> [F.Qualifier s] -> (F.Symbol s, F.Sort s, F.KVar s) -> (F.KVar s, Sol.QBind)
+refineK :: Bool -> F.SEnv s (F.Sort s) -> [F.Qualifier s] -> (F.Symbol s, F.Sort s, F.KVar s) -> (F.KVar s, Sol.QBind)
 refineK ho env qs (v, t, k) = F.notracepp _msg (k, eqs')
    where
     eqs                     = instK ho env v t qs
@@ -74,7 +74,7 @@ refineK ho env qs (v, t, k) = F.notracepp _msg (k, eqs')
 
 --------------------------------------------------------------------------------
 instK :: Bool
-      -> F.SEnv (F.Sort s)
+      -> F.SEnv s (F.Sort s)
       -> F.Symbol s
       -> F.Sort s
       -> [F.Qualifier s]
@@ -85,7 +85,7 @@ instK ho env v t = Sol.qb . unique . concatMap (instKQ ho env v t)
     unique       = L.nubBy ((. Sol.eqPred) . (==) . Sol.eqPred)
 
 instKQ :: Bool
-       -> F.SEnv (F.Sort s)
+       -> F.SEnv s (F.Sort s)
        -> F.Symbol s
        -> F.Sort s
        -> F.Qualifier s
@@ -100,28 +100,28 @@ instKQ ho env v t q = do
     tyss       = instCands ho env
     senv       = (`F.lookupSEnvWithDistance` env)
 
-instCands :: Bool -> F.SEnv (F.Sort s) -> [(F.Sort s, [F.Symbol s])]
+instCands :: Bool -> F.SEnv s (F.Sort s) -> [(F.Sort s, [F.Symbol s])]
 instCands ho env = filter isOk tyss
   where
     tyss      = Misc.groupList [(t, x) | (x, t) <- xts]
     isOk      = if ho then const True else isNothing . F.functionSort . fst
     xts       = F.toListSEnv env
 
-match :: So.Env -> [(F.Sort s, [F.Symbol s])] -> [F.Symbol s] -> [F.QualParam s] -> [[F.Symbol s]]
+match :: So.Env s -> [(F.Sort s, [F.Symbol s])] -> [F.Symbol s] -> [F.QualParam s] -> [[F.Symbol s]]
 match env tyss xs (qp : qps)
   = do (su, qsu, x) <- candidates env tyss qp
        match env tyss (x : xs) (applyQP su qsu <$> qps)
 match _   _   xs []
   = return xs
 
-applyQP :: So.TVSubst -> QPSubst -> F.QualParam s -> F.QualParam s
+applyQP :: So.TVSubst s -> QPSubst -> F.QualParam s -> F.QualParam s
 applyQP su qsu qp = qp { qpSort = So.apply     su  (qpSort qp) 
                        , qpPat  = applyQPSubst qsu (qpPat qp) 
                        }
 
 --------------------------------------------------------------------------------
-candidates :: So.Env -> [(F.Sort s, [F.Symbol s])] -> F.QualParam s 
-           -> [(So.TVSubst, QPSubst, F.Symbol s)]
+candidates :: So.Env s -> [(F.Sort s, [F.Symbol s])] -> F.QualParam s 
+           -> [(So.TVSubst s, QPSubst, F.Symbol s)]
 --------------------------------------------------------------------------------
 candidates env tyss x = -- traceShow _msg
     [(su, qsu, y) | (t, ys)  <- tyss
@@ -155,7 +155,7 @@ applyQPSubst _ p
   = p 
 
 --------------------------------------------------------------------------------
-okInst :: F.SEnv (F.Sort s) -> F.Symbol s -> F.Sort s -> Sol.EQual -> Bool
+okInst :: F.SEnv s (F.Sort s) -> F.Symbol s -> F.Sort s -> Sol.EQual -> Bool
 --------------------------------------------------------------------------------
 okInst env v t eq = isNothing tc
   where
@@ -231,7 +231,7 @@ ebindReft g s c = F.pAnd [ fst $ apply g' s bs, F.crhs c ]
     g'          = g { ceCid = sid c, ceIEnv = bs } 
     bs          = F.senv c
 
-exElim :: F.SEnv (F.BindId, F.Sort s) -> F.IBindEnv -> F.BindId -> F.Pred s -> F.Pred s
+exElim :: F.SEnv s (F.BindId, F.Sort s) -> F.IBindEnv -> F.BindId -> F.Pred s -> F.Pred s
 exElim env ienv xi p = F.notracepp msg (F.pExist yts p)
   where
     msg         = "exElim" -- printf "exElim: ix = %d, p = %s" xi (F.showpp p)
@@ -334,7 +334,7 @@ cubePredExc g s ksu c bs' = (cubeP, extendKInfo kI (Sol.cuTag c))
      2. are binders corresponding to sorts (e.g. `a : num`, currently used
         to hack typeclasses current.)
  -}
-substElim :: F.SymEnv -> F.SEnv (F.Sort s) -> CombinedEnv -> F.KVar s -> F.Subst s -> ([(F.Symbol s, F.Sort s)], F.Pred s)
+substElim :: F.SymEnv s -> F.SEnv s (F.Sort s) -> CombinedEnv -> F.KVar s -> F.Subst s -> ([(F.Symbol s, F.Sort s)], F.Pred s)
 substElim syEnv sEnv g _ (F.Su m) = (xts, p)
   where
     p      = F.pAnd [ mkSubst sp syEnv x (substSort sEnv frees x t) e t | (x, e, t) <- xets  ]
@@ -346,14 +346,14 @@ substElim syEnv sEnv g _ (F.Su m) = (xts, p)
     sortOf = maybeToList . So.checkSortExpr sp env
     sp     = F.srcSpan g
 
-substSort :: F.SEnv (F.Sort s) -> S.HashSet (F.Symbol s) -> F.Symbol s -> F.Sort s -> F.Sort s
+substSort :: F.SEnv s (F.Sort s) -> S.HashSet (F.Symbol s) -> F.Symbol s -> F.Sort s -> F.Sort s
 substSort sEnv _frees x _t = fromMaybe (err x) $ F.lookupSEnv x sEnv
   where
     err x            = error $ "Solution.mkSubst: unknown binder " ++ F.showpp x
 
 
 -- LH #1091
-mkSubst :: F.SrcSpan -> F.SymEnv -> F.Symbol s -> F.Sort s -> F.Expr s -> F.Sort s -> F.Expr s
+mkSubst :: F.SrcSpan -> F.SymEnv s -> F.Symbol s -> F.Sort s -> F.Expr s -> F.Sort s -> F.Expr s
 mkSubst sp env x tx ey ty
   | tx == ty    = F.EEq ex ey
   | otherwise   = {- F.tracepp _msg -} (F.EEq ex' ey')
@@ -363,7 +363,7 @@ mkSubst sp env x tx ey ty
     ex'         = elabToInt sp env ex tx
     ey'         = elabToInt sp env ey ty
 
-elabToInt :: F.SrcSpan -> F.SymEnv -> F.Expr s -> F.Sort s -> F.Expr s
+elabToInt :: F.SrcSpan -> F.SymEnv s -> F.Expr s -> F.Sort s -> F.Expr s
 elabToInt sp env e s = So.elaborate (F.atLoc sp "elabToInt") env (So.toInt env e s)
 
 isClass :: F.Sort s -> Bool
@@ -384,7 +384,7 @@ isClass _       = False
 -- substPred :: F.Subst s -> F.Pred s
 -- substPred (F.Su m) = F.pAnd [ F.PAtom F.Eq (F.eVar x) e | (x, e) <- M.toList m]
 
-combinedSEnv :: CombinedEnv -> F.SEnv (F.Sort s)
+combinedSEnv :: CombinedEnv -> F.SEnv s (F.Sort s)
 combinedSEnv g = F.sr_sort <$> F.fromListSEnv (F.envCs be bs)
   where 
     be         = ceBEnv g 

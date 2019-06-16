@@ -26,24 +26,24 @@ import           Language.Fixpoint.Misc (sortNub, errorstar)
 instance SMTLIB2 (Symbol s, Sort s) where
   smt2 env c@(sym, t) = build "({} {})" (smt2 env sym, smt2SortMono c env t)
 
-smt2SortMono, smt2SortPoly :: (PPrint a) => a -> SymEnv -> Sort s -> Builder.Builder
+smt2SortMono, smt2SortPoly :: (PPrint a) => a -> SymEnv s -> Sort s -> Builder.Builder
 smt2SortMono = smt2Sort False
 smt2SortPoly = smt2Sort True
 
-smt2Sort :: (PPrint a) => Bool -> a -> SymEnv -> Sort s -> Builder.Builder
+smt2Sort :: (PPrint a) => Bool -> a -> SymEnv s -> Sort s -> Builder.Builder
 smt2Sort poly _ env t = smt2 env (Thy.sortSmtSort poly (seData env) t)
 
-smt2data :: SymEnv -> [DataDecl s] -> Builder.Builder
+smt2data :: SymEnv s -> [DataDecl s] -> Builder.Builder
 smt2data env = smt2data' env . map padDataDecl
 
-smt2data' :: SymEnv -> [DataDecl s] -> Builder.Builder
+smt2data' :: SymEnv s -> [DataDecl s] -> Builder.Builder
 smt2data' env ds = build "({}) ({})" (tvars, smt2many (smt2data1 env <$> muSort ds)) 
   where
     tvars        = smt2many (smt2TV <$> [0..(n-1)])
     smt2TV       = smt2 env . SVar
     n            = numTyVars ds 
 
-smt2data1 :: SymEnv -> DataDecl s -> Builder.Builder
+smt2data1 :: SymEnv s -> DataDecl s -> Builder.Builder
 smt2data1 env (DDecl tc _ cs) = build "({} {})" (name, ctors)
   where
     name                      = smt2 env (symbol tc)
@@ -59,7 +59,7 @@ numTyVars ds
     ok        = and [ n == n' | n' <- ns ]
 
 {- 
-smt2data' :: SymEnv -> DataDecl s -> Builder.Builder
+smt2data' :: SymEnv s -> DataDecl s -> Builder.Builder
 smt2data' env (DDecl tc n cs) = build "({}) (({} {}))" (tvars, name, ctors)
   where
     tvars                    = smt2many (smt2TV <$> [0..(n-1)])
@@ -73,13 +73,13 @@ smt2data' env (DDecl tc n cs) = build "({}) (({} {}))" (tvars, name, ctors)
     (TreeList nil (cons (car Tree) (cdr TreeList)))))
 -}
 
-smt2ctor :: SymEnv -> DataCtor s -> Builder.Builder
+smt2ctor :: SymEnv s -> DataCtor s -> Builder.Builder
 smt2ctor env (DCtor c [])  = smt2 env c
 smt2ctor env (DCtor c fs)  = build "({} {})" (smt2 env c, fields)
   where
     fields                 = smt2many (smt2field env <$> fs)
 
-smt2field :: SymEnv -> DataField s -> Builder.Builder
+smt2field :: SymEnv s -> DataField s -> Builder.Builder
 smt2field env d@(DField x t) = build "({} {})" (smt2 env x, smt2SortPoly d env t)
 
 -- | SMTLIB/Z3 don't like "unused" type variables; they get pruned away and
@@ -176,24 +176,24 @@ instance SMTLIB2 (Expr s) where
 -- | smt2Cast uses the 'as x T' pattern needed for polymorphic ADT constructors
 --   like Nil, see `tests/pos/adt_list_1.fq`
 
-smt2Cast :: SymEnv -> Expr s -> Sort s -> Builder.Builder
+smt2Cast :: SymEnv s -> Expr s -> Sort s -> Builder.Builder
 smt2Cast env (EVar x) t = smt2Var env x t
 smt2Cast env e        _ = smt2    env e
 
-smt2Var :: SymEnv -> Symbol s -> Sort s -> Builder.Builder
+smt2Var :: SymEnv s -> Symbol s -> Sort s -> Builder.Builder
 smt2Var env x t
   | isLamArgSymbol x            = smtLamArg env x t
   | Just s <- symEnvSort x env
   , isPolyInst s t              = smt2VarAs env x t
   | otherwise                   = smt2 env x
 
-smtLamArg :: SymEnv -> Symbol s -> Sort s -> Builder.Builder
+smtLamArg :: SymEnv s -> Symbol s -> Sort s -> Builder.Builder
 smtLamArg env x t = symbolBuilder $ symbolAtName x env () (FFunc t FInt)
 
-smt2VarAs :: SymEnv -> Symbol s -> Sort s -> Builder.Builder
+smt2VarAs :: SymEnv s -> Symbol s -> Sort s -> Builder.Builder
 smt2VarAs env x t = build "(as {} {})" (smt2 env x, smt2SortMono x env t)
 
-smt2Lam :: SymEnv -> (Symbol s, Sort s) -> Expr s -> Builder.Builder
+smt2Lam :: SymEnv s -> (Symbol s, Sort s) -> Expr s -> Builder.Builder
 smt2Lam env (x, xT) (ECst e eT) = build "({} {} {})" (smt2 env lambda, x', smt2 env e)
   where
     x'                          = smtLamArg env x xT
@@ -202,7 +202,7 @@ smt2Lam env (x, xT) (ECst e eT) = build "({} {} {})" (smt2 env lambda, x', smt2 
 smt2Lam _ _ e
   = panic ("smtlib2: Cannot serialize unsorted lambda: " ++ showpp e)
 
-smt2App :: SymEnv -> Expr s -> Builder.Builder
+smt2App :: SymEnv s -> Expr s -> Builder.Builder
 smt2App env e@(EApp (EApp f e1) e2)
   | Just t <- unApplyAt f
   = build "({} {})" (symbolBuilder (symbolAtName applyName env e t), smt2s env [e1, e2])
@@ -214,7 +214,7 @@ smt2App env e
   where
     (f, es)   = splitEApp' e
 
-smt2Coerc :: SymEnv -> Sort s -> Sort s -> Expr s -> Builder.Builder
+smt2Coerc :: SymEnv s -> Sort s -> Sort s -> Expr s -> Builder.Builder
 smt2Coerc env t1 t2 e 
   | t1 == t2  = smt2 env e
   | otherwise = build "({} {})" (symbolBuilder coerceFn , smt2 env e)
@@ -233,15 +233,15 @@ splitEApp'            = go []
   --   go acc (ECst e _) = go acc e
     go acc e          = (e, acc)
 
-mkRel :: SymEnv -> Brel -> Expr s -> Expr s -> Builder.Builder
+mkRel :: SymEnv s -> Brel -> Expr s -> Expr s -> Builder.Builder
 mkRel env Ne  e1 e2 = mkNe env e1 e2
 mkRel env Une e1 e2 = mkNe env e1 e2
 mkRel env r   e1 e2 = build "({} {} {})" (smt2 env r, smt2 env e1, smt2 env e2)
 
-mkNe :: SymEnv -> Expr s -> Expr s -> Builder.Builder
+mkNe :: SymEnv s -> Expr s -> Expr s -> Builder.Builder
 mkNe env e1 e2      = build "(not (= {} {}))" (smt2 env e1, smt2 env e2)
 
-instance SMTLIB2 Command where
+instance SMTLIB2 (Command s) where
   smt2 env (DeclData ds)       = build "(declare-datatypes {})"       (Only $ smt2data env ds)
   smt2 env (Declare x ts t)    = build "(declare-fun {} ({}) {})"     (smt2 env x, smt2many (smt2 env <$> ts), smt2 env t)
   smt2 env c@(Define t)        = build "(declare-sort {})"            (Only $ smt2SortMono c env t)
@@ -266,7 +266,7 @@ instance SMTLIB2 (Triggered Expr) where
   smt2 env (TR _ e)               = smt2 env e
 
 {-# INLINE smt2s #-}
-smt2s    :: SMTLIB2 a => SymEnv -> [a] -> Builder.Builder
+smt2s    :: SMTLIB2 a => SymEnv s -> [a] -> Builder.Builder
 smt2s env as = smt2many (smt2 env <$> as)
 
 {-# INLINE smt2many #-}

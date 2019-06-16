@@ -205,13 +205,13 @@ updateEbind s i !e = case M.lookup i (sEbd s) of
 --   in particular, to compute `lhsPred` for any given constraint.
 --------------------------------------------------------------------------------
 data Sol b a = Sol
-  { sEnv :: !SymEnv                      -- ^ Environment used to elaborate solutions
+  { sEnv :: !SymEnv s                      -- ^ Environment used to elaborate solutions
   , sMap :: !(M.HashMap (KVar s) a)          -- ^ Actual solution (for cut kvar)
   , gMap :: !(M.HashMap (KVar s) b)          -- ^ Solution for gradual variables
   , sHyp :: !(M.HashMap (KVar s) Hyp)        -- ^ Defining cubes  (for non-cut kvar)
   , sScp :: !(M.HashMap (KVar s) IBindEnv)   -- ^ Set of allowed binders for kvar
   , sEbd :: !(M.HashMap BindId EbindSol) -- ^ EbindSol for each existential binder
-  , sxEnv :: !(SEnv (BindId, Sort s))      --   TODO: merge with sEnv? used for sorts of ebinds to solve ebinds in lhsPred
+  , sxEnv :: !(SEnv s (BindId, Sort s))      --   TODO: merge with sEnv? used for sorts of ebinds to solve ebinds in lhsPred
   } deriving (Generic)
 
 deriving instance (NFData b, NFData a) => NFData (Sol b a)
@@ -286,13 +286,13 @@ resultGradual s = fmap go' (gMap s)
 --------------------------------------------------------------------------------
 -- | Create a Solution ---------------------------------------------------------
 --------------------------------------------------------------------------------
-fromList :: SymEnv 
+fromList :: SymEnv s 
          -> [(KVar s, a)] 
          -> [(KVar s, b)] 
          -> [(KVar s, Hyp)] 
          -> M.HashMap (KVar s) IBindEnv 
          -> [(BindId, EbindSol)]
-         -> SEnv (BindId, Sort s)
+         -> SEnv s (BindId, Sort s)
          -> Sol a b
 fromList env kGs kXs kYs z ebs xbs
         = Sol env kXm kGm kYm z ebm xbs
@@ -444,7 +444,7 @@ data Index = FastIdx
   , kvDef      :: !(KVar s   |-> Hyp)      -- ^ Constraints defining each `KVar`
   , envBinds   :: !(CMap IBindEnv)       -- ^ Binders of each Subc
   , envTx      :: !(CMap [SubcId])       -- ^ Transitive closure oof all dependent binders
-  , envSorts   :: !(SEnv (Sort s))           -- ^ Sorts for all symbols
+  , envSorts   :: !(SEnv s (Sort s))           -- ^ Sorts for all symbols
   -- , bindPrev   :: !(BIndex |-> BIndex)   -- ^ "parent" (immediately dominating) binder
   -- , kvDeps     :: !(CMap [KIndex])       -- ^ List of (Cut) KVars on which a SubC depends
   }

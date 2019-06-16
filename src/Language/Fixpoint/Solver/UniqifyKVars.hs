@@ -1,3 +1,7 @@
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE TypeApplications     #-}
+
+
 {- | This module creates new bindings for each argument of each kvar.
      It also makes sure that all arguments to each kvar are explicit.
 
@@ -31,6 +35,8 @@ wf:
 
 -}
 
+
+
 module Language.Fixpoint.Solver.UniqifyKVars (wfcUniqify) where
 
 import           Language.Fixpoint.Types
@@ -40,14 +46,14 @@ import           Data.Hashable
 import           Data.Foldable       (foldl')
 
 --------------------------------------------------------------------------------
-wfcUniqify    :: SInfo s a -> SInfo s a
+wfcUniqify    :: (Fixpoint s, Show s, Ord s, Eq s, Hashable s) => SInfo s a -> SInfo s a
 wfcUniqify fi = updateWfcs $ remakeSubsts fi
 
 
 
 -- mapKVarSubsts (\k su -> restrict table k su xs)
 --------------------------------------------------------------------------------
-remakeSubsts :: (Eq s) => SInfo s a -> SInfo s a
+remakeSubsts :: (Eq s, Hashable s) => SInfo s a -> SInfo s a
 --------------------------------------------------------------------------------
 remakeSubsts fi = mapKVarSubsts (remakeSubst fi) fi
 
@@ -69,11 +75,11 @@ updateSubst k (Su su) sym
 -- /  | otherwise         = Su $                M.insert ksym (eVar sym)   su
 
 --------------------------------------------------------------------------------
-updateWfcs :: SInfo s a -> SInfo s a
+updateWfcs :: (Show s, Fixpoint s, Hashable s, Eq s, Ord s) => SInfo s a -> SInfo s a
 --------------------------------------------------------------------------------
 updateWfcs fi = M.foldl' updateWfc fi (ws fi)
 
-updateWfc :: (Hashable s) => SInfo s a -> WfC s a -> SInfo s a
+updateWfc :: forall s a. (Hashable s, Eq s, Ord s, Fixpoint s, Show s) => SInfo s a -> WfC s a -> SInfo s a
 updateWfc fi w    = fi'' { ws = M.insert k w' (ws fi) }
   where
     w'            = updateWfCExpr (subst su) w''
@@ -82,30 +88,32 @@ updateWfc fi w    = fi'' { ws = M.insert k w' (ws fi) }
     (fi', newIds) = foldl' (accumBindsIfValid k) (fi, []) (elemsIBindEnv $ wenv w)
     (v, t, k)     = wrft w
     v'            = kArgSymbolF v (kv k)
-    su            = mkSubst ((v, EVar v'):[(x, eVar $ kArgSymbolF x (kv k)) | x <- kvarDomain fi k])
+    su            = mkSubst ((v, EVar v'):[(x, eVar @(Symbol s) $ kArgSymbolF x (kv k)) | x <- kvarDomain fi k])
     kArgSymbolF (FS s) (FS k) = FS (kArgSymbol s k)
     kArgSymbolF _ _     = error "updateWfc: cannot apply kArgSymbol to Symbol s "
     
 
-accumBindsIfValid :: KVar s -> (SInfo s a, [BindId]) -> BindId -> (SInfo s a, [BindId])
+accumBindsIfValid :: (Hashable s, Show s, Fixpoint s, Ord s) => KVar s -> (SInfo s a, [BindId]) -> BindId -> (SInfo s a, [BindId])
 accumBindsIfValid k (fi, ids) i = if renamable then accumBinds k (fi, ids) i else (fi, i : ids)
   where
     (_, sr)                     = lookupBindEnv i      (bs fi)
     renamable                   = isValidInRefinements (sr_sort sr)
 
-accumBinds :: KVar s -> (SInfo s a, [BindId]) -> BindId -> (SInfo s a, [BindId])
+accumBinds :: (Show s, Fixpoint s, Ord s, Hashable s) => KVar s -> (SInfo s a, [BindId]) -> BindId -> (SInfo s a, [BindId])
 accumBinds k (fi, ids) i = (fi', i' : ids)
   where
     (oldSym, sr) = lookupBindEnv i (bs fi)
-    newSym       = {- tracepp "kArgSymbol" $ -}  kArgSymbol oldSym (kv k)
+    newSym       = {- tracepp "kArgSymbol" $ -}  kArgSymbolF oldSym (kv k)
     (i', fi')    = newTopBind newSym sr fi
+    kArgSymbolF (FS s) (FS k) = FS (kArgSymbol s k)
+    kArgSymbolF _ _     = error "updateWfc: cannot apply kArgSymbol to Symbol s "
 
 -- | `newTopBind` ignores the actual refinements as they are not relevant
 --   in the kvar parameters (as suggested by BLC.)
-newTopBind :: Symbol s -> SortedReft s -> SInfo s a -> (BindId, SInfo s a)
+newTopBind :: forall s a. (Hashable s, Ord s, Fixpoint s, Show s) => Symbol s -> SortedReft s -> SInfo s a -> (BindId, SInfo s a)
 newTopBind x sr fi = (i', fi {bs = be'})
   where
-    (i', be')   = insertBindEnv x (top sr) (bs fi)
+    (i', be')   = insertBindEnv x (top @_ @s sr) (bs fi)
 
 --------------------------------------------------------------
 

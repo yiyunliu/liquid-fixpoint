@@ -43,23 +43,23 @@ import           System.Process
 -- symbolBuilder = LT.fromText . symbolSafeText
 
 -- | Commands issued to SMT engine
-data Command      = Push
+data Command s    = Push
                   | Pop
                   | CheckSat
                   | DeclData ![DataDecl s]
-                  | Declare  !Symbol s [SmtSort] !SmtSort
+                  | Declare  !(Symbol s) [SmtSort s] !(SmtSort s)
                   | Define   !(Sort s)
                   | Assert   !(Maybe Int) !(Expr s)
-                  | AssertAx !(Triggered Expr)
-                  | Distinct [Expr] -- {v:[Expr] | 2 <= len v}
+                  | AssertAx !(Triggered (Expr s))
+                  | Distinct [Expr s] -- {v:[Expr] | 2 <= len v}
                   | GetValue [Symbol s]
-                  | CMany    [Command]
+                  | CMany    [Command s]
                   deriving (Eq, Show)
 
-instance PPrint Command where
+instance (Eq s, PPrint s, Fixpoint s, Ord s) => PPrint (Command s) where
   pprintTidy _ = ppCmd
 
-ppCmd :: Command -> Doc
+ppCmd :: (Eq s, PPrint s, Fixpoint s, Ord s) => Command s -> Doc
 ppCmd Push             = text "Push"
 ppCmd Pop              = text "Pop"
 ppCmd CheckSat         = text "CheckSat"
@@ -74,7 +74,7 @@ ppCmd (GetValue {}) = text "GetValue ..."
 ppCmd (CMany {})    = text "CMany ..."
 
 -- | Responses received from SMT engine
-data Response     = Ok
+data Response s   = Ok
                   | Sat
                   | Unsat
                   | Unknown
@@ -83,7 +83,7 @@ data Response     = Ok
                   deriving (Eq, Show)
 
 -- | Information about the external SMT process
-data Context = Ctx
+data Context s = Ctx
   { ctxPid     :: !ProcessHandle
   , ctxCin     :: !Handle
   , ctxCout    :: !Handle
@@ -93,7 +93,7 @@ data Context = Ctx
   , ctxAeq     :: !Bool              -- ^ flag to enable lambda a-equivalence axioms
   , ctxBeq     :: !Bool              -- ^ flag to enable lambda b-equivalence axioms
   , ctxNorm    :: !Bool              -- ^ flag to enable lambda normal form equivalence axioms
-  , ctxSymEnv  :: !SymEnv
+  , ctxSymEnv  :: !(SymEnv s)
   }
 
 --------------------------------------------------------------------------------
@@ -101,7 +101,7 @@ data Context = Ctx
 --------------------------------------------------------------------------------
 
 class SMTLIB2 a where
-  smt2 :: SymEnv -> a -> LT.Builder
+  smt2 :: SymEnv s -> a -> LT.Builder
 
-runSmt2 :: (SMTLIB2 a) => SymEnv -> a -> LT.Builder
+runSmt2 :: (SMTLIB2 a) => SymEnv s -> a -> LT.Builder
 runSmt2 = smt2

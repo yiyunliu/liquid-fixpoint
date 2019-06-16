@@ -1,13 +1,17 @@
-{-# LANGUAGE Strict                #-}
-{-# LANGUAGE StrictData            #-}
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE TypeSynonymInstances  #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TupleSections         #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE PatternGuards         #-}
-{-# LANGUAGE BangPatterns          #-}
+{-# LANGUAGE UndecidableInstances   #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE TypeApplications       #-}
+{-# LANGUAGE Strict                 #-}
+{-# LANGUAGE StrictData             #-}
+{-# LANGUAGE FlexibleContexts       #-}
+{-# LANGUAGE TypeSynonymInstances   #-}
+{-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE TupleSections          #-}
+{-# LANGUAGE OverloadedStrings      #-}
+{-# LANGUAGE PatternGuards          #-}
+{-# LANGUAGE BangPatterns           #-}
 
 -- | This module has the functions that perform sort-checking, and related
 -- operations on Fixpoint expressions and predicates.
@@ -63,6 +67,7 @@ import qualified Data.HashMap.Strict       as M
 import qualified Data.List                 as L
 import           Data.Maybe                (mapMaybe, fromMaybe, catMaybes, isJust)
 import           Data.Semigroup            (Semigroup (..))
+import           Data.Hashable
 
 import           Language.Fixpoint.Types.PrettyPrint
 import           Language.Fixpoint.Misc
@@ -92,24 +97,24 @@ isMono             = null . Vis.foldSort fv []
 --   KVars. THIS IS NOW MANDATORY as sort-variables can be
 --   instantiated to `int` and `bool`.
 --------------------------------------------------------------------------------
-class Elaborate a where
-  elaborate :: Located String -> SymEnv -> a -> a
+class Elaborate a s | a -> s where
+  elaborate :: Located String -> SymEnv s -> a -> a
 
 
-instance (Loc a) => Elaborate (SInfo s a) where
+instance (Loc a, Show s) => Elaborate (SInfo s a) s where
   elaborate x senv si = si
     { cm      = elaborate x senv <$> cm      si
     , bs      = elaborate x senv  $  bs      si
     , asserts = elaborate x senv <$> asserts si
     }
 
-instance (Elaborate e) => (Elaborate (Triggered e)) where
+instance (Elaborate e s) => (Elaborate (Triggered e) s) where
   elaborate x env t = fmap (elaborate x env) t
 
-instance (Elaborate a) => (Elaborate (Maybe a)) where
+instance (Elaborate a s) => (Elaborate (Maybe a) s) where
   elaborate x env t = fmap (elaborate x env) t
 
-instance Elaborate (Sort s) where
+instance (Eq s) => Elaborate (Sort s) s where
   elaborate _ _ = go
    where
       go s | isString s = strSort
@@ -118,40 +123,40 @@ instance Elaborate (Sort s) where
       go (FApp s1 s2)  = FApp    (go s1) (go s2)
       go s             = s
       funSort :: Sort s -> Sort s -> Sort s
-      funSort = FApp . FApp funcSort
+      funSort = FApp . FApp (funcSort @s)
 
-instance Elaborate AxiomEnv where
+instance (Eq s) => Elaborate (AxiomEnv s) s where
   elaborate msg env ae = ae
     { aenvEqs   = elaborate msg env (aenvEqs ae) 
     -- MISSING SORTS OOPS, aenvSimpl = elaborate msg env (aenvSimpl ae) 
     }
 
-instance Elaborate Rewrite where 
+instance (Eq s, Hashable s) => Elaborate (Rewrite s) s where 
   elaborate msg env rw = rw { smBody = skipElabExpr msg env' (smBody rw) } 
     where 
       env' = insertsSymEnv env undefined
 
-instance Elaborate Equation where 
+instance (Eq s, Hashable s) => Elaborate (Equation s) s where 
   elaborate msg env eq = eq { eqBody = skipElabExpr msg env' (eqBody eq) } 
     where
       env' = insertsSymEnv env (eqArgs eq) 
 
-instance Elaborate (Expr s) where
+instance (Fixpoint s) => Elaborate (Expr s) s where
   elaborate msg env = elabNumeric . elabApply env . elabExpr msg env
 
 
-skipElabExpr :: Located String -> SymEnv -> Expr s -> Expr s 
+skipElabExpr :: (Fixpoint s) => Located String -> SymEnv s -> Expr s -> Expr s 
 skipElabExpr msg env e = case elabExprE msg env e of 
   Left _   -> e 
   Right e' ->  elabNumeric . elabApply env $ e'
 
-instance Elaborate (Symbol s, Sort s) where
+instance (Eq s) =>  Elaborate (Symbol s, Sort s) s where
   elaborate msg env (x, s) = (x, elaborate msg env s)
 
-instance Elaborate a => Elaborate [a]  where
+instance Elaborate a s => Elaborate [a] s where
   elaborate msg env xs = elaborate msg env <$> xs
 
-elabNumeric :: Expr s -> Expr s
+elabNumeric :: (Ord s, PPrint s, Fixpoint s) => Expr s -> Expr s
 elabNumeric = Vis.mapExpr go
   where
     go (ETimes e1 e2)
@@ -165,30 +170,30 @@ elabNumeric = Vis.mapExpr go
     go e
       = e
 
-instance Elaborate (SortedReft s) where
+instance (Hashable s, Eq s, Fixpoint s) => Elaborate (SortedReft s) s where
   elaborate x env (RR s (Reft (v, e))) = RR s (Reft (v, e'))
     where
       e'   = elaborate x env' e
       env' = insertSymEnv v s env
 
-instance Elaborate BindEnv where
+instance (Show s, Hashable s, Eq s, Fixpoint s, Ord s) => Elaborate (BindEnv s) s where
   elaborate z env = mapBindEnv (\i (x, sr) -> (x, elaborate (z' i x sr) env sr))
     where
       z' i  x sr  = z { val = (val z) ++ msg i x sr }
       msg i x sr  = unwords [" elabBE",  show i, show x, show sr]
 
-instance (Loc a) => Elaborate (SimpC s a) where
+instance (Loc a, Fixpoint s) => Elaborate (SimpC s a) s where
   elaborate msg env c = c {_crhs = elaborate msg' env (_crhs c) }
     where msg'        = atLoc c (val msg)
 --------------------------------------------------------------------------------
 -- | 'elabExpr' adds "casts" to decorate polymorphic instantiation sites.
 --------------------------------------------------------------------------------
-elabExpr :: Located String -> SymEnv -> Expr s -> Expr s
+elabExpr :: Located String -> SymEnv s -> Expr s -> Expr s
 elabExpr msg env e = case elabExprE msg env e of 
   Left ex  -> die ex 
   Right e' -> e' 
 
-elabExprE :: Located String -> SymEnv -> Expr s -> Either Error (Expr s)
+elabExprE :: (Eq s) => Located String -> SymEnv s -> Expr s -> Either Error (Expr s)
 elabExprE msg env e = 
   case runCM0 (srcSpan msg) (elab (env, f) e) of
     Left e   -> Left  $ err (srcSpan e) (d (val e))
@@ -207,7 +212,7 @@ elabExprE msg env e =
 --------------------------------------------------------------------------------
 -- | 'elabApply' replaces all direct function calls indirect calls via `apply`
 --------------------------------------------------------------------------------
-elabApply :: SymEnv -> Expr s -> Expr s
+elabApply :: SymEnv s -> Expr s -> Expr s
 elabApply env = go
   where
     go e                  = case splitArgs e of
@@ -241,7 +246,7 @@ elabApply env = go
 --------------------------------------------------------------------------------
 -- | Sort Inference ------------------------------------------------------------
 --------------------------------------------------------------------------------
-sortExpr :: SrcSpan -> SEnv (Sort s) -> Expr s -> Sort s
+sortExpr :: SrcSpan -> SEnv s (Sort s) -> Expr s -> Sort s
 sortExpr l γ e = case runCM0 l (checkExpr f e) of
     Left  e -> die $ err l (d (val e))
     Right s -> s
@@ -255,7 +260,7 @@ sortExpr l γ e = case runCM0 l (checkExpr f e) of
                , nest 4 (pprint γ)
                ]
 
-checkSortExpr :: SrcSpan -> SEnv (Sort s) -> Expr s -> Maybe (Sort s)
+checkSortExpr :: SrcSpan -> SEnv s (Sort s) -> Expr s -> Maybe (Sort s)
 checkSortExpr sp γ e = case runCM0 sp (checkExpr f e) of
     Left _   -> Nothing
     Right s  -> Just s
@@ -264,7 +269,7 @@ checkSortExpr sp γ e = case runCM0 sp (checkExpr f e) of
             Just z  -> Found z
             Nothing -> Alts []
 
-subEnv :: (Subable e) => SEnv a -> e -> SEnv a
+subEnv :: (Subable e s) => SEnv s a -> e -> SEnv s a
 subEnv g e = intersectWithSEnv (\t _ -> t) g g'
   where
     g' = fromListSEnv $ (, ()) <$> syms e
@@ -279,12 +284,12 @@ type CheckM   = StateT ChState (Either ChError)
 type ChError  = Located String
 data ChState  = ChS { chCount :: Int, chSpan :: SrcSpan }
 
-type Env      = Symbol s -> SESearch (Sort s)
-type ElabEnv  = (SymEnv, Env)
+type Env s      = Symbol s -> SESearch (Sort s) s
+type ElabEnv s  = (SymEnv s, Env s)
 
 
 --------------------------------------------------------------------------------
-mkSearchEnv :: SEnv a -> Symbol s -> SESearch a 
+mkSearchEnv :: SEnv s a -> Symbol s -> SESearch a s
 --------------------------------------------------------------------------------
 mkSearchEnv env x = lookupSEnvWithDistance x env  
 
@@ -306,14 +311,14 @@ fresh = do
 --------------------------------------------------------------------------------
 -- | Checking Refinements ------------------------------------------------------
 --------------------------------------------------------------------------------
-checkSortedReft :: SEnv (SortedReft s) -> [Symbol s] -> SortedReft s -> Maybe Doc
+checkSortedReft :: SEnv s (SortedReft s) -> [Symbol s] -> SortedReft s -> Maybe Doc
 checkSortedReft env xs sr = applyNonNull Nothing oops unknowns
   where
     oops                  = Just . (text "Unknown symbols:" <+>) . toFix
     unknowns              = [ x | x <- syms sr, x `notElem` v : xs, not (x `memberSEnv` env)]
     Reft (v,_)            = sr_reft sr
 
-checkSortedReftFull :: Checkable a => SrcSpan -> SEnv (SortedReft s) -> a -> Maybe Doc
+checkSortedReftFull :: Checkable a => SrcSpan -> SEnv s (SortedReft s) -> a -> Maybe Doc
 checkSortedReftFull sp γ t = 
   case runCM0 sp (check γ' t) of
     Left e  -> Just (text (val e))
@@ -321,7 +326,7 @@ checkSortedReftFull sp γ t =
   where
     γ' = sr_sort <$> γ
 
-checkSortFull :: Checkable a => SrcSpan -> SEnv (SortedReft s) -> Sort s -> a -> Maybe Doc
+checkSortFull :: Checkable a => SrcSpan -> SEnv s (SortedReft s) -> Sort s -> a -> Maybe Doc
 checkSortFull sp γ s t = 
   case runCM0 sp (checkSort γ' s t) of
     Left e  -> Just (text (val e))
@@ -329,13 +334,13 @@ checkSortFull sp γ s t =
   where
       γ' = sr_sort <$> γ
 
-checkSorted :: Checkable a => SrcSpan -> SEnv (Sort s) -> a -> Maybe Doc
+checkSorted :: Checkable a => SrcSpan -> SEnv s (Sort s) -> a -> Maybe Doc
 checkSorted sp γ t = 
   case runCM0 sp (check γ t) of
     Left e   -> Just (text (val e))
     Right _  -> Nothing
 
-pruneUnsortedReft :: SEnv (Sort s) -> Templates -> SortedReft s -> SortedReft s
+pruneUnsortedReft :: SEnv s (Sort s) -> Templates s -> SortedReft s -> SortedReft s
 pruneUnsortedReft _ t r 
   | isEmptyTemplates t 
   = r 
@@ -353,7 +358,7 @@ pruneUnsortedReft γ t (RR s (Reft (v, p)))
     γ'   = insertSEnv v s γ
     -- wmsg t r = "WARNING: prune unsorted reft:\n" ++ showFix r ++ "\n" ++ t
 
-checkPred' :: Env -> Expr s -> Maybe (Expr s)
+checkPred' :: Env s -> Expr s -> Maybe (Expr s)
 checkPred' f p = res -- traceFix ("checkPred: p = " ++ showFix p) $ res
   where
     res        = case runCM0 dummySpan (checkPred f p) of
@@ -361,8 +366,8 @@ checkPred' f p = res -- traceFix ("checkPred: p = " ++ showFix p) $ res
                    Right _   -> Just p
 
 class Checkable a where
-  check     :: SEnv (Sort s) -> a -> CheckM ()
-  checkSort :: SEnv (Sort s) -> Sort s -> a -> CheckM ()
+  check     :: SEnv s (Sort s) -> a -> CheckM ()
+  checkSort :: SEnv s (Sort s) -> Sort s -> a -> CheckM ()
 
   checkSort γ _ = check γ
 
@@ -382,7 +387,7 @@ instance Checkable (SortedReft s) where
 --------------------------------------------------------------------------------
 -- | Checking Expressions ------------------------------------------------------
 --------------------------------------------------------------------------------
-checkExpr                  :: Env -> Expr s -> CheckM (Sort s)
+checkExpr                  :: Env s -> Expr s -> CheckM (Sort s)
 checkExpr _ (ESym _)       = return strSort
 checkExpr _ (ECon (I _))   = return FInt
 checkExpr _ (ECon (R _))   = return FReal
@@ -409,7 +414,7 @@ checkExpr f (ECoerc s t e) = checkExpr f (ECst e s) >> return t
 checkExpr _ (ETApp _ _)    = error "SortCheck.checkExpr: TODO: implement ETApp"
 checkExpr _ (ETAbs _ _)    = error "SortCheck.checkExpr: TODO: implement ETAbs"
 
-addEnv :: Eq a => (a -> SESearch b) -> [(a, b)] -> a -> SESearch b
+addEnv :: Eq a => (a -> SESearch b s) -> [(a, b)] -> a -> SESearch b s
 addEnv f bs x
   = case L.lookup x bs of
       Just s  -> Found s
@@ -418,7 +423,7 @@ addEnv f bs x
 --------------------------------------------------------------------------------
 -- | Elaborate expressions with types to make polymorphic instantiation explicit.
 --------------------------------------------------------------------------------
-elab :: ElabEnv -> Expr s -> CheckM (Expr s, Sort s)
+elab :: ElabEnv s -> Expr s -> CheckM (Expr s, Sort s)
 --------------------------------------------------------------------------------
 elab f@(_, g) e@(EBin o e1 e2) = do
   (e1', s1) <- elab f e1
@@ -539,14 +544,14 @@ elab _ (ETApp _ _) =
 elab _ (ETAbs _ _) =
   error "SortCheck.elab: TODO: implement ETAbs"
 
-elabAddEnv :: Eq a => (t, a -> SESearch b) -> [(a, b)] -> (t, a -> SESearch b)
+elabAddEnv :: Eq a => (t, a -> SESearch b s) -> [(a, b)] -> (t, a -> SESearch b s)
 elabAddEnv (g, f) bs = (g, addEnv f bs)
 
 cast :: Expr s -> Sort s -> Expr s
 cast (ECst e _) t = ECst e t
 cast e          t = ECst e t
 
-elabAs :: ElabEnv -> Sort s -> Expr s -> CheckM (Expr s)
+elabAs :: ElabEnv s -> Sort s -> Expr s -> CheckM (Expr s)
 elabAs f t e = notracepp _msg <$>  go e
   where
     _msg  = "elabAs: t = " ++ showpp t ++ " e = " ++ showpp e
@@ -555,7 +560,7 @@ elabAs f t e = notracepp _msg <$>  go e
     go e              = fst    <$> elab f e
 
 -- DUPLICATION with `checkApp'`
-elabAppAs :: ElabEnv -> Sort s -> Expr s -> Expr s -> CheckM (Expr s)
+elabAppAs :: ElabEnv s -> Sort s -> Expr s -> Expr s -> CheckM (Expr s)
 elabAppAs env@(_, f) t g e = do
   gT       <- checkExpr f g
   eT       <- checkExpr f e
@@ -568,14 +573,14 @@ elabAppAs env@(_, f) t g e = do
   e'       <- elabAs env te e
   return    $ EApp (ECst g' tg) (ECst e' te)
 
-elabEApp  :: ElabEnv -> Expr s -> Expr s -> CheckM (Expr s, Sort s, Expr s, Sort s, Sort s)
+elabEApp  :: ElabEnv s -> Expr s -> Expr s -> CheckM (Expr s, Sort s, Expr s, Sort s, Sort s)
 elabEApp f@(_, g) e1 e2 = do
   (e1', s1)     <- notracepp ("elabEApp1: e1 = " ++ showpp e1) <$> elab f e1
   (e2', s2)     <- elab f e2
   (s1', s2', s) <- elabAppSort g e1 e2 s1 s2
   return           (e1', s1', e2', s2', s)
 
-elabAppSort :: Env -> Expr s -> Expr s -> Sort s -> Sort s -> CheckM (Sort s, Sort s, Sort s)
+elabAppSort :: Env s -> Expr s -> Expr s -> Sort s -> Sort s -> CheckM (Sort s, Sort s, Sort s)
 elabAppSort f e1 e2 s1 s2 = do
   let e            = Just (EApp e1 e2)
   (sIn, sOut, su) <- checkFunSort s1
@@ -586,12 +591,12 @@ elabAppSort f e1 e2 s1 s2 = do
 --------------------------------------------------------------------------------
 -- | defuncEApp monomorphizes function applications.
 --------------------------------------------------------------------------------
-defuncEApp :: SymEnv -> Expr s -> [(Expr s, Sort s)] -> Expr s
+defuncEApp :: SymEnv s -> Expr s -> [(Expr s, Sort s)] -> Expr s
 defuncEApp env e es = L.foldl' makeApplication e' es'
   where
     (e', es')       = takeArgs (seTheory env) e es
 
-takeArgs :: SEnv TheorySymbol -> Expr s -> [(Expr s, a)] -> (Expr s, [(Expr s, a)])
+takeArgs :: SEnv s (TheorySymbol s) -> Expr s -> [(Expr s, a)] -> (Expr s, [(Expr s, a)])
 takeArgs env e es =
   case Thy.isSmt2App env (Vis.stripCasts e) of
     Just n  -> let (es1, es2) = splitAt n es
@@ -612,7 +617,7 @@ applyAt s t = ECst (EVar applyName) (FFunc s t)
 -- MAY CAUSE CRASH (apply-on-apply) so rig `isSmt2App` to treat `apply` as SPECIAL.
 
 -- TODO: proper toInt
-toInt :: SymEnv -> Expr s -> Sort s -> Expr s
+toInt :: SymEnv s -> Expr s -> Sort s -> Expr s
 toInt env e s
   | isSmtInt  = e
   | otherwise = ECst (EApp f (ECst e s)) FInt
@@ -620,7 +625,7 @@ toInt env e s
     isSmtInt  = isInt env s
     f         = toIntAt s
 
-isInt :: SymEnv -> Sort s -> Bool
+isInt :: SymEnv s -> Sort s -> Bool
 isInt env s = case sortSmtSort False (seData env) s of
   SInt    -> True
   SString -> True
@@ -751,12 +756,12 @@ which, I imagine is what happens _somewhere_ inside GHC too?
 -}
 
 --------------------------------------------------------------------------------
-applySorts :: Vis.Visitable t => t -> [Sort s]
+applySorts :: Vis.Visitable t s => t -> [Sort s]
 --------------------------------------------------------------------------------
 applySorts = {- tracepp "applySorts" . -} (defs ++) . Vis.fold vis () []
   where
     defs   = [FFunc t1 t2 | t1 <- basicSorts, t2 <- basicSorts]
-    vis    = (Vis.defaultVisitor :: Vis.Visitor [KVar s] t) { Vis.accExpr = go }
+    vis    = (Vis.defaultVisitor :: Vis.Visitor s [KVar s] t) { Vis.accExpr = go }
     go _ (EApp (ECst (EVar f) t) _)   -- get types needed for [NOTE:apply-monomorphism]
            | f == applyName
            = [t]
@@ -786,7 +791,7 @@ genSort :: Sort s -> Sort s
 genSort (FAbs _ t) = genSort t
 genSort t          = t
 
-unite :: Env -> Expr s -> Sort s -> Sort s -> CheckM (Sort s, Sort s)
+unite :: Env s -> Expr s -> Sort s -> Sort s -> CheckM (Sort s, Sort s)
 unite f e t1 t2 = do
   su <- unifys f (Just e) [t1] [t2]
   return (apply su t1, apply su t2)
@@ -797,38 +802,38 @@ throwErrorAt err = do
   throwError (atLoc sp err)
 
 -- | Helper for checking symbol occurrences
-checkSym :: Env -> Symbol s -> CheckM (Sort s)
+checkSym :: Env s -> Symbol s -> CheckM (Sort s)
 checkSym f x = case f x of
   Found s -> instantiate s
   Alts xs -> throwErrorAt (errUnboundAlts x xs)
 
 -- | Helper for checking if-then-else expressions
-checkIte :: Env -> Expr s -> Expr s -> Expr s -> CheckM (Sort s)
+checkIte :: Env s -> Expr s -> Expr s -> Expr s -> CheckM (Sort s)
 checkIte f p e1 e2 = do
   checkPred f p
   t1 <- checkExpr f e1
   t2 <- checkExpr f e2
   checkIteTy f p e1 e2 t1 t2
 
-checkIteTy :: Env -> Expr s -> Expr s -> Expr s -> Sort s -> Sort s -> CheckM (Sort s)
+checkIteTy :: Env s -> Expr s -> Expr s -> Expr s -> Sort s -> Sort s -> CheckM (Sort s)
 checkIteTy f p e1 e2 t1 t2
   = ((`apply` t1) <$> unifys f e' [t1] [t2]) `withError` (errIte e1 e2 t1 t2)
   where
     e' = Just (EIte p e1 e2)
 
 -- | Helper for checking cast expressions
-checkCst :: Env -> Sort s -> Expr s -> CheckM (Sort s)
+checkCst :: Env s -> Sort s -> Expr s -> CheckM (Sort s)
 checkCst f t (EApp g e)
   = checkApp f (Just t) g e
 checkCst f t e
   = do t' <- checkExpr f e
        ((`apply` t) <$> unifys f (Just e) [t] [t']) `withError` (errCast e t' t)
 
-checkApp :: Env -> Maybe (Sort s) -> Expr s -> Expr s -> CheckM (Sort s)
+checkApp :: Env s -> Maybe (Sort s) -> Expr s -> Expr s -> CheckM (Sort s)
 checkApp f to g es
   = snd <$> checkApp' f to g es
 
-checkExprAs :: Env -> Sort s -> Expr s -> CheckM (Sort s)
+checkExprAs :: Env s -> Sort s -> Expr s -> CheckM (Sort s)
 checkExprAs f t (EApp g e)
   = checkApp f (Just t) g e
 checkExprAs f t e
@@ -842,7 +847,7 @@ checkExprAs f t e
 --   RJ: The above comment makes no sense to me :(
 
 -- DUPLICATION with 'elabAppAs'
-checkApp' :: Env -> Maybe (Sort s) -> Expr s -> Expr s -> CheckM (TVSubst, Sort s)
+checkApp' :: Env s -> Maybe (Sort s) -> Expr s -> Expr s -> CheckM (TVSubst s, Sort s)
 checkApp' f to g e = do
   gt       <- checkExpr f g
   et       <- checkExpr f e
@@ -859,19 +864,19 @@ checkApp' f to g e = do
 
 
 -- | Helper for checking binary (numeric) operations
-checkNeg :: Env -> Expr s -> CheckM (Sort s)
+checkNeg :: Env s -> Expr s -> CheckM (Sort s)
 checkNeg f e = do
   t <- checkExpr f e
   checkNumeric f t >> return t
 
-checkOp :: Env -> Expr s -> Bop -> Expr s -> CheckM (Sort s)
+checkOp :: Env s -> Expr s -> Bop -> Expr s -> CheckM (Sort s)
 checkOp f e1 o e2
   = do t1 <- checkExpr f e1
        t2 <- checkExpr f e2
        checkOpTy f (EBin o e1 e2) t1 t2
 
 
-checkOpTy :: Env -> Expr s -> Sort s -> Sort s -> CheckM (Sort s)
+checkOpTy :: Env s -> Expr s -> Sort s -> Sort s -> CheckM (Sort s)
 checkOpTy _ _ FInt FInt
   = return FInt
 
@@ -891,21 +896,21 @@ checkOpTy f _ t t'
 checkOpTy _ e t t'
   = throwErrorAt (errOp e t t')
 
-checkFractional :: Env -> Sort s -> CheckM ()
+checkFractional :: Env s -> Sort s -> CheckM ()
 checkFractional f s@(FObj l)
   = do t <- checkSym f l
        unless (t == FFrac) $ throwErrorAt (errNonFractional s)
 checkFractional _ s
   = unless (isReal s) $ throwErrorAt (errNonFractional s)
 
-checkNumeric :: Env -> Sort s -> CheckM ()
+checkNumeric :: Env s -> Sort s -> CheckM ()
 checkNumeric f s@(FObj l)
   = do t <- checkSym f l
        unless (t `elem` [FNum, FFrac, intSort, FInt]) (throwErrorAt $ errNonNumeric s)
 checkNumeric _ s
   = unless (isNumeric s) (throwErrorAt $ errNonNumeric s)
 
-checkEqConstr :: Env -> Maybe (Expr s) -> TVSubst -> Symbol s -> Sort s -> CheckM TVSubst 
+checkEqConstr :: Env s -> Maybe (Expr s) -> TVSubst s -> Symbol s -> Sort s -> CheckM (TVSubst s) 
 checkEqConstr _ _  θ a (FObj b)
   | a == b
   = return θ
@@ -917,7 +922,7 @@ checkEqConstr f e θ a t = do
 --------------------------------------------------------------------------------
 -- | Checking Predicates -------------------------------------------------------
 --------------------------------------------------------------------------------
-checkPred                  :: Env -> Expr s -> CheckM ()
+checkPred                  :: Env s -> Expr s -> CheckM ()
 checkPred f e = checkExpr f e >>= checkBoolSort e
 
 checkBoolSort :: Expr s -> Sort s -> CheckM ()
@@ -926,7 +931,7 @@ checkBoolSort e s
   | otherwise     = throwErrorAt (errBoolSort e s)
 
 -- | Checking Relations
-checkRel :: Env -> Brel -> Expr s -> Expr s -> CheckM ()
+checkRel :: Env s -> Brel -> Expr s -> Expr s -> CheckM ()
 checkRel f Eq e1 e2 = do
   t1 <- checkExpr f e1
   t2 <- checkExpr f e2
@@ -943,7 +948,7 @@ checkRel f r  e1 e2 = do
   checkRelTy f (PAtom r e1 e2) r t1 t2
 
 
-checkRelTy :: Env -> Expr s -> Brel -> Sort s -> Sort s -> CheckM ()
+checkRelTy :: Env s -> Expr s -> Brel -> Sort s -> Sort s -> CheckM ()
 checkRelTy _ e Ueq s1 s2     = checkURel e s1 s2
 checkRelTy _ e Une s1 s2     = checkURel e s1 s2 
 checkRelTy f _ _ s1@(FObj l) s2@(FObj l') | l /= l'
@@ -969,7 +974,7 @@ checkURel e s1 s2 = unless (b1 == b2) (throwErrorAt $ errRel e s1 s2)
 -- | Sort Unification on Expressions
 --------------------------------------------------------------------------------
 
-unifyExpr :: Env -> Expr s -> Maybe TVSubst
+unifyExpr :: Env s -> Expr s -> Maybe (TVSubst s)
 unifyExpr f (EApp e1 e2) = Just $ mconcat $ catMaybes [θ1, θ2, θ]
   where
    θ1 = unifyExpr f e1
@@ -980,7 +985,7 @@ unifyExpr f (ECst e _)
 unifyExpr _ _
   = Nothing
 
-unifyExprApp :: Env -> Expr s -> Expr s -> Maybe TVSubst
+unifyExprApp :: Env s -> Expr s -> Expr s -> Maybe (TVSubst s)
 unifyExprApp f e1 e2 = do
   t1 <- getArg $ exprSort_maybe e1
   t2 <- exprSort_maybe e2
@@ -993,7 +998,7 @@ unifyExprApp f e1 e2 = do
 --------------------------------------------------------------------------------
 -- | Sort Unification
 --------------------------------------------------------------------------------
-unify :: Env -> Maybe (Expr s) -> Sort s -> Sort s -> Maybe TVSubst
+unify :: Env s -> Maybe (Expr s) -> Sort s -> Sort s -> Maybe (TVSubst s)
 --------------------------------------------------------------------------------
 unify f e t1 t2
   = case runCM0 dummySpan (unify1 f e emptySubst t1 t2) of
@@ -1001,7 +1006,7 @@ unify f e t1 t2
       Right su -> Just su
 
 --------------------------------------------------------------------------------
-unifyTo1 :: Env -> [Sort s] -> Maybe (Sort s)
+unifyTo1 :: Env s -> [Sort s] -> Maybe (Sort s)
 --------------------------------------------------------------------------------
 unifyTo1 f ts  
   = case runCM0 dummySpan (unifyTo1M f ts) of
@@ -1010,19 +1015,19 @@ unifyTo1 f ts
 
 
 --------------------------------------------------------------------------------
-unifyTo1M :: Env -> [Sort s] -> CheckM (Sort s) 
+unifyTo1M :: forall s. Env s -> [Sort s] -> CheckM (Sort s) 
 --------------------------------------------------------------------------------
 unifyTo1M _ []     = panic "unifyTo1: empty list"
 unifyTo1M f (t0:ts) = snd <$> foldM step (emptySubst, t0) ts
   where 
-    step :: (TVSubst, Sort s) -> Sort s -> CheckM (TVSubst, Sort s)
+    step :: (TVSubst s, Sort s) -> Sort s -> CheckM (TVSubst s, Sort s)
     step (su, t) t' = do 
-      su' <- unify1 f Nothing su t t' 
+      su' <- unify1 @s f Nothing su t t' 
       return (su', apply su' t)
 
 
 --------------------------------------------------------------------------------
-unifySorts :: Sort s -> Sort s -> Maybe TVSubst
+unifySorts :: (Eq s) => Sort s -> Sort s -> Maybe (TVSubst s)
 --------------------------------------------------------------------------------
 unifySorts   = unifyFast False emptyEnv
   where
@@ -1032,7 +1037,7 @@ unifySorts   = unifyFast False emptyEnv
 --------------------------------------------------------------------------------
 -- | Fast Unification; `unifyFast True` is just equality
 --------------------------------------------------------------------------------
-unifyFast :: Bool -> Env -> Sort s -> Sort s -> Maybe TVSubst
+unifyFast :: (Eq s) => Bool -> Env s -> Sort s -> Sort s -> Maybe (TVSubst s)
 --------------------------------------------------------------------------------
 unifyFast False f = unify f Nothing
 unifyFast True  _ = uMono
@@ -1044,16 +1049,16 @@ unifyFast True  _ = uMono
 
 
 --------------------------------------------------------------------------------
-unifys :: Env -> Maybe (Expr s) -> [Sort s] -> [Sort s] -> CheckM TVSubst
+unifys :: Env s -> Maybe (Expr s) -> [Sort s] -> [Sort s] -> CheckM (TVSubst s)
 --------------------------------------------------------------------------------
 unifys f e = unifyMany f e emptySubst
 
-unifyMany :: Env -> Maybe (Expr s) -> TVSubst -> [Sort s] -> [Sort s] -> CheckM TVSubst
+unifyMany :: Env s -> Maybe (Expr s) -> TVSubst s -> [Sort s] -> [Sort s] -> CheckM (TVSubst s)
 unifyMany f e θ ts ts'
   | length ts == length ts' = foldM (uncurry . unify1 f e) θ $ zip ts ts'
   | otherwise               = throwErrorAt (errUnifyMany ts ts')
 
-unify1 :: Env -> Maybe (Expr s) -> TVSubst -> Sort s -> Sort s -> CheckM TVSubst
+unify1 :: (Eq s) => Env s -> Maybe (Expr s) -> TVSubst s -> Sort s -> Sort s -> CheckM (TVSubst s)
 unify1 f e !θ (FVar !i) !t
   = unifyVar f e θ i t
 unify1 f e !θ !t (FVar !i)
@@ -1135,7 +1140,7 @@ instantiate !t = go t
     go !t =
       return t
 
-unifyVar :: Env -> Maybe (Expr s) -> TVSubst -> Int -> Sort s -> CheckM TVSubst
+unifyVar :: (Eq s) => Env s -> Maybe (Expr s) -> TVSubst s -> Int -> Sort s -> CheckM (TVSubst s)
 unifyVar _ _ θ !i !t@(FVar !j)
   = case lookupVar i θ of
       Just !t'      -> if t == t' then return θ else return (updateVar j t' θ)
@@ -1150,14 +1155,14 @@ unifyVar f e θ !i !t
 --------------------------------------------------------------------------------
 -- | Applying a Type Substitution ----------------------------------------------
 --------------------------------------------------------------------------------
-apply :: TVSubst -> Sort s -> Sort s
+apply :: TVSubst s -> Sort s -> Sort s
 --------------------------------------------------------------------------------
 apply θ          = Vis.mapSort f
   where
     f t@(FVar i) = fromMaybe t (lookupVar i θ)
     f t          = t
 
-applyExpr :: Maybe TVSubst -> Expr s -> Expr s
+applyExpr :: Maybe (TVSubst s) -> Expr s -> Expr s
 applyExpr Nothing e  = e
 applyExpr (Just θ) e = Vis.mapExpr f e
   where
@@ -1177,7 +1182,7 @@ _applyCoercion a t = Vis.mapSort f
 --------------------------------------------------------------------------------
 -- | Deconstruct a function-sort -----------------------------------------------
 --------------------------------------------------------------------------------
-checkFunSort :: Sort s -> CheckM (Sort s, Sort s, TVSubst)
+checkFunSort :: Sort s -> CheckM (Sort s, Sort s, TVSubst s)
 checkFunSort (FAbs _ t)    = checkFunSort t
 checkFunSort (FFunc t1 t2) = return (t1, t2, emptySubst)
 checkFunSort (FVar i)      = do j <- fresh
@@ -1191,20 +1196,20 @@ checkFunSort t             = throwErrorAt (errNonFunction 1 t)
 
 newtype TVSubst s = Th (M.HashMap Int (Sort s)) deriving (Show)
 
-instance Semigroup TVSubst where
+instance Semigroup (TVSubst s) where
   (Th s1) <> (Th s2) = Th (s1 <> s2)
 
-instance Monoid TVSubst where
+instance Monoid (TVSubst s) where
   mempty  = Th mempty
   mappend = (<>)
 
-lookupVar :: Int -> TVSubst -> Maybe (Sort s)
+lookupVar :: Int -> (TVSubst s) -> Maybe (Sort s)
 lookupVar i (Th m)   = M.lookup i m
 
-updateVar :: Int -> Sort s -> TVSubst -> TVSubst
+updateVar :: Int -> Sort s -> TVSubst s -> TVSubst s
 updateVar !i !t (Th m) = Th (M.insert i t m)
 
-emptySubst :: TVSubst
+emptySubst :: TVSubst s
 emptySubst = Th M.empty
 
 --------------------------------------------------------------------------------

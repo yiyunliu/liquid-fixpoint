@@ -985,10 +985,10 @@ freshIntP = do n <- getState
 ---------------------------------------------------------------------
 -- Standalone SMTLIB2 commands --------------------------------------
 ---------------------------------------------------------------------
-commandsP :: Parser [Command]
+commandsP :: Parser [Command s]
 commandsP = sepBy commandP semi
 
-commandP :: Parser Command
+commandP :: Parser (Command s)
 commandP
   =  (reserved "var"      >> cmdVarP)
  <|> (reserved "push"     >> return Push)
@@ -997,7 +997,7 @@ commandP
  <|> (reserved "assert"   >> (Assert Nothing <$> predP))
  <|> (reserved "distinct" >> (Distinct <$> brackets (sepBy exprP comma)))
 
-cmdVarP :: Parser Command
+cmdVarP :: Parser (Command s)
 cmdVarP = error "UNIMPLEMENTED: cmdVarP"
 -- do
   -- x <- bindP
@@ -1035,10 +1035,10 @@ instance Inputable (FInfo ()) where
 instance Inputable (FInfoWithOpts ()) where
   rr' = {-# SCC "fInfoWithOptsP" #-} doParse' fInfoOptP
 
-instance Inputable Command where
+instance Inputable (Command s) where
   rr' = doParse' commandP
 
-instance Inputable [Command] where
+instance Inputable [Command s] where
   rr' = doParse' commandsP
 
 {-
