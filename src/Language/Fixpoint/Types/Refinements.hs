@@ -286,8 +286,8 @@ data Expr s = ESym !SymConst
             | PIff   !(Expr s) !(Expr s)
             | PAtom  !Brel  !(Expr s) !(Expr s)
             | PKVar  !(KVar s) !(Subst s)
-            | PAll   ![(FixSymbol, Sort s)] !(Expr s)
-            | PExist ![(FixSymbol, Sort s)] !(Expr s)
+            | PAll   ![(Symbol s, Sort s)] !(Expr s)
+            | PExist ![(Symbol s, Sort s)] !(Expr s)
             | PGrad  !(KVar s) !(Subst s) !GradInfo !(Expr s)
             | ECoerc !(Sort s) !(Sort s) !(Expr s)  
             deriving (Eq, Show, Data, Typeable, Generic)
@@ -620,7 +620,7 @@ instance (Eq s, Fixpoint s, PPrint s, Ord s) => PPrint (Expr s) where
   pprintPrec _ _ (ETAbs e s)     = "ETAbs" <+> toFix e <+> toFix s
   pprintPrec z k (PGrad x _ _ e) = pprintPrec z k e <+> "&&" <+> toFix x -- "??"
 
-pprintQuant :: (Eq s, Fixpoint s, PPrint s, Ord s) => Tidy -> Doc -> [(FixSymbol, Sort s)] -> Expr s -> Doc
+pprintQuant :: (Eq s, Fixpoint s, PPrint s, Ord s) => Tidy -> Doc -> [(Symbol s, Sort s)] -> Expr s -> Doc
 pprintQuant k d xts p = (d <+> toFix xts)
                         $+$
                         ("  ." <+> pprintTidy k p)
@@ -729,7 +729,7 @@ pOr           = simplify . POr
 pIte :: (Eq s, Fixpoint s, Ord s) => Pred s -> Expr s -> Expr s -> Expr s
 pIte p1 p2 p3 = pAnd [p1 `PImp` p2, (PNot p1) `PImp` p3]
 
-pExist :: [(FixSymbol, Sort s)] -> Pred s -> Pred s
+pExist :: [(Symbol s, Sort s)] -> Pred s -> Pred s
 pExist []  p = p
 pExist xts p = PExist xts p
 

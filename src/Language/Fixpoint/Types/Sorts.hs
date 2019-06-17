@@ -102,7 +102,7 @@ deriving instance (Show s) => Show (FTycon s)
 -- instance Show (FTycon s) where
 --   show (TC s _) = show (val s)
 
-instance Symbolic s => Symbolic (FTycon s) where
+instance Symbolic (FTycon s) where
   symbol (TC s _) = symbol s
 
 instance Eq s => Eq (FTycon s) where
@@ -254,13 +254,13 @@ data DataDecl s = DDecl
   , ddCtors :: [DataCtor s]         -- ^ Datatype Ctors
   } deriving (Eq, Ord, Show, Data, Typeable, Generic)
 
-instance Symbolic s => Symbolic (DataDecl s) where
+instance Symbolic (DataDecl s) where
   symbol = symbol . ddTyCon
 
-instance Symbolic s => Symbolic (DataField s) where
+instance Symbolic (DataField s) where
   symbol = symbol . val . dfName
 
-instance Symbolic s => Symbolic (DataCtor s) where
+instance Symbolic (DataCtor s) where
   symbol = symbol . val . dcName
 
 

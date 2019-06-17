@@ -242,10 +242,10 @@ stringPreamble _
 smt2Symbol :: (Eq s, Hashable s) => SymEnv s -> Symbol s -> Maybe Builder.Builder
 smt2Symbol env x = Builder.fromLazyText . tsRaw <$> symEnvTheory x env
 
-instance (Eq s, Symbolic s) => SMTLIB2 (SmtSort s) where
+instance (Eq s) => SMTLIB2 (SmtSort s) where
   smt2 _ = smt2SmtSort
 
-smt2SmtSort :: (Eq s, Symbolic s) => SmtSort s -> Builder.Builder
+smt2SmtSort :: (Eq s) => SmtSort s -> Builder.Builder
 smt2SmtSort SInt         = "Int"
 smt2SmtSort SReal        = "Real"
 smt2SmtSort SBool        = "Bool"
@@ -258,7 +258,7 @@ smt2SmtSort (SData c []) = symbolBuilder c
 smt2SmtSort (SData c ts) = build "({} {})" (symbolBuilder c        , smt2SmtSorts ts)
 -- smt2SmtSort (SApp ts)    = build "({} {})" (symbolBuilder tyAppName, smt2SmtSorts ts)
 
-smt2SmtSorts :: (Eq s, Symbolic s) => [SmtSort s] -> Builder.Builder
+smt2SmtSorts :: (Eq s) => [SmtSort s] -> Builder.Builder
 smt2SmtSorts = buildMany . fmap smt2SmtSort
 
 type VarAs s = SymEnv s -> Symbol s -> Sort s -> Builder.Builder
@@ -325,7 +325,7 @@ preamble u _    = smtlibPreamble u
 
 -- | `theorySymbols` contains the list of ALL SMT symbols with interpretations,
 --   i.e. which are given via `define-fun` (as opposed to `declare-fun`)
-theorySymbols :: (Symbolic s, Eq s, Hashable s) => [DataDecl s] -> SEnv s (TheorySymbol s) -- M.HashMap FixSymbol (TheorySymbol s)
+theorySymbols :: (Eq s, Hashable s) => [DataDecl s] -> SEnv s (TheorySymbol s) -- M.HashMap FixSymbol (TheorySymbol s)
 theorySymbols ds = fromListSEnv $  -- SHIFTLAM uninterpSymbols
                                   interpSymbols
                                ++ concatMap dataDeclSymbols ds
@@ -390,7 +390,7 @@ axiomLiterals lts = catMaybes [ lenAxiom l <$> litLen (symbol  l) | (l, t) <- lt
 --------------------------------------------------------------------------------
 -- | Constructors, Selectors and Tests from 'DataDecl'arations.
 --------------------------------------------------------------------------------
-dataDeclSymbols :: (Eq s, Symbolic s) => DataDecl s -> [(Symbol s, TheorySymbol s)]
+dataDeclSymbols :: (Eq s) => DataDecl s -> [(Symbol s, TheorySymbol s)]
 dataDeclSymbols d = ctorSymbols d ++ testSymbols d ++ selectSymbols d
 
 -- | 'selfSort d' returns the _self-sort_ of 'd' :: 'DataDecl'.
@@ -408,11 +408,11 @@ fldSort d (FTC c)
 fldSort _ s        = s
 
 --------------------------------------------------------------------------------
-ctorSymbols :: (Eq s, Symbolic s) => DataDecl s -> [(Symbol s, TheorySymbol s)]
+ctorSymbols :: (Eq s) => DataDecl s -> [(Symbol s, TheorySymbol s)]
 --------------------------------------------------------------------------------
 ctorSymbols d = ctorSort d <$> ddCtors d
 
-ctorSort :: (Symbolic s, Eq s) => DataDecl s -> DataCtor s -> (Symbol s, TheorySymbol s)
+ctorSort :: (Eq s) => DataDecl s -> DataCtor s -> (Symbol s, TheorySymbol s)
 ctorSort d ctor = (FS x, Thy (FS x) (symbolRaw (FS x)) t Ctor)
   where
     x           = symbol ctor
@@ -421,13 +421,13 @@ ctorSort d ctor = (FS x, Thy (FS x) (symbolRaw (FS x)) t Ctor)
     ts          = fldSort d . dfSort <$> dcFields ctor
 
 --------------------------------------------------------------------------------
-testSymbols :: (Symbolic s, Eq s) => DataDecl s -> [(Symbol s, TheorySymbol s)]
+testSymbols :: (Eq s) => DataDecl s -> [(Symbol s, TheorySymbol s)]
 --------------------------------------------------------------------------------
 testSymbols d = testTheory t . FS . symbol <$> ddCtors d
   where
     t         = mkFFunc (ddVars d) [selfSort d, boolSort]
 
-testTheory :: (Symbolic s) => Sort s -> Symbol s -> (Symbol s, TheorySymbol s)
+testTheory :: Sort s -> Symbol s -> (Symbol s, TheorySymbol s)
 testTheory t x = (FS sx, Thy (FS sx) raw t Test)
   where
     sx         = testSymbol (symbol x)
@@ -437,7 +437,7 @@ symbolRaw :: Symbol s -> T.Text
 symbolRaw = T.fromStrict . symbolSafeText . symbol
 
 --------------------------------------------------------------------------------
-selectSymbols :: (Symbolic s, Eq s) => DataDecl s -> [(Symbol s, TheorySymbol s)]
+selectSymbols :: (Eq s) => DataDecl s -> [(Symbol s, TheorySymbol s)]
 --------------------------------------------------------------------------------
 selectSymbols d = theorify <$> concatMap (ctorSelectors d) (ddCtors d)
 
@@ -445,10 +445,10 @@ selectSymbols d = theorify <$> concatMap (ctorSelectors d) (ddCtors d)
 theorify :: (Symbol s, Sort s) -> (Symbol s, TheorySymbol s)
 theorify (x, t) = (x, Thy x (symbolRaw x) t Field)
 
-ctorSelectors :: (Symbolic s, Eq s) => DataDecl s -> DataCtor s -> [(Symbol s, Sort s)]
+ctorSelectors :: (Eq s) => DataDecl s -> DataCtor s -> [(Symbol s, Sort s)]
 ctorSelectors d ctor = fieldSelector d <$> dcFields ctor
 
-fieldSelector :: (Symbolic s, Eq s) => DataDecl s -> DataField s -> (Symbol s, Sort s)
+fieldSelector :: (Eq s) => DataDecl s -> DataField s -> (Symbol s, Sort s)
 fieldSelector d f = (FS $ symbol f, mkFFunc n [selfSort d, ft])
   where
     ft            = fldSort d $ dfSort f

@@ -127,14 +127,14 @@ update1 s (k, qs) = (change, updateK k qs s)
 -- | The `Solution` data type --------------------------------------------------
 --------------------------------------------------------------------------------
 type Solution  = Sol () QBind
-type GSolution = Sol (((Symbol s, Sort s), Expr), GBind) QBind
+type GSolution s = Sol (((Symbol s, Sort s), Expr), GBind) QBind
 newtype QBind  = QB [EQual]   deriving (Show, Data, Typeable, Generic, Eq)
 newtype GBind  = GB [[EQual]] deriving (Show, Data, Typeable, Generic)
 
-emptyGMap :: GSolution -> GSolution
+emptyGMap :: GSolution s -> GSolution s
 emptyGMap sol = mapGMap sol (\(x,_) -> (x, GB []))
 
-updateGMapWithKey :: [(KVar s, QBind)] -> GSolution -> GSolution
+updateGMapWithKey :: [(KVar s, QBind)] -> GSolution s -> GSolution s
 updateGMapWithKey kqs sol = sol {gMap =  foldl (\m (k, (QB eq)) -> M.adjust (\(x, GB eqs) -> (x, GB (if eq `elem` eqs then eqs else eq:eqs))) k m) (gMap sol) kqs }
 
 qb :: [EQual] -> QBind
@@ -275,7 +275,7 @@ result s = sMap $ (pAnd . fmap eqPred . qbEQuals) <$> s
 
 
 --------------------------------------------------------------------------------
-resultGradual :: GSolution -> M.HashMap (KVar s) (Expr, [Expr])
+resultGradual :: GSolution s -> M.HashMap (KVar s) (Expr, [Expr])
 --------------------------------------------------------------------------------
 resultGradual s = fmap go' (gMap s)
   where
@@ -323,7 +323,7 @@ lookupQBind s k = {- tracepp _msg $ -} Mb.fromMaybe (QB []) (lookupElab s k)
     _msg        = "lookupQB: k = " ++ show k
 
 --------------------------------------------------------------------------------
-glookup :: GSolution -> KVar s -> Either Hyp (Either QBind (((Symbol s, Sort s), Expr), GBind))
+glookup :: GSolution s -> KVar s -> Either Hyp (Either QBind (((Symbol s, Sort s), Expr), GBind))
 --------------------------------------------------------------------------------
 glookup s k
   | Just gbs <- M.lookup k (gMap s)

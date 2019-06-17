@@ -174,11 +174,11 @@ instance (Hashable s, Ord s, Fixpoint s, Eq s, Show s) => Subable (Expr s) s whe
 removeSubst :: (Eq s, Hashable s) => Subst s -> Symbol s -> Subst s
 removeSubst (Su su) x = Su $ M.delete x su
 
-disjoint :: forall s. (Ord s, Show s, Fixpoint s, Eq s, Hashable s) => Subst s -> [(FixSymbol, Sort s)] -> Bool
+disjoint :: forall s. (Ord s, Show s, Fixpoint s, Eq s, Hashable s) => Subst s -> [(Symbol s, Sort s)] -> Bool
 disjoint (Su su) bs = S.null $ suSyms `S.intersection` bsSyms
   where
     suSyms = S.fromList $ syms @[Expr s] @s (M.elems su) ++ syms @_ @s (M.keys su)
-    bsSyms = S.fromList $ syms @[Symbol s] @s $ FS . fst <$> bs
+    bsSyms = S.fromList $ syms @[Symbol s] @s $ fst <$> bs
 
 instance (Ord s, Eq s, Fixpoint s) => Semigroup (Expr s) where
   p <> q = pAnd [p, q]
@@ -336,7 +336,7 @@ exprSymbols = S.toList . go
     go (PImp p1 p2)       = gos [p1, p2]
     go (PAtom _ e1 e2)    = gos [e1, e2] 
     go (PKVar _ (Su su))  = S.fromList $ syms @_ @s $ M.elems su
-    go (PAll xts p)       = go p `S.difference` S.fromList (FS . fst <$> xts) 
-    go (PExist xts p)     = go p `S.difference` S.fromList (FS . fst <$> xts) 
+    go (PAll xts p)       = go p `S.difference` S.fromList (fst <$> xts) 
+    go (PExist xts p)     = go p `S.difference` S.fromList (fst <$> xts) 
     go _                  = S.empty 
 

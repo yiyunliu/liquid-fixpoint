@@ -151,7 +151,7 @@ solveGradual cfg fi = do
 solveGradual_ :: (NFData a, F.Fixpoint a)
        => Config
        -> F.SInfo s a
-       -> Sol.GSolution
+       -> Sol.GSolution s
        -> S.HashSet (F.KVar s)
        -> W.Worklist a
        -> SolveM (F.Result (Integer, a), Stats)
@@ -165,14 +165,14 @@ solveGradual_ cfg fi s0 ks wkl = do
   let res' = {-# SCC "sol-tidy"   #-} tidyResult res
   return $!! (res', st)
 
-filterLocal :: Sol.GSolution -> SolveM Sol.GSolution
+filterLocal :: Sol.GSolution s -> SolveM Sol.GSolution
 filterLocal sol = do
   gs' <- mapM (initGBind sol) gs
   return $ Sol.updateGMap sol $ M.fromList gs'
   where
     gs = M.toList $ Sol.gMap sol
 
-initGBind :: Sol.GSolution -> (F.KVar s, (((F.Symbol s, F.Sort s), F.Expr), Sol.GBind)) -> SolveM (F.KVar s, (((F.Symbol s, F.Sort s), F.Expr), Sol.GBind))
+initGBind :: Sol.GSolution s -> (F.KVar s, (((F.Symbol s, F.Sort s), F.Expr), Sol.GBind)) -> SolveM (F.KVar s, (((F.Symbol s, F.Sort s), F.Expr), Sol.GBind))
 initGBind sol (k, (e, gb)) = do
    elems0  <- filterM (isLocal e) (Sol.gbEquals gb)
    elems   <- sortEquals elems0
@@ -221,7 +221,7 @@ initGBind sol (k, (e, gb)) = do
 
 
 --------------------------------------------------------------------------------
-refine :: Sol.GSolution -> W.Worklist a -> SolveM Sol.GSolution
+refine :: Sol.GSolution s -> W.Worklist a -> SolveM Sol.GSolution
 --------------------------------------------------------------------------------
 refine s w
   | Just (c, w', newScc, rnk) <- W.pop w = do
@@ -239,7 +239,7 @@ refine s w
 ---------------------------------------------------------------------------
 -- | Single Step Refinement -----------------------------------------------
 ---------------------------------------------------------------------------
-refineC :: Int -> Sol.GSolution -> F.SimpC s a -> SolveM (Bool, Sol.GSolution)
+refineC :: Int -> Sol.GSolution s -> F.SimpC s a -> SolveM (Bool, Sol.GSolution s)
 ---------------------------------------------------------------------------
 refineC _i s c
   | null rhs  = return (False, s)
@@ -256,7 +256,7 @@ refineC _i s c
                      _i (show _ci) (showpp ks) (length xs) (length ys)
 
 
-rhsCands :: Sol.GSolution -> F.SimpC s a -> ([F.KVar s], Sol.Cand (F.KVar s, Sol.EQual))
+rhsCands :: Sol.GSolution s -> F.SimpC s a -> ([F.KVar s], Sol.Cand (F.KVar s, Sol.EQual))
 rhsCands s c    = (fst <$> ks, kqs)
   where
     kqs         = [ (p, (k, q)) | (k, su) <- ks, (p, q)  <- cnd k su ]
@@ -267,7 +267,7 @@ rhsCands s c    = (fst <$> ks, kqs)
 --------------------------------------------------------------------------------
 -- | Gradual Convert Solution into Result ----------------------------------------------
 --------------------------------------------------------------------------------
-result :: (F.Fixpoint a) => Config -> W.Worklist a -> Sol.GSolution
+result :: (F.Fixpoint a) => Config -> W.Worklist a -> Sol.GSolution s
        -> SolveM (F.Result (Integer, a))
 --------------------------------------------------------------------------------
 result cfg wkl s = do
@@ -278,24 +278,24 @@ result cfg wkl s = do
   where
     ci c = (F.subcId c, F.sinfo c)
 
-result_ :: Fixpoint a =>  W.Worklist a -> Sol.GSolution -> SolveM (F.FixResult (F.SimpC s a))
+result_ :: Fixpoint a =>  W.Worklist a -> Sol.GSolution s -> SolveM (F.FixResult (F.SimpC s a))
 result_  w s = res <$> filterM (isUnsat s) cs
   where
     cs       = W.unsatCandidates w
     res []   = F.Safe
     res cs'  = F.Unsafe cs'
 
-solResult :: Config -> Sol.GSolution -> SolveM (M.HashMap (F.KVar s) F.Expr)
+solResult :: Config -> Sol.GSolution s -> SolveM (M.HashMap (F.KVar s) F.Expr)
 solResult cfg
   = minimizeResult cfg . Sol.result
 
 
-solResultGradual :: W.Worklist a -> Config -> Sol.GSolution -> SolveM F.GFixSolution
+solResultGradual :: W.Worklist a -> Config -> Sol.GSolution s -> SolveM F.GFixSolution
 solResultGradual w _cfg sol
   = F.toGFixSol . Sol.resultGradual <$> updateGradualSolution (W.unsatCandidates w) sol
 
 --------------------------------------------------------------------------------
-updateGradualSolution :: [F.SimpC s a] -> Sol.GSolution -> SolveM (Sol.GSolution)
+updateGradualSolution :: [F.SimpC s a] -> Sol.GSolution s -> SolveM (Sol.GSolution s)
 --------------------------------------------------------------------------------
 updateGradualSolution cs sol = foldM f (Sol.emptyGMap sol) cs
   where
@@ -315,7 +315,7 @@ firstValid rhs ((y,lhs):xs) = do
 
 
 --------------------------------------------------------------------------------
-isUnsat :: Fixpoint a => Sol.GSolution -> F.SimpC s a -> SolveM Bool
+isUnsat :: Fixpoint a => Sol.GSolution s -> F.SimpC s a -> SolveM Bool
 --------------------------------------------------------------------------------
 isUnsat s c = do
   -- lift   $ printf "isUnsat %s" (show (F.subcId c))
