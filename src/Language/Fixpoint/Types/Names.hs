@@ -22,6 +22,7 @@ module Language.Fixpoint.Types.Names (
   -- * Symbols
     Symbol (..)
   , FixSymbol
+  , AbstractSymbol (..)
   , Symbolic (..)
   , LocSymbol
   , LocText

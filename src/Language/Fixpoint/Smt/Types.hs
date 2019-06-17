@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
@@ -100,8 +101,8 @@ data Context s = Ctx
 -- | AST Conversion: Types that can be serialized ------------------------------
 --------------------------------------------------------------------------------
 
-class SMTLIB2 a where
+class SMTLIB2 s a where
   smt2 :: SymEnv s -> a -> LT.Builder
 
-runSmt2 :: (SMTLIB2 a) => SymEnv s -> a -> LT.Builder
+runSmt2 :: (SMTLIB2 s a) => SymEnv s -> a -> LT.Builder
 runSmt2 = smt2

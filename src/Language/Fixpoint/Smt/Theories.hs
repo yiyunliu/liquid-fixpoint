@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE TypeApplications          #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE FlexibleContexts          #-}
@@ -242,7 +243,7 @@ stringPreamble _
 smt2Symbol :: (Eq s, Hashable s) => SymEnv s -> Symbol s -> Maybe Builder.Builder
 smt2Symbol env x = Builder.fromLazyText . tsRaw <$> symEnvTheory x env
 
-instance (Eq s) => SMTLIB2 (SmtSort s) where
+instance (Eq s) => SMTLIB2 s (SmtSort s) where
   smt2 _ = smt2SmtSort
 
 smt2SmtSort :: (Eq s) => SmtSort s -> Builder.Builder

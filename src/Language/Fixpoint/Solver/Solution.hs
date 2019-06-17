@@ -250,7 +250,7 @@ applyKVar g s ksu = case Sol.lookup s (F.ksuKVar ksu) of
   where
     msg     = "applyKVar: " ++ show (ceCid g)
 
-hypPred :: CombinedEnv -> Sol.Sol a Sol.QBind -> F.KVSub s -> Sol.Hyp  -> ExprInfo
+hypPred :: CombinedEnv -> Sol.Sol a Sol.QBind -> F.KVSub s -> Sol.Hyp s  -> ExprInfo
 hypPred g s ksu hyp = F.pOr *** mconcatPlus $ unzip $ cubePred g s ksu <$> hyp
 
 {- | `cubePred g s k su c` returns the predicate for

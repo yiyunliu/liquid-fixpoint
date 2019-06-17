@@ -116,7 +116,7 @@ runCommands cmds
        return zs
 -}
 
-checkValidWithContext :: Context -> [(Symbol s, Sort s)] -> Expr s -> Expr s -> IO Bool
+checkValidWithContext :: Context s -> [(Symbol s, Sort s)] -> Expr s -> Expr s -> IO Bool
 checkValidWithContext me xts p q =
   smtBracket me "checkValidWithContext" $
     checkValid' me xts p q

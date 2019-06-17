@@ -73,11 +73,11 @@ kIndex si  = group [(k, i) | (i, c) <- iCs, k <- rkvars c]
     iCs    = M.toList (cm si)
     rkvars = kvars . crhs
 
-nonCutHyps :: SInfo s a -> KIndex -> S.HashSet (KVar s) -> [(KVar s, Sol.Hyp)]
+nonCutHyps :: SInfo s a -> KIndex -> S.HashSet (KVar s) -> [(KVar s, Sol.Hyp s)]
 nonCutHyps si kI nKs = [ (k, nonCutHyp kI si k) | k <- S.toList nKs ]
 
 
-nonCutHyp  :: KIndex -> SInfo s a -> KVar s -> Sol.Hyp
+nonCutHyp  :: KIndex -> SInfo s a -> KVar s -> Sol.Hyp s
 nonCutHyp kI si k = nonCutCube <$> cs
   where
     cs            = getSubC   si <$> M.lookupDefault [] k kI

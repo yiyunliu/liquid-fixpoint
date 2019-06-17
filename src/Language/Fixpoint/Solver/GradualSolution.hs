@@ -47,7 +47,7 @@ refineG fi qs genv w = (k, (F.gwInfo w, Sol.qbExprs qb))
   where 
     (k, qb) = refine fi qs genv w 
 
-refine :: F.SInfo s a -> [F.Qualifier s] -> F.SEnv s (F.Sort s) -> F.WfC s a -> (F.KVar s, Sol.QBind)
+refine :: F.SInfo s a -> [F.Qualifier s] -> F.SEnv s (F.Sort s) -> F.WfC s a -> (F.KVar s, Sol.QBind s)
 refine fi qs genv w = refineK (allowHOquals fi) env qs $ F.wrft w
   where
     env             = wenv <> genv
