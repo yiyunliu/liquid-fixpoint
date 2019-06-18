@@ -62,7 +62,7 @@ import           Control.Exception.Base (bracket)
 type SolveM = StateT SolverState IO
 
 data SolverState = SS 
-  { ssCtx     :: !Context          -- ^ SMT Solver Context
+  { ssCtx     :: !(Context s)          -- ^ SMT Solver Context
   , ssBinds   :: !F.BindEnv        -- ^ All variables and types
   , ssStats   :: !Stats            -- ^ Solver Statistics
   }
@@ -134,10 +134,10 @@ incChck, incVald :: Int -> SolveM ()
 incChck n = modifyStats $ \s -> s {numChck = n + numChck s}
 incVald n = modifyStats $ \s -> s {numVald = n + numVald s}
 
-withContext :: (Context -> IO a) -> SolveM a
+withContext :: (Context s -> IO a) -> SolveM a
 withContext k = (lift . k) =<< getContext
 
-getContext :: SolveM Context
+getContext :: SolveM (Context s)
 getContext = ssCtx <$> get
 
 modifyStats :: (Stats -> Stats) -> SolveM ()
@@ -187,7 +187,7 @@ filterValid sp p qs = do
   incVald (length qs')
   return qs'
 
-filterValid_ :: F.SrcSpan -> F.Expr s -> F.Cand a -> Context -> IO [a]
+filterValid_ :: F.SrcSpan -> F.Expr s -> F.Cand a -> Context s -> IO [a]
 filterValid_ sp p qs me = catMaybes <$> do
   smtAssert me p
   forM qs $ \(q, x) ->
@@ -213,7 +213,7 @@ filterValidGradual p qs = do
   incVald (length qs')
   return qs'
 
-filterValidGradual_ :: [F.Expr] -> F.Cand a -> Context -> IO [a]
+filterValidGradual_ :: [F.Expr] -> F.Cand a -> Context s -> IO [a]
 filterValidGradual_ ps qs me
   = (map snd . fst) <$> foldM partitionCandidates ([], qs) ps
   where
@@ -223,7 +223,7 @@ filterValidGradual_ ps qs me
       let (valids, invalids) = (fst <$> valids', fst <$> invalids')
       return (ok ++ valids, invalids)
 
-filterValidOne_ :: F.Expr s -> F.Cand a -> Context -> IO [((F.Expr s, a), Bool)]
+filterValidOne_ :: F.Expr s -> F.Cand a -> Context s -> IO [((F.Expr s, a), Bool)]
 filterValidOne_ p qs me = do
   smtAssert me p
   forM qs $ \(q, x) ->

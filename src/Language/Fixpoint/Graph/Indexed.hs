@@ -41,53 +41,53 @@ data IKVGraph s = IKVGraph
   } deriving (Show)
 
 
-addLinks :: IKVGraph s -> [CEdge s] -> IKVGraph s
+addLinks :: (Hashable s, Eq s) => IKVGraph s -> [CEdge s] -> IKVGraph s
 addLinks = L.foldl' addLink
 
-addLink :: IKVGraph s -> CEdge s -> IKVGraph s
+addLink :: (Eq s, Hashable s) => IKVGraph s -> CEdge s -> IKVGraph s
 addLink g (u, v) = addSucc (u, v) . addPred (u, v) $ g
 
-delNodes :: IKVGraph s -> [CVertex s] -> IKVGraph s
+delNodes :: (Hashable s, Eq s) => IKVGraph s -> [CVertex s] -> IKVGraph s
 delNodes = L.foldl' delNode
 
-delNode :: IKVGraph s -> CVertex s -> IKVGraph s
+delNode :: (Eq s, Hashable s) => IKVGraph s -> CVertex s -> IKVGraph s
 delNode g v = delVtx v . txMany delSucc uvs . txMany delPred vws $ g
   where
     uvs     = [ (u, v) | u <- getPreds g v ]
     vws     = [ (v, w) | w <- getSuccs g v ]
 
-edgesIkvg :: [CEdge s] -> IKVGraph s
+edgesIkvg :: (Eq s, Hashable s) => [CEdge s] -> IKVGraph s
 edgesIkvg = addLinks empty
 
 ikvgEdges :: IKVGraph s -> [CEdge s]
 ikvgEdges g = [ (u, v) | (u, vs) <- M.toList (igSucc g), v <- S.toList vs]
 
-getSuccs :: IKVGraph s -> CVertex s -> [CVertex s]
+getSuccs :: (Hashable s, Eq s) => IKVGraph s -> CVertex s -> [CVertex s]
 getSuccs g u = S.toList $ M.lookupDefault S.empty u (igSucc g)
 
-getPreds :: IKVGraph s -> CVertex s -> [CVertex s]
+getPreds :: (Hashable s, Eq s) => IKVGraph s -> CVertex s -> [CVertex s]
 getPreds g v = S.toList $ M.lookupDefault S.empty v (igPred g)
 
 --------------------------------------------------------------------------------
 empty :: IKVGraph s
-empty = IKVGraph s M.empty M.empty
+empty = IKVGraph M.empty M.empty
 
 txMany :: (a -> b -> b) -> [a] -> b -> b
 txMany op es g = L.foldl' (flip op) g es
 
-addSucc :: CEdge s -> IKVGraph s -> IKVGraph s
+addSucc :: (Hashable s, Eq s) => CEdge s -> IKVGraph s -> IKVGraph s
 addSucc (u, v) g = g { igSucc = inserts u v (igSucc g) }
 
-addPred :: CEdge s -> IKVGraph s -> IKVGraph s
+addPred :: (Hashable s, Eq s) => CEdge s -> IKVGraph s -> IKVGraph s
 addPred (u, v) g = g { igPred = inserts v u (igPred g) }
 
-delSucc :: CEdge s -> IKVGraph s -> IKVGraph s
+delSucc :: (Hashable s, Eq s) => CEdge s -> IKVGraph s -> IKVGraph s
 delSucc (u, v) g = g { igSucc = removes u v (igSucc g)}
 
-delPred :: (CVertex s, CVertex s) -> IKVGraph s -> IKVGraph s
+delPred :: (Hashable s, Eq s) => (CVertex s, CVertex s) -> IKVGraph s -> IKVGraph s
 delPred (u, v) g = g { igPred = removes v u (igPred g)}
 
-delVtx :: CVertex s -> IKVGraph s -> IKVGraph s
+delVtx :: (Hashable s, Eq s) => CVertex s -> IKVGraph s -> IKVGraph s
 delVtx v g = g { igSucc = M.delete v (igSucc g) }
                { igPred = M.delete v (igPred g) }
 

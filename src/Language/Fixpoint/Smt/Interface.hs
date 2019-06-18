@@ -1,3 +1,6 @@
+{-# LANGUAGE TypeApplications          #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
+{-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE BangPatterns              #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
@@ -80,6 +83,7 @@ import           Control.Monad
 import           Control.Exception
 import           Data.Char
 import qualified Data.HashMap.Strict      as M
+import           Data.Hashable
 import           Data.Maybe              (fromMaybe)
 import           Data.Semigroup          (Semigroup (..))
 import qualified Data.Text                as T
@@ -116,19 +120,19 @@ runCommands cmds
        return zs
 -}
 
-checkValidWithContext :: Context s -> [(Symbol s, Sort s)] -> Expr s -> Expr s -> IO Bool
+checkValidWithContext :: (SMTLIB2 s s, Show s, Ord s, PPrint s, Fixpoint s, Hashable s) => Context s -> [(Symbol s, Sort s)] -> Expr s -> Expr s -> IO Bool
 checkValidWithContext me xts p q =
   smtBracket me "checkValidWithContext" $
     checkValid' me xts p q
 
 -- | type ClosedPred E = {v:Pred | subset (vars v) (keys E) }
 -- checkValid :: e:Env s -> ClosedPred e -> ClosedPred e -> IO Bool
-checkValid :: Config -> FilePath -> [(Symbol s, Sort s)] -> Expr s -> Expr s -> IO Bool
+checkValid :: (SMTLIB2 s s, Hashable s, Show s, Ord s, PPrint s, Fixpoint s) => Config -> FilePath -> [(Symbol s, Sort s)] -> Expr s -> Expr s -> IO Bool
 checkValid cfg f xts p q = do
   me <- makeContext cfg f
   checkValid' me xts p q
 
-checkValid' :: Context -> [(Symbol s, Sort s)] -> Expr s -> Expr s -> IO Bool
+checkValid' :: (SMTLIB2 s s, Hashable s, Fixpoint s, PPrint s, Ord s, Show s) => Context s -> [(Symbol s, Sort s)] -> Expr s -> Expr s -> IO Bool
 checkValid' me xts p q = do
   smtDecls me xts
   smtAssert me $ pAnd [p, PNot q]
@@ -138,7 +142,7 @@ checkValid' me xts p q = do
 --   (e.g. if you want to make MANY repeated Queries)
 
 -- checkValid :: e:Env s -> [ClosedPred e] -> IO [Bool]
-checkValids :: Config -> FilePath -> [(Symbol s, Sort s)] -> [Expr] -> IO [Bool]
+checkValids :: (Ord s, SMTLIB2 s s, Hashable s, Eq s, Fixpoint s, PPrint s, Show s) => Config -> FilePath -> [(Symbol s, Sort s)] -> [Expr s] -> IO [Bool]
 checkValids cfg f xts ps
   = do me <- makeContext cfg f
        smtDecls me xts
@@ -154,7 +158,7 @@ checkValids cfg f xts ps
 --------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
-command              :: Context -> Command s -> IO (Response s)
+command              :: (PPrint s, Fixpoint s, Ord s, SMTLIB2 s s, Hashable s, Show s) => Context s -> Command s -> IO (Response s)
 --------------------------------------------------------------------------------
 command me !cmd       = say cmd >> hear cmd
   where
@@ -165,10 +169,10 @@ command me !cmd       = say cmd >> hear cmd
     hear _            = return Ok
 
 
-smtWrite :: Context -> Raw -> IO ()
+smtWrite :: Context s -> Raw -> IO ()
 smtWrite me !s = smtWriteRaw me s
 
-smtRead :: Context -> IO (Response s)
+smtRead :: (Show s) => Context s -> IO (Response s)
 smtRead me = {-# SCC "smtRead" #-} do
   when (ctxVerbose me) $ LTIO.putStrLn "SMT READ"
   ln  <- smtReadRaw me
@@ -208,8 +212,8 @@ pairP = {-# SCC "pairP" #-}
      A.char ')'
      return (x,v)
 
-symbolP :: SmtParser Symbol s
-symbolP = {-# SCC "symbolP" #-} symbol <$> A.takeWhile1 (not . isSpace)
+symbolP :: SmtParser (Symbol s)
+symbolP = {-# SCC "symbolP" #-} FS . symbol <$> A.takeWhile1 (not . isSpace)
 
 valueP :: SmtParser T.Text
 valueP = {-# SCC "valueP" #-} negativeP
@@ -220,14 +224,14 @@ negativeP
   = do v <- A.char '(' *> A.takeWhile1 (/=')') <* A.char ')'
        return $ "(" <> v <> ")"
 
-smtWriteRaw      :: Context -> Raw -> IO ()
+smtWriteRaw      :: Context s -> Raw -> IO ()
 smtWriteRaw me !s = {-# SCC "smtWriteRaw" #-} do
   -- whenLoud $ do LTIO.appendFile debugFile (s <> "\n")
   --               LTIO.putStrLn ("CMD-RAW:" <> s <> ":CMD-RAW:DONE")
   hPutStrLnNow (ctxCout me) s
   maybe (return ()) (`hPutStrLnNow` s) (ctxLog me)
 
-smtReadRaw       :: Context -> IO T.Text
+smtReadRaw       :: Context s -> IO T.Text
 smtReadRaw me    = {-# SCC "smtReadRaw" #-} TIO.hGetLine (ctxCin me)
 
 hPutStrLnNow     :: Handle -> LT.Text -> IO ()
@@ -238,7 +242,7 @@ hPutStrLnNow h !s = LTIO.hPutStrLn h s >> hFlush h
 --------------------------------------------------------------------------
 
 --------------------------------------------------------------------------
-makeContext   :: Config -> FilePath -> IO Context
+makeContext   :: (Eq s, Hashable s) => Config -> FilePath -> IO (Context s)
 --------------------------------------------------------------------------
 makeContext cfg f
   = do me   <- makeProcess cfg
@@ -251,22 +255,22 @@ makeContext cfg f
     where
        smtFile = extFileName Smt2 f
 
-makeContextWithSEnv :: Config -> FilePath -> SymEnv s -> IO Context
+makeContextWithSEnv :: forall s. (SMTLIB2 s s, Show s, PPrint s, Fixpoint s, Hashable s, Ord s) => Config -> FilePath -> SymEnv s -> IO (Context s)
 makeContextWithSEnv cfg f env = do
-  ctx     <- makeContext cfg f
+  ctx     <- makeContext @s cfg f
   let ctx' = ctx {ctxSymEnv = env}
   declare ctx'
   return ctx'
   -- where msg = "makeContextWithSEnv" ++ show env
 
-makeContextNoLog :: Config -> IO Context
+makeContextNoLog :: (Eq s, Hashable s) => Config -> IO (Context s)
 makeContextNoLog cfg
   = do me  <- makeProcess cfg
        pre <- smtPreamble cfg (solver cfg) me
        mapM_ (smtWrite me) pre
        return me
 
-makeProcess :: Config -> IO Context
+makeProcess :: (Hashable s, Eq s) => Config -> IO (Context s)
 makeProcess cfg
   = do (hOut, hIn, _ ,pid) <- runInteractiveCommand $ smtCmd (solver cfg)
        loud <- isLoud
@@ -283,7 +287,7 @@ makeProcess cfg
                   }
 
 --------------------------------------------------------------------------
-cleanupContext :: Context -> IO ExitCode
+cleanupContext :: Context s -> IO ExitCode
 --------------------------------------------------------------------------
 cleanupContext (Ctx {..}) = do
   hCloseMe "ctxCin"  ctxCin
@@ -304,7 +308,7 @@ smtCmd Mathsat = "mathsat -input=smt2"
 smtCmd Cvc4    = "cvc4 --incremental -L smtlib2"
 
 -- DON'T REMOVE THIS! z3 changed the names of options between 4.3.1 and 4.3.2...
-smtPreamble :: Config -> SMTSolver -> Context -> IO [LT.Text]
+smtPreamble :: Config -> SMTSolver -> Context s -> IO [LT.Text]
 smtPreamble cfg Z3 me
   = do smtWrite me "(get-info :version)"
        v:_ <- T.words . (!!1) . T.splitOn "\"" <$> smtReadRaw me
@@ -339,14 +343,14 @@ versionGreaterEq _ _ = Misc.errorstar "Interface.versionGreater called with bad 
 -- | SMT Commands -----------------------------------------------------------
 -----------------------------------------------------------------------------
 
-smtPush, smtPop   :: Context -> IO ()
+smtPush, smtPop   :: (PPrint s, Fixpoint s, Ord s, SMTLIB2 s s, Hashable s, Show s) => Context s -> IO ()
 smtPush me        = interact' me Push
 smtPop me         = interact' me Pop
 
-smtDecls :: Context -> [(Symbol s, Sort s)] -> IO ()
+smtDecls :: (Show s, SMTLIB2 s s, Ord s, PPrint s, Eq s, Fixpoint s, Hashable s) => Context s -> [(Symbol s, Sort s)] -> IO ()
 smtDecls = mapM_ . uncurry . smtDecl
 
-smtDecl :: Context -> Symbol s -> Sort s -> IO ()
+smtDecl :: (Ord s, SMTLIB2 s s, Show s, Hashable s, Fixpoint s, Eq s, PPrint s) => Context s -> Symbol s -> Sort s -> IO ()
 smtDecl me x t = interact' me ({- notracepp msg $ -} Declare x ins' out')
   where
     ins'       = sortSmtSort False env <$> ins
@@ -355,10 +359,10 @@ smtDecl me x t = interact' me ({- notracepp msg $ -} Declare x ins' out')
     _msg        = "smtDecl: " ++ showpp (x, t, ins, out)
     env        = seData (ctxSymEnv me)
 
-smtFuncDecl :: Context -> Symbol s -> ([SmtSort s],  SmtSort s) -> IO ()
+smtFuncDecl :: (PPrint s, Fixpoint s, Ord s, SMTLIB2 s s, Hashable s, Show s) => Context s -> Symbol s -> ([SmtSort s],  SmtSort s) -> IO ()
 smtFuncDecl me x (ts, t) = interact' me (Declare x ts t)
 
-smtDataDecl :: Context -> [DataDecl s] -> IO ()
+smtDataDecl :: (PPrint s, Fixpoint s, Ord s, SMTLIB2 s s, Hashable s, Show s) => Context s -> [DataDecl s] -> IO ()
 smtDataDecl me ds = interact' me (DeclData ds)
 
 deconSort :: Sort s -> ([Sort s], Sort s)
@@ -367,42 +371,42 @@ deconSort t = case functionSort t of
                 Nothing            -> ([] , t  )
 
 -- hack now this is used only for checking gradual condition.
-smtCheckSat :: Context -> Expr s -> IO Bool
+smtCheckSat :: (Show s, Hashable s, SMTLIB2 s s, Ord s, Fixpoint s, PPrint s) => Context s -> Expr s -> IO Bool
 smtCheckSat me p
  = smtAssert me p >> (ans <$> command me CheckSat)
  where
    ans Sat = True
    ans _   = False
 
-smtAssert :: Context -> Expr s -> IO ()
+smtAssert :: (PPrint s, Fixpoint s, Ord s, SMTLIB2 s s, Hashable s, Show s) => Context s -> Expr s -> IO ()
 smtAssert me p  = interact' me (Assert Nothing p)
 
-smtAssertAxiom :: Context -> Triggered (Expr s) -> IO ()
+smtAssertAxiom :: (PPrint s, Fixpoint s, Ord s, SMTLIB2 s s, Hashable s, Show s) => Context s -> Triggered (Expr s) -> IO ()
 smtAssertAxiom me p  = interact' me (AssertAx p)
 
-smtDistinct :: Context -> [Expr] -> IO ()
+smtDistinct :: (PPrint s, Fixpoint s, Ord s, SMTLIB2 s s, Hashable s, Show s) => Context s -> [Expr s] -> IO ()
 smtDistinct me az = interact' me (Distinct az)
 
-smtCheckUnsat :: Context -> IO Bool
+smtCheckUnsat :: (Hashable s, SMTLIB2 s s, Ord s, Fixpoint s, PPrint s, Show s) => Context s -> IO Bool
 smtCheckUnsat me  = respSat <$> command me CheckSat
 
-smtBracketAt :: SrcSpan -> Context -> String -> IO a -> IO a
+smtBracketAt :: (PPrint s, Fixpoint s, Ord s, SMTLIB2 s s, Hashable s, Show s) => SrcSpan -> Context s -> String -> IO a -> IO a
 smtBracketAt sp x y z = smtBracket x y z `catch` dieAt sp
 
-smtBracket :: Context -> String -> IO a -> IO a
+smtBracket :: (Show s, Hashable s, SMTLIB2 s s, Ord s, Fixpoint s, PPrint s) => Context s -> String -> IO a -> IO a
 smtBracket me _msg a   = do
   smtPush me
   r <- a
   smtPop me
   return r
 
-respSat :: Response s -> Bool
+respSat :: (Show s) => Response s -> Bool
 respSat Unsat   = True
 respSat Sat     = False
 respSat Unknown = False
 respSat r       = die $ err dummySpan $ text ("crash: SMTLIB2 respSat = " ++ show r)
 
-interact' :: Context -> Command s -> IO ()
+interact' :: (Show s, Hashable s, SMTLIB2 s s, Ord s, Fixpoint s, PPrint s) => Context s -> Command s -> IO ()
 interact' me cmd  = void $ command me cmd
 
 
@@ -433,7 +437,7 @@ z3_options
 
 
 --------------------------------------------------------------------------------
-declare :: Context -> IO () -- SolveM ()
+declare :: (Show s, SMTLIB2 s s, PPrint s, Ord s, Hashable s, Eq s, Fixpoint s) => Context s -> IO () -- SolveM ()
 --------------------------------------------------------------------------------
 declare me = do
   forM_ dss    $           smtDataDecl me
@@ -455,20 +459,20 @@ declare me = do
     tx         = elaborate    "declare" env
     ats        = funcSortVars env
 
-symbolSorts :: F.SEnv s (F.Sort s) -> [(F.Symbol s, F.Sort s)]
+symbolSorts :: (Hashable s, Eq s) => F.SEnv s (F.Sort s) -> [(F.Symbol s, F.Sort s)]
 symbolSorts env = [(x, tx t) | (x, t) <- F.toListSEnv env ]
  where
   tx t@(FObj a) = fromMaybe t (F.lookupSEnv a env)
   tx t          = t
 
-dataDeclarations :: SymEnv s -> [[DataDecl s]]
+dataDeclarations :: (Hashable s, Ord s) => SymEnv s -> [[DataDecl s]]
 dataDeclarations = orderDeclarations . map snd . F.toListSEnv . F.seData
 
-funcSortVars :: F.SymEnv s -> [(F.Symbol s, ([F.SmtSort s], F.SmtSort s))]
-funcSortVars env  = [(var applyName  t       , appSort t) | t <- ts]
-                 ++ [(var coerceName t       , ([t1],t2)) | t@(t1, t2) <- ts]
-                 ++ [(var lambdaName t       , lamSort t) | t <- ts]
-                 ++ [(var (lamArgSymbol i) t , argSort t) | t@(_,F.SInt) <- ts, i <- [1..Thy.maxLamArg] ]
+funcSortVars :: (Fixpoint s, Eq s, Hashable s) => F.SymEnv s -> [(F.Symbol s, ([F.SmtSort s], F.SmtSort s))]
+funcSortVars env  = [(var (FS applyName)  t       , appSort t) | t <- ts]
+                 ++ [(var (FS coerceName) t       , ([t1],t2)) | t@(t1, t2) <- ts]
+                 ++ [(var (FS lambdaName) t       , lamSort t) | t <- ts]
+                 ++ [(var (FS (lamArgSymbol i)) t , argSort t) | t@(_,F.SInt) <- ts, i <- [1..Thy.maxLamArg] ]
   where
     var n         = F.symbolAtSmtName n env ()
     ts            = M.keys (F.seAppls env)
@@ -481,7 +485,7 @@ funcSortVars env  = [(var applyName  t       , appSort t) | t <- ts]
 --   1 = Theory-Declaration,
 --   2 = Query-Binder
 
-symKind :: F.SymEnv s -> F.Symbol s -> Int
+symKind :: (Eq s, Hashable s) => F.SymEnv s -> F.Symbol s -> Int
 symKind env x = case F.tsInterp <$> F.symEnvTheory x env of
                   Just F.Theory   -> 0
                   Just F.Ctor     -> 0
@@ -499,7 +503,7 @@ symKind env x = case F.tsInterp <$> F.symEnvTheory x env of
 --   (of each sort) that are *disequal* to each other, e.g. EQ, LT, GT,
 --   or string literals "cat", "dog", "mouse". These should only include
 --   non-function sorted values.
-distinctLiterals :: [(F.Symbol s, F.Sort s)] -> [[F.Expr]]
+distinctLiterals :: (Hashable s, Eq s) => [(F.Symbol s, F.Sort s)] -> [[F.Expr s]]
 distinctLiterals xts = [ es | (_, es) <- tess ]
    where
     tess             = Misc.groupList [(t, F.expr x) | (x, t) <- xts, notFun t]
@@ -510,17 +514,17 @@ distinctLiterals xts = [ es | (_, es) <- tess ]
 -- | 'orderDeclarations' sorts the data declarations such that each declarations
 --   only refers to preceding ones.
 --------------------------------------------------------------------------------
-orderDeclarations :: [F.DataDecl s] -> [[F.DataDecl s]]
+orderDeclarations :: (Ord s, Hashable s) => [F.DataDecl s] -> [[F.DataDecl s]]
 --------------------------------------------------------------------------------
 orderDeclarations ds = {- reverse -} (Misc.sccsWith f ds)
   where
     dM               = M.fromList [(F.ddTyCon d, d) | d <- ds]
     f d              = (F.ddTyCon d, dataDeclDeps dM d)
 
-dataDeclDeps :: M.HashMap (F.FTycon s) (F.DataDecl s) -> F.DataDecl s -> [F.FTycon s]
+dataDeclDeps :: (Hashable s, Ord s) => M.HashMap (F.FTycon s) (F.DataDecl s) -> F.DataDecl s -> [F.FTycon s]
 dataDeclDeps dM = filter (`M.member` dM) . Misc.sortNub . dataDeclFTycons
 
-dataDeclFTycons :: F.DataDecl s -> [F.FTycon]
+dataDeclFTycons :: F.DataDecl s -> [F.FTycon s]
 dataDeclFTycons = concatMap dataCtorFTycons . F.ddCtors
 
 dataCtorFTycons :: F.DataCtor s -> [F.FTycon s]
@@ -529,7 +533,7 @@ dataCtorFTycons = concatMap dataFieldFTycons . F.dcFields
 dataFieldFTycons :: F.DataField s -> [F.FTycon s]
 dataFieldFTycons = sortFTycons . F.dfSort
 
-sortFTycons :: Sort s -> [FTycon]
+sortFTycons :: Sort s -> [FTycon s]
 sortFTycons = Vis.foldSort go []
   where
     go cs (FTC c) = c : cs

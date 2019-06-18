@@ -53,7 +53,7 @@ module Language.Fixpoint.Parse (
   , bvSortP     -- Bit-Vector Sort
 
   -- * Some Combinators
-  , condIdP     --  condIdP  :: [Char] -> (Text -> Bool) -> Parser Text
+  , condIdP     --  condIdP  :: [Char] -> (Text -> Bool) -> Parser s Text
 
   -- * Add a Location to a parsed value
   , locParserP
@@ -86,6 +86,7 @@ module Language.Fixpoint.Parse (
 
 import qualified Data.HashMap.Strict         as M
 import qualified Data.HashSet                as S
+import           Data.Hashable
 import qualified Data.Text                   as T
 import           Data.Maybe                  (fromJust, fromMaybe)
 import           Text.Parsec       hiding (State)
@@ -106,10 +107,10 @@ import           Text.PrettyPrint.HughesPJ         (text, nest, vcat, (<+>))
 
 import Control.Monad.State
 
-type Parser = ParsecT String Integer (State PState)
-type ParserT u a = ParsecT String u (State PState) a
+type Parser s = ParsecT String Integer (State (PState s))
+type ParserT s u a = ParsecT String u (State (PState s)) a
 
-data PState = PState { fixityTable :: OpTable
+data PState s = PState { fixityTable :: OpTable s
                      , empList     :: Maybe (Expr s)
                      , singList    :: Maybe (Expr s -> Expr s)}
 
@@ -227,46 +228,46 @@ lexer :: Monad m => Token.GenTokenParser String u m
 lexer = Token.makeTokenParser languageDef
 
 
-reserved :: String -> Parser ()
+reserved :: String -> Parser s ()
 reserved      = Token.reserved      lexer
 
-reservedOp :: String -> Parser ()
+reservedOp :: String -> Parser s ()
 reservedOp    = Token.reservedOp    lexer
 
-parens, brackets, angles, braces :: ParserT u a -> ParserT u a
+parens, brackets, angles, braces :: ParserT s u a -> ParserT s u a
 parens        = Token.parens        lexer
 brackets      = Token.brackets      lexer
 angles        = Token.angles        lexer
 braces        = Token.braces        lexer
 
-semi, colon, comma, dot, stringLiteral :: Parser String
+semi, colon, comma, dot, stringLiteral :: Parser s String
 semi          = Token.semi          lexer
 colon         = Token.colon         lexer
 comma         = Token.comma         lexer
 dot           = Token.dot           lexer
 stringLiteral = Token.stringLiteral lexer
 
-whiteSpace :: Parser ()
+whiteSpace :: Parser s ()
 whiteSpace    = Token.whiteSpace    lexer
 
-double :: Parser Double
+double :: Parser s Double
 double        = Token.float         lexer
 -- integer       = Token.integer       lexer
 
--- identifier :: Parser String
+-- identifier :: Parser s String
 -- identifier = Token.identifier lexer
 
 -- TODO:AZ: pretty sure there is already a whitespace eater in parsec,
-blanks :: Parser String
+blanks :: Parser s String
 blanks  = many (satisfy (`elem` [' ', '\t']))
 
 -- | Integer
-integer :: Parser Integer
+integer :: Parser s Integer
 integer = Token.natural lexer <* spaces
 
 --  try (char '-' >> (negate <$> posInteger))
 --       <|> posInteger
--- posInteger :: Parser Integer
+-- posInteger :: Parser s Integer
 -- posInteger = toI <$> (many1 digit <* spaces)
 --  where
 --    toI :: String -> Integer
@@ -276,7 +277,7 @@ integer = Token.natural lexer <* spaces
 ------------------------- Expressions --------------------------
 ----------------------------------------------------------------
 
-locParserP :: Parser a -> Parser (Located a)
+locParserP :: Parser s a -> Parser s (Located a)
 locParserP p = do l1 <- getPosition
                   x  <- p
                   l2 <- getPosition
@@ -286,7 +287,7 @@ locParserP p = do l1 <- getPosition
 -- FIXME: we (LH) rely on this parser being dumb and *not* consuming trailing
 -- whitespace, in order to avoid some parsers spanning multiple lines..
 
-condIdP  :: Parser Char -> S.HashSet Char -> (String -> Bool) -> Parser FixSymbol
+condIdP  :: Parser s Char -> S.HashSet Char -> (String -> Bool) -> Parser s FixSymbol
 condIdP initP okChars p
   = do c    <- initP 
        cs   <- many (satisfy (`S.member` okChars))
@@ -294,7 +295,7 @@ condIdP initP okChars p
        let s = c:cs
        if p s then return (symbol s) else parserZero
 
--- upperIdP :: Parser FixSymbol
+-- upperIdP :: Parser s FixSymbol
 -- upperIdP = do
 --  c  <- upper
 --  cs <- many (satisfy (`S.member` symChars))
@@ -310,17 +311,17 @@ condIdP initP okChars p
 -- because 'identifier' also chomps newlines which then make
 -- it hard to parse stuff like: "measure foo :: a -> b \n foo x = y"
 -- as the type parser thinks 'b \n foo` is a type. Sigh.
--- lowerIdP :: Parser FixSymbol
+-- lowerIdP :: Parser s FixSymbol
 -- lowerIdP = symbol <$> (identifier <* blanks)
 
-upperIdP :: Parser (Symbol s)
-upperIdP  = condIdP upper                  symChars (const True)
+upperIdP :: Parser s (Symbol s)
+upperIdP  = FS <$> condIdP upper                  symChars (const True)
 
-lowerIdP :: Parser (Symbol s)
-lowerIdP  = condIdP (lower <|> char '_')   symChars isNotReserved
+lowerIdP :: Parser s (Symbol s)
+lowerIdP  = FS <$> condIdP (lower <|> char '_')   symChars isNotReserved
 
-symCharsP :: Parser (Symbol s)
-symCharsP = condIdP (letter <|> char '_')  symChars isNotReserved
+symCharsP :: Parser s (Symbol s)
+symCharsP = FS <$> condIdP (letter <|> char '_')  symChars isNotReserved
 
 isNotReserved :: String -> Bool
 isNotReserved s = not (s `S.member` reservedNames)
@@ -328,31 +329,31 @@ isNotReserved s = not (s `S.member` reservedNames)
 -- (&&&) :: (a -> Bool) -> (a -> Bool) -> a -> Bool
 -- f &&& g = \x -> f x && g x
 -- | String Haskell infix Id
-infixIdP :: Parser String
+infixIdP :: Parser s String
 infixIdP = many (satisfy (`notElem` [' ', '.']))
 
 isSmall :: Char -> Bool
 isSmall c = Char.isLower c || c == '_'
 
-locSymbolP, locLowerIdP, locUpperIdP :: Parser (LocSymbol s)
+locSymbolP, locLowerIdP, locUpperIdP :: Parser s (LocSymbol s)
 locLowerIdP = locParserP lowerIdP
 locUpperIdP = locParserP upperIdP
 locSymbolP  = locParserP symbolP
 
 -- | Arbitrary Symbols
-symbolP :: Parser (Symbol s)
-symbolP = symbol <$> symCharsP
+symbolP :: Parser s (Symbol s)
+symbolP = FS . symbol <$> symCharsP
 
 -- | (Integer) Constants
-constantP :: Parser (Constant s)
+constantP :: Parser s (Constant s)
 constantP =  try (R <$> double)
          <|> I <$> integer
 
 
-symconstP :: Parser SymConst
+symconstP :: Parser s SymConst
 symconstP = SL . T.pack <$> stringLiteral
 
-expr0P :: Parser (Expr s)
+expr0P :: (Hashable s, Show s, Ord s, Fixpoint s, Eq s) => Parser s (Expr s)
 expr0P
   =  trueP
  <|> falseP
@@ -369,21 +370,21 @@ expr0P
  <|> try (parens exprCastP)
  <|> (charsExpr <$> symCharsP)
 
-emptyListP :: Parser (Expr s)
+emptyListP :: Parser s (Expr s)
 emptyListP = do 
   e <- empList <$> get 
   case e of 
     Nothing -> fail "No parsing support for empty lists"
     Just s  -> return s 
 
-singletonListP :: Expr s -> Parser (Expr s)
+singletonListP :: Expr s -> Parser s (Expr s)
 singletonListP e = do 
   f <- singList <$> get
   case f of 
     Nothing -> fail "No parsing support for singleton lists"
     Just s  -> return $ s e 
 
-exprCastP :: Parser (Expr s)
+exprCastP :: (Hashable s, Show s, Ord s, Fixpoint s, Eq s) => Parser s (Expr s)
 exprCastP
   = do e  <- exprP
        (try dcolon) <|> colon
@@ -392,10 +393,10 @@ exprCastP
 
 charsExpr :: Symbol s -> Expr s
 charsExpr cs
-  | isSmall (headSym cs) = expr cs
+  | isSmall (headSym (symbol cs)) = expr cs
   | otherwise            = EVar cs
 
-fastIfP :: (Expr s -> a -> a -> a) -> Parser a -> Parser a
+fastIfP :: (Show s, Hashable s, Fixpoint s, Ord s) => (Expr s -> a -> a -> a) -> Parser s a -> Parser s a
 fastIfP f bodyP
   = do reserved "if"
        p <- predP
@@ -405,7 +406,7 @@ fastIfP f bodyP
        b2 <- bodyP
        return $ f p b1 b2
 
-coerceP :: Parser (Expr s) -> Parser (Expr s)
+coerceP :: (Eq s) => Parser s (Expr s) -> Parser s (Expr s)
 coerceP p = do
   reserved "coerce"
   (s, t) <- parens (pairP sortP (reservedOp "~") sortP)
@@ -426,29 +427,29 @@ qmIfP f bodyP
 -}
 
 -- | Used as input to @Text.Parsec.Expr.buildExpressionParser@ to create @exprP@
-expr1P :: Parser (Expr s)
+expr1P :: (Hashable s, Show s, Ord s, Fixpoint s, Eq s) => Parser s (Expr s)
 expr1P
   =  try funAppP
  <|> expr0P
 
 -- | Expressions
-exprP :: Parser (Expr s)
+exprP :: (Show s, Hashable s, Fixpoint s, Ord s, Eq s) => Parser s (Expr s)
 exprP = (fixityTable <$> get) >>= (`buildExpressionParser` expr1P)
 
-data Fixity
+data Fixity s
   = FInfix   {fpred :: Maybe Int, fname :: String, fop2 :: Maybe (Expr s -> Expr s -> Expr s), fassoc :: Assoc}
   | FPrefix  {fpred :: Maybe Int, fname :: String, fop1 :: Maybe (Expr s -> Expr s)}
   | FPostfix {fpred :: Maybe Int, fname :: String, fop1 :: Maybe (Expr s -> Expr s)}
 
 
 -- Invariant : OpTable has 10 elements
-type OpTable = OperatorTable String Integer (State PState) (Expr s)
+type OpTable s = OperatorTable String Integer (State (PState s)) (Expr s)
 
-addOperatorP :: Fixity -> Parser ()
+addOperatorP :: Fixity s -> Parser s ()
 addOperatorP op
   = modify $ \s -> s{fixityTable =  addOperator op (fixityTable s)}
 
-addOperator :: Fixity -> OpTable -> OpTable
+addOperator :: Fixity s -> OpTable s -> OpTable s
 addOperator (FInfix p x f assoc) ops
  = insertOperator (makePrec p) (Infix (reservedOp x >> return (makeInfixFun x f)) assoc) ops
 addOperator (FPrefix p x f) ops
@@ -460,22 +461,22 @@ makePrec :: Maybe Int -> Int
 makePrec = fromMaybe 9
 
 makeInfixFun :: String -> Maybe (Expr s -> Expr s -> Expr s) -> Expr s -> Expr s -> Expr s
-makeInfixFun x = fromMaybe (\e1 e2 -> EApp (EApp (EVar $ symbol x) e1) e2)
+makeInfixFun x = fromMaybe (\e1 e2 -> EApp (EApp (EVar . FS $ symbol x) e1) e2)
 
 makePrefixFun :: String -> Maybe (Expr s -> Expr s) -> Expr s -> Expr s
-makePrefixFun x = fromMaybe (EApp (EVar $ symbol x))
+makePrefixFun x = fromMaybe (EApp (EVar . FS  $ symbol x))
 
-insertOperator :: Int -> Operator String Integer (State PState) (Expr s) -> OpTable -> OpTable
+insertOperator :: Int -> Operator String Integer (State (PState s)) (Expr s) -> OpTable s -> OpTable s
 insertOperator i op = go (9 - i) 
   where
     go _ []         = die $ err dummySpan (text "insertOperator on empty ops")
     go 0 (xs:xss)   = (xs ++ [op]) : xss
     go i (xs:xss)   = xs : go (i - 1) xss
 
-initOpTable :: OpTable
+initOpTable :: OpTable s
 initOpTable = replicate 10 [] 
 
-bops :: OpTable
+bops :: OpTable s
 bops = foldl (flip addOperator) initOpTable buildinOps
   where
 -- Build in Haskell ops https://www.haskell.org/onlinereport/decls.html#fixity
@@ -488,7 +489,7 @@ bops = foldl (flip addOperator) initOpTable buildinOps
                  ]
 
 -- | Function Applications
-funAppP :: Parser (Expr s)
+funAppP :: (Show s, Hashable s, Fixpoint s, Ord s, Eq s) => Parser s (Expr s)
 funAppP            =  litP <|> exprFunP <|> simpleAppP
   where
     exprFunP = mkEApp <$> funSymbolP <*> funRhsP
@@ -504,20 +505,20 @@ funAppP            =  litP <|> exprFunP <|> simpleAppP
 
 -- TODO:AZ: The comment says BitVector literal, but it accepts any @Sort@
 -- | BitVector literal: lit "#x00000001" (BitVec (Size32 obj))
-litP :: Parser (Expr s)
+litP :: (Eq s) => Parser s (Expr s)
 litP = do reserved "lit"
           l <- stringLiteral
           t <- sortP
           return $ ECon $ L (T.pack l) t
 
--- parenBrackets :: Parser a -> Parser a
+-- parenBrackets :: Parser s a -> Parser s a
 -- parenBrackets  = parens . brackets
 
 -- eMinus     = EBin Minus (expr (0 :: Integer))
 -- eCons x xs = EApp (dummyLoc consName) [x, xs]
 -- eNil       = EVar nilName
 
-lamP :: Parser (Expr s)
+lamP :: (Hashable s, Show s, Ord s, Fixpoint s, Eq s) => Parser s (Expr s)
 lamP
   = do reservedOp "\\"
        x <- symbolP
@@ -527,33 +528,33 @@ lamP
        e  <- exprP
        return $ ELam (x, t) e
 
-dcolon :: Parser String
+dcolon :: Parser s String
 dcolon = string "::" <* spaces
 
-varSortP :: Parser (Sort s)
+varSortP :: Parser s (Sort s)
 varSortP  = FVar  <$> parens intP
 
-funcSortP :: Parser (Sort s)
+funcSortP :: (Eq s) => Parser s (Sort s)
 funcSortP = parens $ mkFFunc <$> intP <* comma <*> sortsP
 
-sortsP :: Parser [Sort s]
+sortsP :: (Eq s) => Parser s [Sort s]
 sortsP = brackets $ sepBy sortP semi
 
 -- | Sort
-sortP    :: Parser (Sort s)
+sortP    :: (Eq s) => Parser s (Sort s)
 sortP    = sortP' (sepBy sortArgP blanks)
 
-sortArgP :: Parser (Sort s)
+sortArgP :: (Eq s) => Parser s (Sort s)
 sortArgP = sortP' (return [])
 
 {-
-sortFunP :: Parser (Sort s)
+sortFunP :: Parser s (Sort s)
 sortFunP
    =  try (string "@" >> varSortP)
   <|> (fTyconSort <$> fTyConP)
 -}
 
-sortP' :: Parser [Sort s] -> Parser (Sort s)
+sortP' :: (Eq s) => Parser s [Sort s] -> Parser s (Sort s)
 sortP' appArgsP
    =  parens sortP
   <|> (reserved "func" >> funcSortP)
@@ -565,13 +566,13 @@ sortP' appArgsP
 single :: a -> [a]
 single x = [x]
 
-tvarP :: Parser (Sort s)
+tvarP :: Parser s (Sort s)
 tvarP
    =  (string "@" >> varSortP)
-  <|> (FObj . symbol <$> lowerIdP)
+  <|> (FObj . FS . symbol <$> lowerIdP)
 
 
-fTyConP :: Parser (FTycon s)
+fTyConP :: (Eq s) => Parser s (FTycon s)
 fTyConP
   =   (reserved "int"     >> return intFTyCon)
   <|> (reserved "Integer" >> return intFTyCon)
@@ -584,7 +585,7 @@ fTyConP
   <|> (symbolFTycon      <$> locUpperIdP)
 
 -- | Bit-Vector Sort
-bvSortP :: Parser (Sort s)
+bvSortP :: (Eq s) => Parser s (Sort s)
 bvSortP = mkSort <$> (bvSizeP "Size32" S32 <|> bvSizeP "Size64" S64)
   where
     bvSizeP ss s = do
@@ -596,7 +597,7 @@ bvSortP = mkSort <$> (bvSizeP "Size32" S32 <|> bvSizeP "Size64" S64)
 -- | Predicates ----------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-pred0P :: Parser (Expr s)
+pred0P :: (Ord s, Show s, Fixpoint s, Hashable s, Eq s) => Parser s (Expr s)
 pred0P =  trueP
       <|> falseP
       <|> (reservedOp "??" >> makeUniquePGrad)
@@ -610,32 +611,32 @@ pred0P =  trueP
       <|> (reservedOp "&&" >> pGAnds <$> predsP)
       <|> (reservedOp "||" >> POr  <$> predsP)
 
-makeUniquePGrad :: Parser (Expr s)
+makeUniquePGrad :: (Hashable s, Fixpoint s, Show s, Ord s) => Parser s (Expr s)
 makeUniquePGrad
   = do uniquePos <- getPosition
-       return $ PGrad (KV $ symbol $ show uniquePos) mempty (srcGradInfo uniquePos) mempty
+       return $ PGrad (KV . FS $ symbol $ show uniquePos) mempty (srcGradInfo uniquePos) mempty
 
 -- qmP    = reserved "?" <|> reserved "Bexp"
 
-trueP, falseP :: Parser (Expr s)
+trueP, falseP :: Parser s (Expr s)
 trueP  = reserved "true"  >> return PTrue
 falseP = reserved "false" >> return PFalse
 
-kvarPredP :: Parser (Expr s)
+kvarPredP :: (Show s, Fixpoint s, Ord s, Eq s, Hashable s) => Parser s (Expr s)
 kvarPredP = PKVar <$> kvarP <*> substP
 
-kvarP :: Parser (KVar s)
+kvarP :: Parser s (KVar s)
 kvarP = KV <$> (char '$' *> symbolP <* spaces)
 
-substP :: Parser Subst
+substP :: (Show s, Ord s, Fixpoint s, Hashable s, Eq s) => Parser s (Subst s)
 substP = mkSubst <$> many (brackets $ pairP symbolP aP exprP)
   where
     aP = reservedOp ":="
 
-predsP :: Parser [Expr]
+predsP :: (Show s, Hashable s, Fixpoint s, Ord s) => Parser s [Expr s]
 predsP = brackets $ sepBy predP semi
 
-predP  :: Parser (Expr s)
+predP  :: (Hashable s, Show s, Ord s, Fixpoint s) => Parser s (Expr s)
 predP  = buildExpressionParser lops pred0P
   where
     lops = [ [Prefix (reservedOp "~"    >> return PNot)]
@@ -646,13 +647,13 @@ predP  = buildExpressionParser lops pred0P
            , [Infix  (reservedOp "==>"  >> return PImp) AssocRight]
            , [Infix  (reservedOp "<=>"  >> return PIff) AssocRight]]
 
-predrP :: Parser (Expr s)
+predrP :: (Hashable s, Show s, Ord s, Fixpoint s) => Parser s (Expr s)
 predrP = do e1    <- exprP
             r     <- brelP
             e2    <- exprP
             return $ r e1 e2
 
-brelP ::  Parser (Expr s -> Expr s -> Expr s)
+brelP ::  Parser s (Expr s -> Expr s -> Expr s)
 brelP =  (reservedOp "==" >> return (PAtom Eq))
      <|> (reservedOp "="  >> return (PAtom Eq))
      <|> (reservedOp "~~" >> return (PAtom Ueq))
@@ -669,13 +670,13 @@ brelP =  (reservedOp "==" >> return (PAtom Eq))
 --------------------------------------------------------------------------------
 
 -- | Refa
-refaP :: Parser (Expr s)
+refaP :: (Show s, Hashable s, Ord s, Fixpoint s) => Parser s (Expr s)
 refaP =  try (pAnd <$> brackets (sepBy predP semi))
      <|> predP
 
 
 -- | (Sorted) Refinements with configurable sub-parsers
-refBindP :: Parser (Symbol s) -> Parser (Expr s) -> Parser (Reft s -> a) -> Parser a
+refBindP :: Parser s (Symbol s) -> Parser s (Expr s) -> Parser s (Reft s -> a) -> Parser s a
 refBindP bp rp kindP
   = braces $ do
       x  <- bp
@@ -687,32 +688,32 @@ refBindP bp rp kindP
 
 -- bindP      = symbol    <$> (lowerIdP <* colon)
 -- | Binder (lowerIdP <* colon)
-bindP :: Parser (Symbol s)
+bindP :: Parser s (Symbol s)
 bindP = symbolP <* colon
 
-optBindP :: Symbol s -> Parser (Symbol s)
+optBindP :: Symbol s -> Parser s (Symbol s)
 optBindP x = try bindP <|> return x
 
 -- | (Sorted) Refinements
-refP :: Parser (Reft s -> a) -> Parser a
+refP :: (Show s, Hashable s, Fixpoint s, Ord s) => Parser s (Reft s -> a) -> Parser s a
 refP       = refBindP bindP refaP
 
 -- | (Sorted) Refinements with default binder
-refDefP :: Symbol s -> Parser (Expr s) -> Parser (Reft s -> a) -> Parser a
+refDefP :: Symbol s -> Parser s (Expr s) -> Parser s (Reft s -> a) -> Parser s a
 refDefP x  = refBindP (optBindP x)
 
 --------------------------------------------------------------------------------
 -- | Parsing Data Declarations -------------------------------------------------
 --------------------------------------------------------------------------------
 
-dataFieldP :: Parser (DataField s)
+dataFieldP :: (Eq s) => Parser s (DataField s)
 dataFieldP = DField <$> locSymbolP <* colon <*> sortP
 
-dataCtorP :: Parser (DataCtor s)
+dataCtorP :: (Eq s) => Parser s (DataCtor s)
 dataCtorP  = DCtor <$> locSymbolP
                    <*> braces (sepBy dataFieldP comma)
 
-dataDeclP :: Parser (DataDecl s)
+dataDeclP :: (Eq s) => Parser s (DataDecl s)
 dataDeclP  = DDecl <$> fTyConP <*> intP <* reservedOp "="
                    <*> brackets (many (reservedOp "|" *> dataCtorP))
 
@@ -721,7 +722,7 @@ dataDeclP  = DDecl <$> fTyConP <*> intP <* reservedOp "="
 --------------------------------------------------------------------------------
 
 -- | Qualifiers
-qualifierP :: Parser (Sort s) -> Parser (Qualifier s)
+qualifierP :: (Show s, Hashable s, Fixpoint s, Ord s) => Parser s (Sort s) -> Parser s (Qualifier s)
 qualifierP tP = do
   pos    <- getPosition
   n      <- upperIdP
@@ -730,7 +731,7 @@ qualifierP tP = do
   body   <- predP
   return  $ mkQual n params body pos
 
-qualParamP :: Parser (Sort s) -> Parser (QualParam s)
+qualParamP :: Parser s (Sort s) -> Parser s (QualParam s)
 qualParamP tP = do 
   x     <- symbolP 
   pat   <- qualPatP 
@@ -738,32 +739,32 @@ qualParamP tP = do
   t     <- tP 
   return $ QP x pat t 
 
-qualPatP :: Parser (QualPattern s)
+qualPatP :: Parser s (QualPattern s)
 qualPatP 
    =  (reserved "as" >> qualStrPatP)
   <|> return PatNone 
 
-qualStrPatP :: Parser (QualPattern s)
+qualStrPatP :: Parser s (QualPattern s)
 qualStrPatP 
    = (PatExact <$> symbolP)
   <|> parens (    (uncurry PatPrefix <$> pairP symbolP dot qpVarP)
               <|> (uncurry PatSuffix <$> pairP qpVarP  dot symbolP) )
 
 
-qpVarP :: Parser Int
+qpVarP :: Parser s Int
 qpVarP = char '$' *> intP 
 
-symBindP :: Parser a -> Parser (Symbol s, a)
+symBindP :: Parser s a -> Parser s (Symbol s, a)
 symBindP = pairP symbolP colon
 
-pairP :: Parser a -> Parser z -> Parser b -> Parser (a, b)
+pairP :: Parser s a -> Parser s z -> Parser s b -> Parser s (a, b)
 pairP xP sepP yP = (,) <$> xP <* sepP <*> yP
 
 ---------------------------------------------------------------------
 -- | Axioms for Symbolic Evaluation ---------------------------------
 ---------------------------------------------------------------------
 
-defineP :: Parser Equation
+defineP :: (Show s, Fixpoint s, Ord s, Hashable s) => Parser s (Equation s)
 defineP = do
   name   <- symbolP
   params <- parens        $ sepBy (symBindP sortP) comma
@@ -771,20 +772,20 @@ defineP = do
   body   <- reserved "=" *> predP
   return  $ mkEquation name params body sort
 
-matchP :: Parser Rewrite
+matchP :: (Hashable s, Show s, Ord s, Fixpoint s) => Parser s (Rewrite s)
 matchP = SMeasure <$> symbolP <*> symbolP <*> many symbolP <*> (reserved "=" >> exprP)
 
-pairsP :: Parser a -> Parser b -> Parser [(a, b)]
+pairsP :: Parser s a -> Parser s b -> Parser s [(a, b)]
 pairsP aP bP = brackets $ sepBy1 (pairP aP (reserved ":") bP) semi
 ---------------------------------------------------------------------
 -- | Parsing Constraints (.fq files) --------------------------------
 ---------------------------------------------------------------------
 
 -- Entities in Query File
-data Def a
+data Def s a
   = Srt !(Sort s)
   | Axm !(Expr s)
-  | Cst !(SubC a)
+  | Cst !(SubC s a)
   | Wfc !(WfC s a)
   | Con !(Symbol s) !(Sort s)
   | Dis !(Symbol s) !(Sort s)
@@ -794,22 +795,22 @@ data Def a
   | IBind !Int !(Symbol s) !(SortedReft s)
   | EBind !Int !(Symbol s) !(Sort s) 
   | Opt !String
-  | Def !Equation
-  | Mat !Rewrite
+  | Def !(Equation s)
+  | Mat !(Rewrite s)
   | Expand ![(Int,Bool)]
   | Adt  !(DataDecl s)
   deriving (Show, Generic)
   --  Sol of solbind
   --  Dep of FixConstraint.dep
 
-fInfoOptP :: Parser (FInfoWithOpts ())
+fInfoOptP :: (Ord s, Fixpoint s, Hashable s, Show s, Eq s) => Parser s (FInfoWithOpts s ())
 fInfoOptP = do ps <- many defP
                return $ FIO (defsFInfo ps) [s | Opt s <- ps]
 
-fInfoP :: Parser (FInfo ())
+fInfoP :: (Hashable s, Ord s, Fixpoint s, Show s) => Parser s (FInfo s ())
 fInfoP = defsFInfo <$> {-# SCC "many-defP" #-} many defP
 
-defP :: Parser (Def ())
+defP :: (Show s, Hashable s, Fixpoint s, Ord s) => Parser s (Def s ())
 defP =  Srt   <$> (reserved "sort"       >> colon >> sortP)
     <|> Axm   <$> (reserved "axiom"      >> colon >> predP)
     <|> Cst   <$> (reserved "constraint" >> colon >> {-# SCC "subCP" #-} subCP)
@@ -828,10 +829,10 @@ defP =  Srt   <$> (reserved "sort"       >> colon >> sortP)
     <|> Adt    <$> (reserved "data"       >> dataDeclP)
 
 
-sortedReftP :: Parser SortedReft
+sortedReftP :: (Ord s, Fixpoint s, Hashable s, Show s, Eq s) => Parser s (SortedReft s)
 sortedReftP = refP (RR <$> (sortP <* spaces))
 
-wfCP :: Parser (WfC s ())
+wfCP :: (Show s, Hashable s, Ord s, Fixpoint s) => Parser s (WfC s ())
 wfCP = do reserved "env"
           env <- envP
           reserved "reft"
@@ -839,7 +840,7 @@ wfCP = do reserved "env"
           let [w] = wfC env r ()
           return w
 
-subCP :: Parser (SubC ())
+subCP :: (Ord s, Fixpoint s, Hashable s, Show s) => Parser s (SubC s ())
 subCP = do pos <- getPosition
            reserved "env"
            env <- envP
@@ -853,14 +854,14 @@ subCP = do pos <- getPosition
            pos' <- getPosition
            return $ subC' env lhs rhs i tag pos pos'
 
-subC' :: IBindEnv
+subC' :: (Show s, Hashable s, Fixpoint s, Ord s) => IBindEnv
       -> SortedReft s
       -> SortedReft s
       -> Integer
       -> Tag
       -> SourcePos
       -> SourcePos
-      -> SubC ()
+      -> SubC s ()
 subC' env lhs rhs i tag l l'
   = case cs of
       [c] -> c
@@ -870,21 +871,21 @@ subC' env lhs rhs i tag l l'
        sp = SS l l'
 
 
-tagP  :: Parser [Int]
+tagP  :: Parser s [Int]
 tagP  = reserved "tag" >> spaces >> brackets (sepBy intP semi)
 
-envP  :: Parser IBindEnv
+envP  :: Parser s IBindEnv
 envP  = do binds <- brackets $ sepBy (intP <* spaces) semi
            return $ insertsIBindEnv binds emptyIBindEnv
 
-intP :: Parser Int
+intP :: Parser s Int
 intP = fromInteger <$> integer
 
-boolP :: Parser Bool
+boolP :: Parser s Bool
 boolP = (reserved "True" >> return True)
     <|> (reserved "False" >> return False)
 
-defsFInfo :: [Def a] -> FInfo s a
+defsFInfo :: (Show s, Fixpoint s, Ord s, Hashable s, Eq s) => [Def s a] -> FInfo s a
 defsFInfo defs = {-# SCC "defsFI" #-} FI cm ws bs ebs lts dts kts qs binfo adts mempty mempty ae
   where
     cm         = Misc.safeFromList 
@@ -911,25 +912,25 @@ defsFInfo defs = {-# SCC "defsFI" #-} FI cm ws bs ebs lts dts kts qs binfo adts 
 -- | Interacting with Fixpoint --------------------------------------
 ---------------------------------------------------------------------
 
-fixResultP :: Parser a -> Parser (FixResult a)
+fixResultP :: Parser s a -> Parser s (FixResult a)
 fixResultP pp
   =  (reserved "SAT"   >> return Safe)
  <|> (reserved "UNSAT" >> Unsafe <$> brackets (sepBy pp comma))
  <|> (reserved "CRASH" >> crashP pp)
 
-crashP :: Parser a -> Parser (FixResult a)
+crashP :: Parser s a -> Parser s (FixResult a)
 crashP pp = do
   i   <- pp
   msg <- many anyChar
   return $ Crash [i] msg
 
-predSolP :: Parser (Expr s)
+predSolP :: (Show s, Hashable s, Fixpoint s, Ord s) => Parser s (Expr s)
 predSolP = parens (predP  <* (comma >> iQualP))
 
-iQualP :: Parser [Symbol s]
+iQualP :: Parser s [Symbol s]
 iQualP = upperIdP >> parens (sepBy symbolP comma)
 
-solution1P :: Parser (KVar s, Expr)
+solution1P :: (Hashable s, Show s, Ord s, Fixpoint s) => Parser s (KVar s, Expr s)
 solution1P = do
   reserved "solution:"
   k  <- kvP
@@ -939,14 +940,14 @@ solution1P = do
   where
     kvP = try kvarP <|> (KV <$> symbolP)
 
-solutionP :: Parser (M.HashMap (KVar s) Expr)
+solutionP :: (Show s, Fixpoint s, Ord s, Eq s, Hashable s) => Parser s (M.HashMap (KVar s) (Expr s))
 solutionP = M.fromList <$> sepBy solution1P whiteSpace
 
-solutionFileP :: Parser (FixResult Integer, M.HashMap (KVar s) Expr)
+solutionFileP :: (Show s, Ord s, Fixpoint s, Hashable s, Eq s) => Parser s (FixResult Integer, M.HashMap (KVar s) (Expr s))
 solutionFileP = (,) <$> fixResultP integer <*> solutionP
 
 --------------------------------------------------------------------------------
-remainderP :: Parser a -> Parser (a, String, SourcePos)
+remainderP :: Parser s a -> Parser s (a, String, SourcePos)
 remainderP p
   = do res <- p
        str <- getInput
@@ -954,10 +955,10 @@ remainderP p
        return (res, str, pos)
 
 
-initPState :: PState
+initPState :: PState s
 initPState = PState {fixityTable = bops, empList = Nothing, singList = Nothing}
 
-doParse' :: Parser a -> SourceName -> String -> a
+doParse' :: Parser s a -> SourceName -> String -> a
 doParse' parser f s
   = case evalState (runParserT (remainderP (whiteSpace >> parser)) 0 f s) initPState of
       Left e            -> die $ err (errorSpan e) (dErr e)
@@ -974,10 +975,10 @@ doParse' parser f s
 errorSpan :: ParseError -> SrcSpan
 errorSpan e = SS l l where l = errorPos e
 
-parseFromFile :: Parser b -> SourceName -> IO b
+parseFromFile :: Parser s b -> SourceName -> IO b
 parseFromFile p f = doParse' p f <$> readFile f
 
-freshIntP :: Parser Integer
+freshIntP :: Parser s Integer
 freshIntP = do n <- getState
                updateState (+ 1)
                return n
@@ -985,10 +986,10 @@ freshIntP = do n <- getState
 ---------------------------------------------------------------------
 -- Standalone SMTLIB2 commands --------------------------------------
 ---------------------------------------------------------------------
-commandsP :: Parser [Command s]
+commandsP :: (Show s, Hashable s, Fixpoint s, Ord s) => Parser s [Command s]
 commandsP = sepBy commandP semi
 
-commandP :: Parser (Command s)
+commandP :: (Hashable s, Show s, Ord s, Fixpoint s) => Parser s (Command s)
 commandP
   =  (reserved "var"      >> cmdVarP)
  <|> (reserved "push"     >> return Push)
@@ -997,7 +998,7 @@ commandP
  <|> (reserved "assert"   >> (Assert Nothing <$> predP))
  <|> (reserved "distinct" >> (Distinct <$> brackets (sepBy exprP comma)))
 
-cmdVarP :: Parser (Command s)
+cmdVarP :: Parser s (Command s)
 cmdVarP = error "UNIMPLEMENTED: cmdVarP"
 -- do
   -- x <- bindP
@@ -1020,25 +1021,25 @@ instance Inputable (Symbol s) where
 instance Inputable (Constant s) where
   rr' = doParse' constantP
 
-instance Inputable (Expr s) where
+instance (Hashable s, Show s, Ord s, Fixpoint s) => Inputable (Expr s) where
   rr' = doParse' exprP
 
 instance Inputable (FixResult Integer) where
   rr' = doParse' $ fixResultP integer
 
-instance Inputable (FixResult Integer, FixSolution) where
+instance (Show s, Hashable s, Fixpoint s, Ord s) => Inputable (FixResult Integer, FixSolution s) where
   rr' = doParse' solutionFileP
 
-instance Inputable (FInfo ()) where
+instance (Show s, Fixpoint s, Ord s, Hashable s) => Inputable (FInfo s ()) where
   rr' = {-# SCC "fInfoP" #-} doParse' fInfoP
 
-instance Inputable (FInfoWithOpts ()) where
+instance (Show s, Hashable s, Fixpoint s, Ord s) => Inputable (FInfoWithOpts s ()) where
   rr' = {-# SCC "fInfoWithOptsP" #-} doParse' fInfoOptP
 
-instance Inputable (Command s) where
+instance (Show s, Hashable s, Fixpoint s, Ord s) => Inputable (Command s) where
   rr' = doParse' commandP
 
-instance Inputable [Command s] where
+instance (Hashable s, Show s, Ord s, Fixpoint s) => Inputable [Command s] where
   rr' = doParse' commandsP
 
 {-

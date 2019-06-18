@@ -64,7 +64,7 @@ type IdMap = M.HashMap Ref (S.HashSet BindId)
 -- | A `RenameMap` maps an old name and sort to new name,
 --   represented by a hashmap containing association lists.
 --   `Nothing` as new name means the name is the same as the old.
-type RenameMap = M.HashMap (Symbol s) [(Sort s, Maybe FixSymbol)]
+type RenameMap s = M.HashMap (Symbol s) [(Sort s, Maybe FixSymbol)]
 
 --------------------------------------------------------------------------------
 mkIdMap :: SInfo s a -> IdMap
@@ -91,20 +91,20 @@ namesToIds :: S.HashSet (Symbol s) -> M.HashMap (Symbol s) BindId -> S.HashSet B
 namesToIds xs m = S.fromList $ catMaybes [M.lookup x m | x <- S.toList xs] --TODO why any Nothings?
 
 --------------------------------------------------------------------------------
-mkRenameMap :: BindEnv s -> RenameMap
+mkRenameMap :: BindEnv s -> RenameMap s
 --------------------------------------------------------------------------------
 mkRenameMap be = foldl' (addId be) M.empty ids
   where
     ids = fst3 <$> bindEnvToList be
 
-addId :: BindEnv s -> RenameMap -> BindId -> RenameMap
+addId :: BindEnv s -> RenameMap s -> BindId -> RenameMap s
 addId be m i
   | M.member sym m = addDupId m sym t i
   | otherwise      = M.insert sym [(t, Nothing)] m
   where
     (sym, t)       = second sr_sort $ lookupBindEnv i be
 
-addDupId :: RenameMap -> Symbol s -> Sort s -> BindId -> RenameMap
+addDupId :: RenameMap s -> Symbol s -> Sort s -> BindId -> RenameMap s
 addDupId m sym t i
   | isJust $ L.lookup t mapping = m
   | otherwise                   = M.insert sym ((t, Just $ renameSymbol sym i) : mapping) m
@@ -115,17 +115,17 @@ addDupId m sym t i
 -- | `renameVars` seems to do the actual work of renaming all the binders
 --   to use their sort-specific names.
 --------------------------------------------------------------------------------
-renameVars :: SInfo s a -> RenameMap -> IdMap -> SInfo s a
+renameVars :: SInfo s a -> RenameMap s -> IdMap -> SInfo s a
 --------------------------------------------------------------------------------
 renameVars fi rnMap idMap = M.foldlWithKey' (updateRef rnMap) fi idMap
 
-updateRef :: RenameMap -> SInfo s a -> Ref -> S.HashSet BindId -> SInfo s a
+updateRef :: RenameMap s -> SInfo s a -> Ref -> S.HashSet BindId -> SInfo s a
 updateRef rnMap fi rf bset = applySub (mkSubst subs) fi rf
   where
     symTList = [second sr_sort $ lookupBindEnv i $ bs fi | i <- S.toList bset]
     subs     = catMaybes $ mkSubUsing rnMap <$> symTList
 
-mkSubUsing :: RenameMap -> (Symbol s, Sort s) -> Maybe (Symbol s, Expr)
+mkSubUsing :: RenameMap s -> (Symbol s, Sort s) -> Maybe (Symbol s, Expr s)
 mkSubUsing m (sym, t) = do
   newName <- fromJust $ L.lookup t $ mlookup m sym
   return (sym, eVar newName)
@@ -146,7 +146,7 @@ renameBinds fi m = fi { bs = bindEnvFromList $ renameBind m <$> beList }
   where
     beList       = bindEnvToList $ bs fi
 
-renameBind :: RenameMap -> (BindId, Symbol s, SortedReft s) -> (BindId, Symbol s, SortedReft s)
+renameBind :: RenameMap s -> (BindId, Symbol s, SortedReft s) -> (BindId, Symbol s, SortedReft s)
 renameBind m (i, sym, sr)
   | Just newSym <- mnewSym = (i, newSym, sr)
   | otherwise              = (i, sym,    sr)

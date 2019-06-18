@@ -78,7 +78,7 @@ incrInstantiate' cfg fi = do
 
 ------------------------------------------------------------------------------- 
 -- | Step 1a: @instEnv@ sets up the incremental-PLE environment 
-instEnv :: (Loc a) => Config -> SInfo s a -> [(SubcId, SimpC s a)] -> SMT.Context -> InstEnv a 
+instEnv :: (Loc a) => Config -> SInfo s a -> [(SubcId, SimpC s a)] -> SMT.Context s -> InstEnv a 
 instEnv cfg fi cs ctx = InstEnv cfg ctx bEnv aEnv (M.fromList cs) γ s0
   where 
     bEnv              = bs fi
@@ -140,10 +140,10 @@ _evalCands _ _  []    = return []
 _evalCands γ s0 cands = do eqs <- mapM (evalOne γ s0) cands
                            return $ mkUnfolds (zip (Just <$> cands) eqs)
 
-unfoldPred :: Config -> SMT.Context -> [Unfold] -> Pred s 
+unfoldPred :: Config -> SMT.Context s -> [Unfold] -> Pred s 
 unfoldPred cfg ctx = toSMT cfg ctx [] . pAnd . concatMap snd  
 
-evalCandsLoop :: Config -> SMT.Context -> Knowledge -> EvalEnv -> [Expr] -> IO [Unfold] 
+evalCandsLoop :: Config -> SMT.Context s -> Knowledge -> EvalEnv -> [Expr] -> IO [Unfold] 
 evalCandsLoop cfg ctx γ s0 cands = go [] cands 
   where 
     go acc []    = return acc 
@@ -176,7 +176,7 @@ resSInfo cfg env fi res = strengthenBinds fi' res'
 -- | @InstEnv@ has the global information needed to do PLE
 data InstEnv a = InstEnv 
   { ieCfg   :: !Config
-  , ieSMT   :: !SMT.Context
+  , ieSMT   :: !(SMT.Context s)
   , ieBEnv  :: !BindEnv
   , ieAenv  :: !AxiomEnv 
   , ieCstrs :: !(M.HashMap SubcId (SimpC s a))
@@ -302,7 +302,7 @@ sInfo cfg env fi ips = strengthenHyp fi' (mytracepp  "ELAB-INST:  " $ zip (fst <
     axs'             = elaborate (atLoc dummySpan "PLE2") env <$> axs
     fi'              = fi { asserts = axs' ++ asserts fi }
 
-instSimpC :: Config -> SMT.Context -> BindEnv s -> AxiomEnv -> SubcId -> SimpC s a -> IO (Expr s)
+instSimpC :: Config -> SMT.Context s -> BindEnv s -> AxiomEnv -> SubcId -> SimpC s a -> IO (Expr s)
 instSimpC cfg ctx bds aenv sid sub 
   | isPleCstr aenv sid sub = do
     let is0       = mytracepp  "INITIAL-STUFF" $ eqBody <$> L.filter (null . eqArgs) (aenvEqs aenv) 
@@ -334,7 +334,7 @@ unApply = Vis.trans (Vis.defaultVisitor { Vis.txExpr = const go }) () ()
 --------------------------------------------------------------------------------
 -- | Symbolic Evaluation with SMT
 --------------------------------------------------------------------------------
-evaluate :: Config -> SMT.Context -> AxiomEnv -- ^ Definitions
+evaluate :: Config -> SMT.Context s -> AxiomEnv -- ^ Definitions
          -> [(Symbol s, SortedReft s)]            -- ^ Environment of "true" facts 
          -> [Expr]                            -- ^ Candidates for unfolding 
          -> SubcId                            -- ^ Constraint Id
@@ -352,7 +352,7 @@ evaluate cfg ctx aenv facts es sid = do
 
 
  
-_evalLoop :: Config -> SMT.Context -> Knowledge -> EvalEnv -> [Pred s] -> [Expr] -> IO [(Expr, Expr)]
+_evalLoop :: Config -> SMT.Context s -> Knowledge -> EvalEnv -> [Pred s] -> [Expr s] -> IO [(Expr s, Expr s)]
 _evalLoop cfg ctx γ s0 ctxEqs cands = loop 0 [] cands 
   where 
     loop _ acc []    = return acc
@@ -671,8 +671,8 @@ instance Expression (Symbol s, SortedReft s) where
 data Knowledge = KN 
   { knSims    :: ![Rewrite]           -- ^ Measure info, asserted for each new Ctor ('assertSelectors')
   , knAms     :: ![Equation]          -- ^ (Recursive) function definitions, used for PLE
-  , knContext :: SMT.Context
-  , knPreds   :: SMT.Context -> [(Symbol s, Sort s)] -> Expr s -> IO Bool
+  , knContext :: SMT.Context s
+  , knPreds   :: SMT.Context s -> [(Symbol s, Sort s)] -> Expr s -> IO Bool
   , knLams    :: [(Symbol s, Sort s)]
   }
 
@@ -683,7 +683,7 @@ isValid γ e = mytracepp ("isValid: " ++ showpp e) <$>
 isProof :: (a, SortedReft s) -> Bool 
 isProof (_, RR s _) = showpp s == "Tuple"
 
-knowledge :: Config -> SMT.Context -> AxiomEnv -> Knowledge
+knowledge :: Config -> SMT.Context s -> AxiomEnv -> Knowledge
 knowledge cfg ctx aenv = KN 
   { knSims    = aenvSimpl aenv
   , knAms     = aenvEqs   aenv
@@ -695,7 +695,7 @@ knowledge cfg ctx aenv = KN
 -- | This creates the rewrite rule e1 -> e2, applied when:
 -- 1. when e2 is a DataCon and can lead to further reductions
 -- 2. when size e2 < size e1
-initEqualities :: SMT.Context -> AxiomEnv -> [(Symbol s, SortedReft s)] -> [(Expr, Expr)]
+initEqualities :: SMT.Context s -> AxiomEnv s -> [(Symbol s, SortedReft s)] -> [(Expr s, Expr s)]
 initEqualities ctx aenv es = concatMap (makeSimplifications (aenvSimpl aenv)) dcEqs
   where
     dcEqs                  = Misc.hashNub (Mb.catMaybes [getDCEquality senv e1 e2 | EEq e1 e2 <- atoms])
@@ -706,7 +706,7 @@ initEqualities ctx aenv es = concatMap (makeSimplifications (aenvSimpl aenv)) dc
 -- totality-effecting one.
 -- RJ: What does "totality effecting" mean? 
 
-askSMT :: Config -> SMT.Context -> [(Symbol s, Sort s)] -> Expr s -> IO Bool
+askSMT :: Config -> SMT.Context s -> [(Symbol s, Sort s)] -> Expr s -> IO Bool
 askSMT cfg ctx bs e
   | isTautoPred  e     = return True
   | null (Vis.kvars e) = SMT.checkValidWithContext ctx [] PTrue e'
@@ -714,7 +714,7 @@ askSMT cfg ctx bs e
   where 
     e'                 = toSMT cfg ctx bs e 
 
-toSMT :: Config -> SMT.Context -> [(Symbol s, Sort s)] -> Expr s -> Pred s
+toSMT :: Config -> SMT.Context s -> [(Symbol s, Sort s)] -> Expr s -> Pred s
 toSMT cfg ctx bs = defuncAny cfg senv . elaborate "makeKnowledge" (elabEnv bs)
   where
     elabEnv      = insertsSymEnv senv -- L.foldl' (\env (x, s) -> insertSymEnv x s env) senv
@@ -808,7 +808,7 @@ assertSelectors γ e = do
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-withCtx :: Config -> FilePath -> SymEnv s -> (SMT.Context -> IO a) -> IO a
+withCtx :: Config -> FilePath -> SymEnv s -> (SMT.Context s -> IO a) -> IO a
 withCtx cfg file env k = do
   ctx <- SMT.makeContextWithSEnv cfg file env
   _   <- SMT.smtPush ctx
