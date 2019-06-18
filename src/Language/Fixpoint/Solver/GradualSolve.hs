@@ -43,7 +43,7 @@ solveGradual = undefined
 --------------------------------------------------------------------------------
 -- | Progress Bar
 --------------------------------------------------------------------------------
-withProgressFI :: SolverInfo a b -> IO b -> IO b
+withProgressFI :: SolverInfo s a b -> IO b -> IO b
 withProgressFI = withProgress . fromIntegral . cNumScc . siDeps
 --------------------------------------------------------------------------------
 
@@ -53,7 +53,7 @@ printStats fi w s = putStrLn "\n" >> ppTs [ ptable fi, ptable s, ptable w ]
     ppTs          = putStrLn . showpp . mconcat
 
 --------------------------------------------------------------------------------
-solverInfo :: Config -> F.SInfo s a -> SolverInfo a b
+solverInfo :: Config -> F.SInfo s a -> SolverInfo s a b
 --------------------------------------------------------------------------------
 solverInfo cfg fI
   | useElim cfg = E.solverInfo cfg fI
@@ -153,7 +153,7 @@ solveGradual_ :: (NFData a, F.Fixpoint a)
        -> F.SInfo s a
        -> Sol.GSolution s
        -> S.HashSet (F.KVar s)
-       -> W.Worklist a
+       -> W.Worklist s a
        -> SolveM (F.Result (Integer, a), Stats)
 --------------------------------------------------------------------------------
 solveGradual_ cfg fi s0 ks wkl = do
@@ -221,7 +221,7 @@ initGBind sol (k, (e, gb)) = do
 
 
 --------------------------------------------------------------------------------
-refine :: Sol.GSolution s -> W.Worklist a -> SolveM Sol.GSolution
+refine :: Sol.GSolution s -> W.Worklist s a -> SolveM Sol.GSolution
 --------------------------------------------------------------------------------
 refine s w
   | Just (c, w', newScc, rnk) <- W.pop w = do
@@ -267,7 +267,7 @@ rhsCands s c    = (fst <$> ks, kqs)
 --------------------------------------------------------------------------------
 -- | Gradual Convert Solution into Result ----------------------------------------------
 --------------------------------------------------------------------------------
-result :: (F.Fixpoint a) => Config -> W.Worklist a -> Sol.GSolution s
+result :: (F.Fixpoint a) => Config -> W.Worklist s a -> Sol.GSolution s
        -> SolveM (F.Result (Integer, a))
 --------------------------------------------------------------------------------
 result cfg wkl s = do
@@ -278,7 +278,7 @@ result cfg wkl s = do
   where
     ci c = (F.subcId c, F.sinfo c)
 
-result_ :: Fixpoint a =>  W.Worklist a -> Sol.GSolution s -> SolveM (F.FixResult (F.SimpC s a))
+result_ :: Fixpoint a =>  W.Worklist s a -> Sol.GSolution s -> SolveM (F.FixResult (F.SimpC s a))
 result_  w s = res <$> filterM (isUnsat s) cs
   where
     cs       = W.unsatCandidates w
@@ -290,7 +290,7 @@ solResult cfg
   = minimizeResult cfg . Sol.result
 
 
-solResultGradual :: W.Worklist a -> Config -> Sol.GSolution s -> SolveM F.GFixSolution
+solResultGradual :: W.Worklist s a -> Config -> Sol.GSolution s -> SolveM F.GFixSolution
 solResultGradual w _cfg sol
   = F.toGFixSol . Sol.resultGradual <$> updateGradualSolution (W.unsatCandidates w) sol
 
