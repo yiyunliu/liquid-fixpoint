@@ -24,6 +24,7 @@ import           Data.Semigroup                 (Semigroup (..))
 import           Data.Hashable
 import qualified Data.Text.Lazy.Builder         as Builder
 import           Data.Text.Format
+import           Data.Void
 import           Language.Fixpoint.Misc (sortNub, errorstar)
 -- import Debug.Trace (trace)
 
@@ -129,6 +130,9 @@ instance (Hashable s, Eq s, SMTLIB2 s s) => SMTLIB2 s (LocSymbol s) where
 
 instance (Eq s, Hashable s) => SMTLIB2 s SymConst where
   smt2 env = smt2 env . symbol
+
+instance SMTLIB2 Void Void where
+  smt2 _ = absurd
 
 instance SMTLIB2 s (Constant s) where
   smt2 _ (I n)   = build "{}" (Only n)

@@ -1,3 +1,6 @@
+{-# LANGUAGE FunctionalDependencies     #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE NoMonomorphismRestriction  #-}
@@ -33,12 +36,13 @@ import Language.Fixpoint.Types.Substitutions
 import Language.Fixpoint.Types.Visitor
 import Language.Fixpoint.Types.Spans
 import Language.Fixpoint.Types.Theories
-import Language.Fixpoint.Types.Names        (gradIntSymbol, tidySymbol)
+import Language.Fixpoint.Types.Names        (gradIntSymbol, tidySymbol, Symbol (..), symbol)
 import Language.Fixpoint.Misc               (allCombinations, errorstar)
 
 import Control.DeepSeq
 
 import qualified Data.HashMap.Strict       as M
+import           Data.Hashable
 import qualified Data.List                 as L
 
 import Control.Monad.State.Lazy
@@ -48,25 +52,25 @@ import qualified Language.Fixpoint.SortCheck       as So
 import Language.Fixpoint.Solver.Sanitize (symbolEnv)
 
 
-data GSol = GSol !SymEnv !(M.HashMap (KVar s) (Expr, GradInfo))
+data GSol s = GSol !(SymEnv s) !(M.HashMap (KVar s) (Expr s, GradInfo))
 
-instance Semigroup GSol where
+instance (Hashable s, Eq s) => Semigroup (GSol s) where
   (GSol e1 m1) <> (GSol e2 m2) = GSol (e1 <> e2) (m1 <> m2)
 
-instance Monoid GSol where
+instance (Hashable s, Eq s) => Monoid (GSol s) where
   mempty = GSol mempty mempty
 
-instance Show GSol where
+instance (PPrint s, Show s, Fixpoint s, Ord s, Hashable s) => Show (GSol s) where
   show (GSol _ m) = "GSOL = \n" ++ unlines ((\(k,(e, i)) -> showpp k ++ showInfo i ++  " |-> " ++ showpp (tx e)) <$> M.toList m)
     where
-      tx e = subst (mkSubst $ [(x, EVar $ tidySymbol x) | x <- syms e]) e
+      tx e = subst (mkSubst @s $ [(x, EVar . FS $ tidySymbol (symbol x)) | x <- syms e]) e
       showInfo i = show i
 
 
-makeSolutions :: (NFData a, Fixpoint a, Show a)
+makeSolutions :: (Hashable s, PPrint s, Fixpoint s, Ord s, Show s, NFData a, Fixpoint a, Show a)
               => Config -> SInfo s a
               -> [(KVar s, (GWInfo s, [[Expr s]]))]
-              -> Maybe [GSol]
+              -> Maybe [GSol s]
 
 makeSolutions _ _ []
   = Nothing
@@ -80,14 +84,14 @@ makeSolutions cfg fi kes
 -------------------------------------------------------------------------------
 -- |  Make each gradual appearence unique -------------------------------------
 -------------------------------------------------------------------------------
-uniquify :: (NFData a, Fixpoint a, Loc a) => SInfo s a -> (SInfo s a)
+uniquify :: (Eq s, Hashable s, NFData a, Fixpoint a, Loc a) => SInfo s a -> (SInfo s a)
 
 uniquify fi = fi{cm = cm', ws = ws', bs = bs'}
   where
   (cm', km, bs') = uniquifyCS (bs fi) (cm fi)
   ws'            = expandWF km (ws fi)
 
-uniquifyCS :: (NFData a, Fixpoint a, Loc a)
+uniquifyCS :: (Hashable s, Eq s, NFData a, Fixpoint a, Loc a)
            => BindEnv s
            -> M.HashMap SubcId (SimpC s a)
            -> (M.HashMap SubcId (SimpC s a), M.HashMap (KVar s) [(KVar s, Maybe SrcSpan)], BindEnv s)
@@ -100,23 +104,23 @@ uniquifyCS bs cs
     -- gs      = [x | xs <- M.elems km, (x,_) <- xs]
 
 
-class Unique a where
-   uniq :: a -> UniqueM a
+class Unique a s where
+   uniq :: a -> UniqueM s a
 
-instance Unique a => Unique (M.HashMap SubcId a) where
+instance Unique a s => Unique (M.HashMap SubcId a) s where
   uniq m = M.fromList <$> mapM (\(i,x) -> (i,) <$> uniq x) (M.toList m)
 
-instance Loc a => Unique (SimpC s a) where
+instance (Eq s, Hashable s, Loc a) => Unique (SimpC s a) s where
   uniq cs = do
     updateLoc $ srcSpan $ _cinfo cs
     rhs <- uniq (_crhs cs)
     env <- uniq (_cenv cs)
     return cs{_crhs = rhs, _cenv = env}
 
-instance Unique IBindEnv where
+instance (Hashable s, Eq s) => Unique IBindEnv s where
   uniq env = withCache (fromListIBindEnv <$> mapM uniq (elemsIBindEnv env))
 
-instance Unique BindId where
+instance (Hashable s, Eq s) => Unique BindId s where
   uniq i = do
     bs <- benv <$> get
     let (x, t) = lookupBindEnv i bs
@@ -129,13 +133,13 @@ instance Unique BindId where
               return i'
       else return i
 
-instance Unique (SortedReft s) where
+instance (Hashable s, Eq s) => Unique (SortedReft s) s where
   uniq (RR s r) = RR s <$> uniq r
 
-instance Unique (Reft s) where
+instance (Eq s, Hashable s) => Unique (Reft s) s where
   uniq (Reft (x,e)) = (Reft . (x,)) <$> uniq e
 
-instance Unique (Expr s) where
+instance (Hashable s, Eq s) => Unique (Expr s) s where
   uniq = mapMExpr go
    where
     go (PGrad k su i e) = do
@@ -148,8 +152,8 @@ instance Unique (Expr s) where
 -- | The Unique Monad ---------------------------------------------------------
 -------------------------------------------------------------------------------
 
-type UniqueM = State UniqueST
-data UniqueST
+type UniqueM s = State (UniqueST s)
+data UniqueST s
   = UniqueST { freshId :: Integer
              , kmap    :: M.HashMap (KVar s) [(KVar s, Maybe SrcSpan)]
              , change  :: Bool
@@ -159,35 +163,35 @@ data UniqueST
              , benv    :: BindEnv s
              }
 
-updateLoc :: SrcSpan -> UniqueM ()
+updateLoc :: SrcSpan -> UniqueM s ()
 updateLoc x = modify $ \s -> s{uloc = Just x}
 
-withCache :: UniqueM a -> UniqueM a
+withCache :: (Eq s, Hashable s) => UniqueM s a -> UniqueM s a
 withCache act = do
   emptyCache
   a <- act
   emptyCache
   return a
 
-emptyCache :: UniqueM ()
+emptyCache :: (Hashable s, Eq s) => UniqueM s ()
 emptyCache = modify $ \s -> s{cache = mempty}
 
-addCache :: KVar s -> KVar s -> UniqueM ()
+addCache :: (Hashable s, Eq s) => KVar s -> KVar s -> UniqueM s ()
 addCache k k' = modify $ \s -> s{cache = M.insert k k' (cache s)}
 
-updateBEnv :: BindId -> BindEnv s -> UniqueM ()
+updateBEnv :: BindId -> BindEnv s -> UniqueM s ()
 updateBEnv i bs = modify $ \s -> s{benv = bs, ubs = i:(ubs s)}
 
-setChange :: UniqueM ()
+setChange :: UniqueM s ()
 setChange = modify $ \s -> s{change = True}
 
-resetChange :: UniqueM ()
+resetChange :: UniqueM s ()
 resetChange = modify $ \s -> s{change = False}
 
-initUniqueST :: BindEnv s ->  UniqueST
+initUniqueST :: (Hashable s, Eq s) => BindEnv s ->  UniqueST s
 initUniqueST = UniqueST 0 mempty False mempty Nothing mempty
 
-freshK, freshK' :: KVar s -> UniqueM (KVar s)
+freshK, freshK' :: (Eq s, Hashable s) => KVar s -> UniqueM s (KVar s)
 freshK k  = do
   setChange
   cached <- cache <$> get
@@ -199,12 +203,12 @@ freshK k  = do
 freshK' k = do
   i <- freshId <$> get
   modify $ (\s -> s{freshId = i + 1})
-  let k' = KV $ gradIntSymbol i
+  let k' = KV . FS $ gradIntSymbol i
   addK k k'
   addCache k k'
   return k'
 
-addK :: KVar s -> KVar s -> UniqueM ()
+addK :: (Hashable s, Eq s) => KVar s -> KVar s -> UniqueM s ()
 addK key val =
   modify $ (\s -> s{kmap = M.insertWith (++) key [(val, uloc s)] (kmap s)})
 
@@ -212,7 +216,7 @@ addK key val =
 -- | expandWF -----------------------------------------------------------------
 -------------------------------------------------------------------------------
 
-expandWF :: (NFData a, Fixpoint a)
+expandWF :: (Hashable s, Eq s, NFData a, Fixpoint a)
          => M.HashMap (KVar s) [(KVar s, Maybe SrcSpan)]
          -> M.HashMap (KVar s) (WfC s a)
          -> M.HashMap (KVar s) (WfC s a)
@@ -231,31 +235,31 @@ expandWF km ws
 -- |  Substitute Gradual Solution ---------------------------------------------
 -------------------------------------------------------------------------------
 
-class Gradual a where
-  gsubst :: GSol -> a -> a
+class Gradual a s | a -> s where
+  gsubst :: GSol s -> a -> a
 
-instance Gradual (Expr s) where
+instance (Fixpoint s, Ord s, PPrint s, Hashable s, Show s, Eq s) => Gradual (Expr s) s where
   gsubst (GSol env m) e   = mapGVars' (\(k, _) -> Just (fromMaybe (err k) (mknew k))) e
     where
       mknew k = So.elaborate "initBGind.mkPred" env $ fst <$> M.lookup k m
       err   k = errorstar ("gradual substitution: Cannot find " ++ showpp k)
 
-instance Gradual (Reft s) where
+instance (Hashable s, PPrint s, Ord s, Fixpoint s, Show s, Eq s) => Gradual (Reft s) s where
   gsubst su (Reft (x, e)) = Reft (x, gsubst su e)
 
-instance Gradual (SortedReft s) where
+instance (Show s, Fixpoint s, Ord s, PPrint s, Hashable s, Eq s) => Gradual (SortedReft s) s where
   gsubst su r = r {sr_reft = gsubst su (sr_reft r)}
 
-instance Gradual (SimpC s a) where
+instance (Hashable s, PPrint s, Ord s, Fixpoint s, Show s, Eq s) => Gradual (SimpC s a) s where
   gsubst su c = c {_crhs = gsubst su (_crhs c)}
 
-instance Gradual BindEnv where
+instance (Hashable s, PPrint s, Ord s, Fixpoint s, Show s, Eq s) => Gradual (BindEnv s) s where
   gsubst su = mapBindEnv (\_ (x, r) -> (x, gsubst su r))
 
-instance Gradual v => Gradual (M.HashMap k v) where
+instance Gradual v s => Gradual (M.HashMap k v) s where
   gsubst su = M.map (gsubst su)
 
-instance Gradual (SInfo s a) where
+instance (Fixpoint s, Ord s, PPrint s, Hashable s, Show s, Eq s) => Gradual (SInfo s a) s where
   gsubst su fi = fi { bs = gsubst su (bs fi)
                     , cm = gsubst su (cm fi)
                     }

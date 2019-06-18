@@ -437,7 +437,7 @@ z3_options
 
 
 --------------------------------------------------------------------------------
-declare :: (Show s, SMTLIB2 s s, PPrint s, Ord s, Hashable s, Eq s, Fixpoint s) => Context s -> IO () -- SolveM ()
+declare :: (Show s, SMTLIB2 s s, PPrint s, Ord s, Hashable s, Eq s, Fixpoint s) => Context s -> IO () -- SolveM s ()
 --------------------------------------------------------------------------------
 declare me = do
   forM_ dss    $           smtDataDecl me
@@ -496,7 +496,7 @@ symKind env x = case F.tsInterp <$> F.symEnvTheory x env of
               -- Just t  -> if tsInterp t then 0 else 1
 
 
--- assumes :: [F.Expr] -> SolveM ()
+-- assumes :: [F.Expr] -> SolveM s ()
 -- assumes es = withContext $ \me -> forM_  es $ smtAssert me
 
 -- | `distinctLiterals` is used solely to determine the set of literals

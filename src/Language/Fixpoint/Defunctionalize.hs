@@ -1,3 +1,6 @@
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE FlexibleInstances    #-}
@@ -38,13 +41,13 @@ import           Language.Fixpoint.SortCheck       (checkSortExpr)
 import           Language.Fixpoint.Types.Visitor   (mapMExpr, stripCasts)
 -- import Debug.Trace (trace)
 
-defunctionalize :: (Fixpoint a) => Config -> SInfo s a -> SInfo s a
+defunctionalize :: (Hashable s, PPrint s, Fixpoint s, Ord s, Show s, Fixpoint a) => Config -> SInfo s a -> SInfo s a
 defunctionalize cfg si = evalState (defunc si) (makeInitDFState cfg si)
 
-defuncAny :: Defunc a => Config -> SymEnv s -> a -> a
+defuncAny :: (Eq s, Hashable s) => Defunc a s => Config -> SymEnv s -> a -> a
 defuncAny cfg env e = evalState (defunc e) (makeDFState cfg env emptyIBindEnv)
 
-defuncAxioms :: (Defunc a) => Config -> SymEnv s -> a -> (a, [Triggered Expr])
+defuncAxioms :: (Hashable s, PPrint s, Ord s, Fixpoint s, Show s, Defunc a s) => Config -> SymEnv s -> a -> (a, [Triggered (Expr s)])
 defuncAxioms cfg env z = flip evalState (makeDFState cfg env emptyIBindEnv) $ do
   z' <- defunc z
   as <- map noTrigger <$> makeAxioms
@@ -53,18 +56,18 @@ defuncAxioms cfg env z = flip evalState (makeDFState cfg env emptyIBindEnv) $ do
 ---------------------------------------------------------------------------------------------
 -- | Expressions defunctionalization --------------------------------------------------------
 ---------------------------------------------------------------------------------------------
-txExpr :: Expr s -> DF Expr s
+txExpr :: (Show s, Fixpoint s, Ord s, Hashable s) => Expr s -> DF s (Expr s)
 txExpr e = do
   hoFlag <- gets dfHO
   if hoFlag then defuncExpr e else return e
 
-defuncExpr :: Expr s -> DF (Expr s)
+defuncExpr :: (Hashable s, Ord s, Fixpoint s, Show s) => Expr s -> DF s (Expr s)
 defuncExpr = mapMExpr reBind
          >=> mapMExpr logLam
          >=> mapMExpr logRedex
          >=> mapMExpr (fM normalizeLams)
 
-reBind :: Expr s -> DF (Expr s)
+reBind :: (Show s, Fixpoint s, Ord s, Hashable s) => Expr s -> DF s (Expr s)
 reBind (ELam (x, s) e) = ((\y -> ELam (y, s) (subst1 e (x, EVar y))) <$> freshSym s)
 reBind e               = return e
 
@@ -77,23 +80,23 @@ maxLamArg = 7
 -- makeLamArg _ = intArgName
 
 --------------------------------------------------------------------------------
-makeAxioms :: DF [Expr]
+makeAxioms :: (Show s, Fixpoint s, Ord s, Hashable s, PPrint s) => DF s [Expr s] 
 makeAxioms = do
   alphEqs <- concatMap makeAlphaAxioms <$> getLams
   betaEqs <- concatMap makeBetaAxioms  <$> ({- tracepp "getRedexes" <$> -} getRedexes)
   env     <- gets dfEnv
   return   $ filter (validAxiom env) (alphEqs ++ betaEqs)
 
-validAxiom :: SymEnv s -> Expr s -> Bool
+validAxiom :: (Hashable s, PPrint s, Ord s, Show s, Fixpoint s) => SymEnv s -> Expr s -> Bool
 validAxiom env = isJust . checkSortExpr dummySpan (seSort env)
 
 --------------------------------------------------------------------------------
 -- | Alpha Equivalence ---------------------------------------------------------
 --------------------------------------------------------------------------------
-makeAlphaAxioms ::  Expr s -> [Expr s]
+makeAlphaAxioms ::  (Hashable s, Ord s, Fixpoint s, Show s) => Expr s -> [Expr s]
 makeAlphaAxioms = makeAlphaEq . normalizeLams
 
-makeAlphaEq :: Expr s -> [Expr s]
+makeAlphaEq :: (Show s, Fixpoint s, Ord s, Hashable s, Eq s) => Expr s -> [Expr s]
 makeAlphaEq e = go e ++ go' e
   where
     go ee
@@ -111,7 +114,7 @@ makeAlphaEq e = go e ++ go' e
 
 -- head normal form [TODO: example]
 
-normalize :: Expr s -> Expr s
+normalize :: (Hashable s, Ord s, Fixpoint s, Show s) => Expr s -> Expr s
 normalize = snd . go
   where
     go (ELam (y, sy) e) = (i + 1, shiftLam i y sy e') where (i, e') = go e
@@ -133,18 +136,18 @@ normalize = snd . go
     unECst (ECst e _) = unECst e
     unECst e          = e
 
-shiftLam :: Int -> Symbol s -> Sort s -> Expr s -> Expr s
-shiftLam i x t e = ELam (x_i, t) (e `subst1` (x, x_i_t))
+shiftLam :: (Show s, Fixpoint s, Ord s, Hashable s) => Int -> Symbol s -> Sort s -> Expr s -> Expr s
+shiftLam i x t e = ELam (FS x_i, t) (e `subst1` (x, x_i_t))
   where
     x_i          = lamArgSymbol i
-    x_i_t        = ECst (EVar x_i) t
+    x_i_t        = ECst (EVar (FS x_i)) t
 
 -- normalize lambda arguments [TODO: example]
 
-normalizeLams :: Expr s -> Expr s
+normalizeLams :: (Show s, Fixpoint s, Ord s, Hashable s) => Expr s -> Expr s
 normalizeLams e = snd $ normalizeLamsFromTo 1 e
 
-normalizeLamsFromTo :: Int -> Expr s -> (Int, Expr s)
+normalizeLamsFromTo :: (Hashable s, Ord s, Fixpoint s, Show s) => Int -> Expr s -> (Int, Expr s)
 normalizeLamsFromTo i   = go
   where
     go (ELam (y, sy) e) = (i + 1, shiftLam i y sy e') where (i, e') = go e
@@ -161,24 +164,24 @@ normalizeLamsFromTo i   = go
 --------------------------------------------------------------------------------
 -- | Beta Equivalence ----------------------------------------------------------
 --------------------------------------------------------------------------------
-makeBetaAxioms :: Expr s -> [Expr s]
+makeBetaAxioms :: (Show s, Fixpoint s, Ord s, Hashable s) => Expr s -> [Expr s]
 makeBetaAxioms e = makeEqForAll (normalizeLams e) (normalize e)
   -- where
   --  e             = trace ("BETA-NL e = " ++ showpp e0) e0
 
-makeEq :: Expr s -> Expr s -> Expr s
+makeEq :: (Eq s) => Expr s -> Expr s -> Expr s
 makeEq e1 e2
   | e1 == e2  = PTrue
   | otherwise = EEq e1 e2
 
-makeEqForAll :: Expr s -> Expr s -> [Expr s]
+makeEqForAll :: (Hashable s, Ord s, Fixpoint s, Show s, Eq s) => Expr s -> Expr s -> [Expr s]
 makeEqForAll e1 e2 = [ makeEq (closeLam su e1') (closeLam su e2') | su <- instantiate xs]
   where
     (xs1, e1')     = splitPAll [] e1
     (xs2, e2')     = splitPAll [] e2
     xs             = L.nub (xs1 ++ xs2)
 
-closeLam :: [(Symbol s, (Symbol s, Sort s))] -> Expr s -> Expr s
+closeLam :: (Show s, Fixpoint s, Ord s, Hashable s) => [(Symbol s, (Symbol s, Sort s))] -> Expr s -> Expr s
 closeLam ((x,(y,s)):su) e = ELam (y,s) (subst1 (closeLam su e) (x, EVar y))
 closeLam []             e = e
 
@@ -189,7 +192,7 @@ splitPAll acc e           = (acc, e)
 instantiate     :: [(Symbol s, Sort s)] -> [[(Symbol s, (Symbol s, Sort s))]]
 instantiate      = choices . map inst1
   where
-    inst1 (x, s) = [(x, (lamArgSymbol i, s)) | i <- [1..maxLamArg]]
+    inst1 (x, s) = [(x, (FS $ lamArgSymbol i, s)) | i <- [1..maxLamArg]]
 
 choices :: [[a]] -> [[a]]
 choices []       = [[]]
@@ -199,10 +202,10 @@ choices (xs:xss) = [a:as | a <- xs, as <- choices xss]
 -- | Containers defunctionalization --------------------------------------------
 --------------------------------------------------------------------------------
 
-class Defunc a where
-  defunc :: a -> DF a
+class Defunc a s | a -> s where
+  defunc :: a -> DF s a
 
-instance (Defunc (c a), TaggedC c a) => Defunc (GInfo c s a) where
+instance (PPrint s, Ord s, Fixpoint s, Show s, Hashable s, Eq s, Defunc (c a) s, TaggedC c s a) => Defunc (GInfo c s a) s where
   defunc fi = do
     cm'    <- defunc $ cm    fi
     ws'    <- defunc $ ws    fi
@@ -221,14 +224,14 @@ instance (Defunc (c a), TaggedC c a) => Defunc (GInfo c s a) where
                 , asserts = (noTrigger <$> axioms) ++ ass'
                 }
 
-instance (Defunc a) => Defunc (Triggered a) where
+instance (Defunc a s) => Defunc (Triggered a) s where
   defunc (TR t e) = TR t <$> defunc e
 
-instance Defunc (SimpC s a) where
+instance (Show s, Fixpoint s, Ord s, Hashable s, Eq s) => Defunc (SimpC s a) s where
   defunc sc = do crhs' <- defunc $ _crhs sc
                  return $ sc {_crhs = crhs'}
 
-instance Defunc (WfC s a)   where
+instance (Show s, Fixpoint s, Ord s, Hashable s, Eq s) => Defunc (WfC s a) s where
   defunc wf@(WfC {}) = do
     let (x, t, k) = wrft wf
     t' <- defunc t
@@ -239,25 +242,25 @@ instance Defunc (WfC s a)   where
     e' <- defunc $ wexpr wf
     return $ wf { wrft = (x, t', k), wexpr = e' }
 
-instance Defunc (SortedReft s) where
+instance (Hashable s, Ord s, Fixpoint s, Show s, Eq s) => Defunc (SortedReft s) s where
   defunc (RR s r) = RR s <$> defunc r
 
-instance Defunc (Symbol s, SortedReft s) where
+instance (Show s, Fixpoint s, Ord s, Hashable s, Eq s) => Defunc (Symbol s, SortedReft s) s where
   defunc (x, sr) = (x,) <$> defunc sr
 
-instance Defunc (Symbol s, Sort s) where
+instance Defunc (Symbol s, Sort s) s where
   defunc (x, t) = (x,) <$> defunc t
 
-instance Defunc (Reft s) where
+instance (Show s, Fixpoint s, Ord s, Hashable s, Eq s) => Defunc (Reft s) s where
   defunc (Reft (x, e)) = Reft . (x,) <$> defunc e
 
-instance Defunc (Expr s) where
+instance (Hashable s, Ord s, Fixpoint s, Show s, Eq s) => Defunc (Expr s) s where
   defunc = txExpr
 
-instance Defunc a => Defunc (SEnv s a) where
+instance (Hashable s, Eq s, Defunc a s) => Defunc (SEnv s a) s where
   defunc = mapMSEnv defunc
 
-instance Defunc BindEnv   where
+instance (Hashable s, Ord s, Fixpoint s, Show s, Eq s) => Defunc (BindEnv s) s where
   defunc bs = do dfbs <- gets dfBEnv
                  let f (i, xs) = if i `memberIBindEnv` dfbs
                                        then  (i,) <$> defunc xs
@@ -271,20 +274,20 @@ instance Defunc BindEnv   where
     matchSort (x, RR s r) = ((x,) . (`RR` r)) <$> defunc s
 
 -- Sort defunctionalization [should be done by elaboration]
-instance Defunc (Sort s) where
+instance Defunc (Sort s) s where
   defunc = return
 
-instance Defunc a => Defunc [a] where
+instance (Defunc a s) => Defunc [a] s where
   defunc = mapM defunc
 
-instance (Defunc a, Eq k, Hashable k) => Defunc (M.HashMap k a) where
+instance (Defunc a s, Eq k, Hashable k) => Defunc (M.HashMap k a) s where
   defunc m = M.fromList <$> mapM (secondM defunc) (M.toList m)
 
-type DF    = State DFST
+type DF   s = State (DFST s)
 
-data DFST = DFST
+data DFST s = DFST
   { dfFresh :: !Int
-  , dfEnv   :: !SymEnv
+  , dfEnv   :: !(SymEnv s)
   , dfBEnv  :: !IBindEnv
   , dfLam   :: !Bool        -- ^ normalize lams
   , dfExt   :: !Bool        -- ^ enable extensionality axioms
@@ -293,12 +296,12 @@ data DFST = DFST
   , dfNorm  :: !Bool        -- ^ enable normal form axioms
   , dfHO    :: !Bool        -- ^ allow higher order thus defunctionalize
   , dfLNorm :: !Bool
-  , dfLams  :: ![Expr]      -- ^ lambda expressions appearing in the expressions
-  , dfRedex :: ![Expr]      -- ^ redexes appearing in the expressions
+  , dfLams  :: ![Expr s]      -- ^ lambda expressions appearing in the expressions
+  , dfRedex :: ![Expr s]      -- ^ redexes appearing in the expressions
   , dfBinds :: !(SEnv s (Sort s)) -- ^ sorts of new lambda-binders
   }
 
-makeDFState :: Config -> SymEnv s -> IBindEnv -> DFST
+makeDFState :: (Hashable s, Eq s) => Config -> SymEnv s -> IBindEnv -> DFST s
 makeDFState cfg env ibind = DFST
   { dfFresh = 0
   , dfEnv   = env
@@ -316,7 +319,7 @@ makeDFState cfg env ibind = DFST
   , dfBinds = mempty
   }
 
-makeInitDFState :: Config -> SInfo s a -> DFST
+makeInitDFState :: (Show s, Ord s, Fixpoint s, PPrint s, Hashable s) => Config -> SInfo s a -> DFST s
 makeInitDFState cfg si
   = makeDFState cfg
       (symbolEnv cfg si)
@@ -325,17 +328,17 @@ makeInitDFState cfg si
 --------------------------------------------------------------------------------
 -- | Low level monad manipulation ----------------------------------------------
 --------------------------------------------------------------------------------
-freshSym :: Sort s -> DF (Symbol s)
+freshSym :: (Hashable s, Eq s) => Sort s -> DF s (Symbol s)
 freshSym t = do
   n    <- gets dfFresh
   let x = intSymbol "lambda_fun_" n
-  modify $ \s -> s {dfFresh = n + 1, dfBinds = insertSEnv x t (dfBinds s)}
-  return x
+  modify $ \s -> s {dfFresh = n + 1, dfBinds = insertSEnv (FS x) t (dfBinds s)}
+  return (FS x)
 
-logLam :: Expr s -> DF (Expr s)
+logLam :: Expr s -> DF s (Expr s)
 logLam e = whenM (gets dfAEq) (putLam e) >> return e
 
-logRedex :: Expr s -> DF (Expr s)
+logRedex :: Expr s -> DF s (Expr s)
 logRedex e = do
   whenM (gets dfBEq) $
     when ({- tracepp ("isRedex:" ++ showpp e) $ -} isRedex e)
@@ -344,7 +347,7 @@ logRedex e = do
 
   -- (putRedex (tracepp "isRedex" e)) >> return e
 
-putLam :: Expr s -> DF ()
+putLam :: Expr s -> DF s ()
 putLam e@(ELam {}) = modify $ \s -> s { dfLams = e : dfLams s}
 putLam _           = return ()
 
@@ -364,21 +367,21 @@ isRedex _                    = False
 -- | getLams and getRedexes return the (previously seen) lambdas and redexes,
 --   after "closing" them by quantifying out free vars corresponding to the
 --   fresh binders in `dfBinds`.
-getLams    :: DF [Expr]
+getLams    :: (Hashable s, Fixpoint s, Show s, Ord s) => DF s [Expr s]
 getLams    = getClosedField dfLams
 
-getRedexes :: DF [Expr]
+getRedexes :: (Hashable s, Fixpoint s, Show s, Ord s) => DF s [Expr s]
 getRedexes = getClosedField dfRedex
 
-getClosedField :: (DFST -> [Expr]) -> DF [Expr]
+getClosedField :: (Ord s, Show s, Fixpoint s, Hashable s) => (DFST s -> [Expr s]) -> DF s [Expr s]
 getClosedField fld = do
   env <- gets dfBinds
   es  <- gets fld
   return (closeLams env <$> es)
 
-closeLams :: SEnv s (Sort s) -> Expr s -> Expr s
+closeLams :: (Hashable s, Fixpoint s, Show s, Ord s) => SEnv s (Sort s) -> Expr s -> Expr s
 closeLams env e = PAll (freeBinds env e) e
 
-freeBinds :: SEnv s (Sort s) -> Expr s -> [(Symbol s, Sort s)]
+freeBinds :: (Ord s, Show s, Eq s, Fixpoint s, Hashable s) => SEnv s (Sort s) -> Expr s -> [(Symbol s, Sort s)]
 freeBinds env e = [ (y, t) | y <- sortNub (syms e)
                            , t <- maybeToList (lookupSEnv y env) ]
