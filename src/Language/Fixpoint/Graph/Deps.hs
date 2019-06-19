@@ -467,7 +467,7 @@ maximumDef _ xs = maximum xs
 
 
 ---------------------------------------------------------------------------
-graphDeps :: (Hashable s, Ord s) => F.TaggedC c s a => F.GInfo c s a -> [CEdge s] -> CDeps s
+graphDeps :: (Hashable s, Ord s, F.TaggedC c s a) => F.GInfo c s a -> [CEdge s] -> CDeps s
 ---------------------------------------------------------------------------
 graphDeps fi cs = CDs { cSucc   = gSucc cg
                       , cPrev   = cPrevM
@@ -510,7 +510,7 @@ rankF cm outR inR = \i -> Rank (outScc i) (inScc i) (tag i)
     tag           = F.stag . lookupCMap cm
 
 ---------------------------------------------------------------------------
-inRanks ::  (Hashable s, Eq s) => F.TaggedC c s a => F.GInfo c s a -> [DepEdge] -> CMap Int -> CMap Int
+inRanks ::  (Hashable s, Eq s, F.TaggedC c s a) => F.GInfo c s a -> [DepEdge] -> CMap Int -> CMap Int
 ---------------------------------------------------------------------------
 inRanks fi es outR
   | ks == mempty      = outR
@@ -526,7 +526,7 @@ inRanks fi es outR
     isKutWrite        = any (`F.ksMember` ks) . kvWriteBy cm
 
 --------------------------------------------------------------------------------
-graphStatistics :: (Fixpoint s, Ord s, PPrint s, Hashable s, Eq s, Show s) => F.TaggedC c s a => Config -> F.GInfo c s a -> IO ()
+graphStatistics :: (Fixpoint s, Ord s, PPrint s, Hashable s, Eq s, Show s, F.TaggedC c s a) => Config -> F.GInfo c s a -> IO ()
 --------------------------------------------------------------------------------
 graphStatistics cfg si = when (elimStats cfg) $ do
   -- writeGraph f  (kvGraph si)
@@ -555,7 +555,7 @@ instance (PPrint s) => PTable (Stats s) where
     , ("KVars NonLin"     , pprint stSetKVNonLin)
     ]
 
-graphStats :: (Fixpoint s, Ord s, Show s, Eq s, Hashable s) => F.TaggedC c s a => Config -> F.GInfo c s a -> Stats s
+graphStats :: (Fixpoint s, Ord s, Show s, Eq s, Hashable s, F.TaggedC c s a) => Config -> F.GInfo c s a -> Stats s
 graphStats cfg si = Stats {
     stNumKVCuts   = S.size (depCuts d)
   , stNumKVNonLin = S.size  nlks

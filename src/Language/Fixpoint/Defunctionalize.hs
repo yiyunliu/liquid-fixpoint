@@ -44,7 +44,7 @@ import           Language.Fixpoint.Types.Visitor   (mapMExpr, stripCasts)
 defunctionalize :: (Hashable s, PPrint s, Fixpoint s, Ord s, Show s, Fixpoint a) => Config -> SInfo s a -> SInfo s a
 defunctionalize cfg si = evalState (defunc si) (makeInitDFState cfg si)
 
-defuncAny :: (Eq s, Hashable s) => Defunc a s => Config -> SymEnv s -> a -> a
+defuncAny :: (Eq s, Hashable s, Defunc a s) => Config -> SymEnv s -> a -> a
 defuncAny cfg env e = evalState (defunc e) (makeDFState cfg env emptyIBindEnv)
 
 defuncAxioms :: (Hashable s, PPrint s, Ord s, Fixpoint s, Show s, Defunc a s) => Config -> SymEnv s -> a -> (a, [Triggered (Expr s)])

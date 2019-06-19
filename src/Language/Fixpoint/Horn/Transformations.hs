@@ -662,7 +662,7 @@ forallElim x p e = forallElim' x eqs p e
     = [e]
   kv' _ _                    = []
 
-forallElim' :: (Show s, F.Fixpoint s, Ord s) => F.Subable a s => F.Symbol s -> [F.Expr s] -> a -> F.Expr s -> F.Expr s
+forallElim' :: (Show s, F.Fixpoint s, Ord s, F.Subable a s) => F.Symbol s -> [F.Expr s] -> a -> F.Expr s -> F.Expr s
 forallElim' x (F.PAtom F.Eq a b : _) _ e
   | F.EVar x == a
   = F.subst1 e (x,b)
@@ -746,7 +746,7 @@ uBind (Bind x t p) = do
    x' <- uVariable x
    Bind x' t <$> gets (rename p)
 
-uVariable :: (Hashable s, Eq s) => IsString a => F.Symbol s -> State (RenameMap s) a
+uVariable :: (Hashable s, Eq s, IsString a) => F.Symbol s -> State (RenameMap s) a
 uVariable x = do
    i <- gets (M.lookupDefault (-1) x)
    modify (M.insert x (i+1))

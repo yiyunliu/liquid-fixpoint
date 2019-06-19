@@ -122,7 +122,7 @@ fromMapSEnv             = SE
 mapSEnv                 :: (a -> b) -> SEnv s a -> SEnv s b
 mapSEnv f (SE env)      = SE (fmap f env)
 
-mapMSEnv                :: (Eq s, Hashable s) => (Monad m) => (a -> m b) -> SEnv s a -> m (SEnv s b)
+mapMSEnv                :: (Eq s, Hashable s, Monad m) => (a -> m b) -> SEnv s a -> m (SEnv s b)
 mapMSEnv f env          = fromListSEnv <$> mapM (secondM f) (toListSEnv env)
 
 mapSEnvWithKey          :: (Eq s, Hashable s) => ((Symbol s, a) -> (Symbol s, b)) -> SEnv s a -> SEnv s b

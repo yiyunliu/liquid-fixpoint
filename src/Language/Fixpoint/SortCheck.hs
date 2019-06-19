@@ -760,7 +760,7 @@ which, I imagine is what happens _somewhere_ inside GHC too?
 -}
 
 --------------------------------------------------------------------------------
-applySorts :: (Eq s) => Vis.Visitable t s => t -> [Sort s]
+applySorts :: (Eq s, Vis.Visitable t s) => t -> [Sort s]
 --------------------------------------------------------------------------------
 applySorts = {- tracepp "applySorts" . -} (defs ++) . Vis.fold vis () []
   where
