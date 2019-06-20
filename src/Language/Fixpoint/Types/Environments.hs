@@ -158,7 +158,7 @@ unionSEnv (SE m1) m2    = SE (M.union m1 m2)
 unionSEnv' :: (Eq s, Hashable s) => SEnv s a -> SEnv s a -> SEnv s a
 unionSEnv' (SE m1) (SE m2)    = SE (M.union m1 m2)
 
-lookupSEnvWithDistance :: (Eq s, Hashable s) => Symbol s -> SEnv s a -> SESearch a s
+lookupSEnvWithDistance :: (Eq s, Hashable s) => Symbol s -> SEnv s a -> SESearch s a
 lookupSEnvWithDistance x (SE env)
   = case M.lookup x env of
      Just z  -> Found z
@@ -171,7 +171,7 @@ lookupSEnvWithDistance x (SE env)
     getMin     = minimum . (fst <$>)
 
 
-data SESearch a s = Found a | Alts [Symbol s]
+data SESearch s a = Found a | Alts [Symbol s]
 
 -- | Functions for Indexed Bind Environment
 

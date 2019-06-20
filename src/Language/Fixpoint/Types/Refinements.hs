@@ -139,7 +139,7 @@ instance (Hashable k, Eq k, B.Binary k, B.Binary v) => B.Binary (M.HashMap k v) 
   put = B.put . M.toList
   get = M.fromList <$> B.get
 
-instance (Eq a, Hashable a, B.Binary a, B.Binary s) => B.Binary (TCEmb a s) 
+instance (Eq a, Hashable a, B.Binary a, B.Binary s) => B.Binary (TCEmb s a) 
 instance B.Binary SrcSpan
 instance (B.Binary s) => B.Binary (KVar s)
 instance (Eq s, Hashable s, B.Binary s) => B.Binary (Subst s)
@@ -518,7 +518,7 @@ instance PPrint Bop where
 instance (Eq s, Fixpoint s) => PPrint (Sort s) where
   pprintTidy _ = toFix
 
-instance (Eq s, Fixpoint s, PPrint a) => PPrint (TCEmb a s) where 
+instance (Eq s, Fixpoint s, PPrint a) => PPrint (TCEmb s a) where 
   pprintTidy k = pprintTidy k . tceToList 
 
 instance (PPrint s) => PPrint (KVar s) where

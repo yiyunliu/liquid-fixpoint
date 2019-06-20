@@ -458,7 +458,7 @@ sortSubst θ (FApp t1 t2)  = FApp  (sortSubst θ t1) (sortSubst θ t2)
 sortSubst θ (FAbs i t)    = FAbs i (sortSubst θ t)
 sortSubst _  t            = t
 
--- instance (B.Binary a) => B.Binary (TCEmb a s) 
+-- instance (B.Binary a) => B.Binary (TCEmb s a) 
 instance B.Binary TCArgs 
 instance B.Binary s => B.Binary (FTycon s)
 instance B.Binary TCInfo
@@ -471,7 +471,7 @@ instance B.Binary s => B.Binary (Sub s)
 instance NFData (FTycon s) where
   rnf (TC x i) = x `seq` i `seq` ()
 
-instance (NFData a, NFData s) => NFData (TCEmb a s) 
+instance (NFData a, NFData s) => NFData (TCEmb s a) 
 instance NFData TCArgs 
 instance NFData TCInfo
 instance NFData s => NFData (Sort s)
@@ -494,13 +494,13 @@ instance (Show s, Eq s) => Monoid (Sort s) where
 -------------------------------------------------------------------------------
 -- | Embedding stuff as Sorts 
 -------------------------------------------------------------------------------
-newtype TCEmb a s = TCE (M.HashMap a (Sort s, TCArgs)) 
+newtype TCEmb s a = TCE (M.HashMap a (Sort s, TCArgs)) 
   deriving (Eq, Show, Data, Typeable, Generic) 
 
 data TCArgs = WithArgs | NoArgs 
   deriving (Eq, Ord, Show, Data, Typeable, Generic) 
 
-tceInsertWith :: (Eq a, Hashable a) => (Sort s -> Sort s -> Sort s) -> a -> Sort s -> TCArgs -> TCEmb a s -> TCEmb a s
+tceInsertWith :: (Eq a, Hashable a) => (Sort s -> Sort s -> Sort s) -> a -> Sort s -> TCArgs -> TCEmb s a -> TCEmb s a
 tceInsertWith f k t a (TCE m) = TCE (M.insertWith ff k (t, a) m)
   where 
     ff (t1, a1) (t2, a2)      = (f t1 t2, a1 <> a2)
@@ -517,28 +517,28 @@ instance PPrint TCArgs where
   pprintTidy _ WithArgs = "*"
   pprintTidy _ NoArgs   = ""
 
-tceInsert :: (Eq a, Hashable a) => a -> Sort s -> TCArgs -> TCEmb a s -> TCEmb a s
+tceInsert :: (Eq a, Hashable a) => a -> Sort s -> TCArgs -> TCEmb s a -> TCEmb s a
 tceInsert k t a (TCE m) = TCE (M.insert k (t, a) m)
 
-tceLookup :: (Eq a, Hashable a) => a -> TCEmb a s -> Maybe (Sort s, TCArgs) 
+tceLookup :: (Eq a, Hashable a) => a -> TCEmb s a -> Maybe (Sort s, TCArgs) 
 tceLookup k (TCE m) = M.lookup k m
 
-instance (Eq a, Hashable a) => Semigroup (TCEmb a s) where 
+instance (Eq a, Hashable a) => Semigroup (TCEmb s a) where 
   (TCE m1) <> (TCE m2) = TCE (m1 <> m2)
 
-instance (Eq a, Hashable a) => Monoid (TCEmb a s) where 
+instance (Eq a, Hashable a) => Monoid (TCEmb s a) where 
   mempty  = TCE mempty 
   mappend = (<>)
 
 
-tceMap :: (Eq b, Hashable b) => (a -> b) -> TCEmb a s -> TCEmb b s
+tceMap :: (Eq b, Hashable b) => (a -> b) -> TCEmb s a -> TCEmb s b
 tceMap f = tceFromList . fmap (mapFst f) . tceToList 
 
-tceFromList :: (Eq a, Hashable a) => [(a, (Sort s, TCArgs))] -> TCEmb a s
+tceFromList :: (Eq a, Hashable a) => [(a, (Sort s, TCArgs))] -> TCEmb s a
 tceFromList = TCE . M.fromList 
 
-tceToList :: TCEmb a s -> [(a, (Sort s, TCArgs))]
+tceToList :: TCEmb s a -> [(a, (Sort s, TCArgs))]
 tceToList (TCE m) = M.toList m
 
-tceMember :: (Eq a, Hashable a) => a -> TCEmb a s -> Bool 
+tceMember :: (Eq a, Hashable a) => a -> TCEmb s a -> Bool 
 tceMember k (TCE m) = M.member k m

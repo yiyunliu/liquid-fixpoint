@@ -285,12 +285,12 @@ type CheckM   = StateT ChState (Either ChError)
 type ChError  = Located String
 data ChState  = ChS { chCount :: Int, chSpan :: SrcSpan }
 
-type Env s      = Symbol s -> SESearch (Sort s) s
+type Env s      = Symbol s -> SESearch s (Sort s)
 type ElabEnv s  = (SymEnv s, Env s)
 
 
 --------------------------------------------------------------------------------
-mkSearchEnv :: (Hashable s, Eq s) => SEnv s a -> Symbol s -> SESearch a s
+mkSearchEnv :: (Hashable s, Eq s) => SEnv s a -> Symbol s -> SESearch s a
 --------------------------------------------------------------------------------
 mkSearchEnv env x = lookupSEnvWithDistance x env  
 
@@ -418,7 +418,7 @@ checkExpr f (ECoerc s t e) = checkExpr f (ECst e s) >> return t
 checkExpr _ (ETApp _ _)    = error "SortCheck.checkExpr: TODO: implement ETApp"
 checkExpr _ (ETAbs _ _)    = error "SortCheck.checkExpr: TODO: implement ETAbs"
 
-addEnv :: Eq a => (a -> SESearch b s) -> [(a, b)] -> a -> SESearch b s
+addEnv :: Eq a => (a -> SESearch s b) -> [(a, b)] -> a -> SESearch s b
 addEnv f bs x
   = case L.lookup x bs of
       Just s  -> Found s
@@ -548,7 +548,7 @@ elab _ (ETApp _ _) =
 elab _ (ETAbs _ _) =
   error "SortCheck.elab: TODO: implement ETAbs"
 
-elabAddEnv :: Eq a => (t, a -> SESearch b s) -> [(a, b)] -> (t, a -> SESearch b s)
+elabAddEnv :: Eq a => (t, a -> SESearch s b) -> [(a, b)] -> (t, a -> SESearch s b)
 elabAddEnv (g, f) bs = (g, addEnv f bs)
 
 cast :: Expr s -> Sort s -> Expr s
