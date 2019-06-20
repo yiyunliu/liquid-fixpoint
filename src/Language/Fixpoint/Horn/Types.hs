@@ -61,10 +61,10 @@ data Pred s
   deriving (Data, Typeable, Generic, Eq)
 
 
-instance Semigroup Pred where
+instance Semigroup (Pred s) where
   p1 <> p2 = PAnd [p1, p2]
 
-instance Monoid Pred where 
+instance (F.Fixpoint s, Ord s) => Monoid (Pred s) where 
   mempty = Reft mempty
 
 -------------------------------------------------------------------------------
