@@ -269,9 +269,12 @@ mappendSym s1 s2 = textSymbol $ mappend s1' s2'
 instance PPrint FixSymbol where
   pprintTidy _ = text . symbolString
 
-instance PPrint s => PPrint (AbstractSymbol s)
+instance PPrint s => PPrint (AbstractSymbol s) where
+  pprintTidy t as = pprintTidy t $ abstractSymbol as
 
-instance PPrint s => PPrint (Symbol s) 
+instance PPrint s => PPrint (Symbol s) where
+  pprintTidy t (FS fs) = pprintTidy t fs
+  pprintTidy t (AS as) = pprintTidy t as
 
 instance Fixpoint T.Text where
   toFix = text . T.unpack
