@@ -143,7 +143,7 @@ testFunAppP =
         show (doParse' (funAppP @Void) "test" "fooBar baz qux") @?= "EApp (EApp (EVar \"fooBar\") (EVar \"baz\")) (EVar \"qux\")"
 
     , testCase "ECon (exprFunCommasP)" $
-        show (doParse' (funAppP @Void) "test" "fooBar (baz, qux)") @?= "EApp (EApp (EVar \"fooBar\") (EVar \"baz\")) (EVar \"qux\")"
+        show (doParse' (funAppP @Void) "test" "fooBar (baz, qux)") @?= "EApp (EVar \"fooBar\") (EApp (EApp (EVar \"(,)\") (EVar \"baz\")) (EVar \"qux\"))"
 
     , testCase "ECon (exprFunSemisP)" $
         show (doParse' (funAppP @Void) "test" "fooBar ([baz; qux])") @?= "EApp (EApp (EVar \"fooBar\") (EVar \"baz\")) (EVar \"qux\")"
@@ -288,7 +288,7 @@ testPredP =
         show (doParse' (predP @Void) "test" "f a b") @?= "EApp (EApp (EVar \"f\") (EVar \"a\")) (EVar \"b\")"
 
     , testCase "funApp 2" $
-        show (doParse' (predP @Void) "test" "f (a, b)") @?= "EApp (EApp (EVar \"f\") (EVar \"a\")) (EVar \"b\")"
+        show (doParse' (predP @Void) "test" "f (a, b)") @?= "EApp (EVar \"f\") (EApp (EApp (EVar \"(,)\") (EVar \"a\")) (EVar \"b\"))"
 
     , testCase "funApp 3" $
         show (doParse' (predP @Void) "test" "f ([a; b])") @?= "EApp (EApp (EVar \"f\") (EVar \"a\")) (EVar \"b\")"

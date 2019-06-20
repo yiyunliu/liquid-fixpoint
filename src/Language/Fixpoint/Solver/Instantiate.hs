@@ -165,15 +165,13 @@ evalCandsLoop cfg ctx γ s0 cands = go [] cands
 ---------------------------------------------------------------------------------------------- 
 -- | Step 3: @resSInfo@ uses incremental PLE result @InstRes@ to produce the strengthened SInfo s 
 
-resSInfo :: (Fixpoint s, Ord s, PPrint s, Hashable s, Show s) => Config -> SymEnv s -> SInfo s a -> InstRes s -> SInfo s a
-resSInfo cfg env fi res = strengthenBinds fi' res' 
+resSInfo :: (Hashable s, Show s, PPrint s, Ord s, Fixpoint s) => Config -> SymEnv s -> SInfo s a -> InstRes s -> SInfo s a
+resSInfo cfg env fi res = strengthenBinds fi res' 
   where
-    res'                = M.fromList $ mytracepp  "ELAB-INST:  " $ zip is ps''
-    ps''                = zipWith (\i -> elaborate (atLoc dummySpan ("PLE1 " ++ show i)) env) is ps' 
-    (ps', axs)          = defuncAxioms cfg env ps
-    (is, ps)            = unzip (M.toList res)
-    axs'                = elaborate (atLoc dummySpan "PLE2") env <$> axs
-    fi'                 = fi { asserts = axs' ++ asserts fi }
+    res'     = M.fromList $ mytracepp  "ELAB-INST:  " $ zip is ps''
+    ps''     = zipWith (\i -> elaborate (atLoc dummySpan ("PLE1 " ++ show i)) env) is ps' 
+    ps'      = defuncAny cfg env ps
+    (is, ps) = unzip (M.toList res)
 
 ---------------------------------------------------------------------------------------------- 
 -- | @InstEnv@ has the global information needed to do PLE
@@ -296,14 +294,13 @@ instantiate' cfg fi = sInfo cfg env fi <$> withCtx cfg file env act
     env             = symbolEnv cfg fi
     aenv            = {- mytracepp  "AXIOM-ENV" -} (ae fi)
 
-sInfo :: (Fixpoint s, Ord s, PPrint s, Hashable s, Show s) => Config -> SymEnv s -> SInfo s a -> [((SubcId, SrcSpan), Expr s)] -> SInfo s a
-sInfo cfg env fi ips = strengthenHyp fi' (mytracepp  "ELAB-INST:  " $ zip (fst <$> is) ps'')
+
+sInfo :: (Show s, Hashable s, PPrint s, Ord s, Fixpoint s) => Config -> SymEnv s -> SInfo s a -> [((SubcId, SrcSpan), Expr s)] -> SInfo s a
+sInfo cfg env fi ips = strengthenHyp fi (mytracepp  "ELAB-INST:  " $ zip (fst <$> is) ps'')
   where
     (is, ps)         = unzip ips
-    (ps', axs)       = defuncAxioms cfg env ps
+    ps'              = defuncAny cfg env ps
     ps''             = zipWith (\(i, sp) -> elaborate (atLoc sp ("PLE1 " ++ show i)) env) is ps' 
-    axs'             = elaborate (atLoc dummySpan "PLE2") env <$> axs
-    fi'              = fi { asserts = axs' ++ asserts fi }
 
 instSimpC :: (PPrint s, Fixpoint s, Ord s, SMT.SMTLIB2 s s, Show s, Hashable s, Eq s) => Config -> SMT.Context s -> BindEnv s -> AxiomEnv s -> SubcId -> SimpC s a -> IO (Expr s)
 instSimpC cfg ctx bds aenv sid sub 

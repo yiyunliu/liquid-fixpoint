@@ -64,10 +64,7 @@ import           Language.Fixpoint.Types.Config ( SMTSolver (..)
                                                 , Config
                                                 , solver
                                                 , smtTimeout
-                                                , extensionality
-                                                , alphaEquivalence
-                                                , betaEquivalence
-                                                , normalForm
+                                                , gradual
                                                 , stringTheory)
 import qualified Language.Fixpoint.Misc          as Misc
 import qualified Language.Fixpoint.Types.Visitor as Vis
@@ -279,10 +276,6 @@ makeProcess cfg
                   , ctxCout    = hOut
                   , ctxLog     = Nothing
                   , ctxVerbose = loud
-                  , ctxExt     = extensionality cfg
-                  , ctxAeq     = alphaEquivalence cfg
-                  , ctxBeq     = betaEquivalence  cfg
-                  , ctxNorm    = normalForm       cfg
                   , ctxSymEnv  = mempty
                   }
 
@@ -418,8 +411,8 @@ makeTimeout cfg
 
 makeMbqi :: Config -> [LT.Text]
 makeMbqi cfg
-  | extensionality cfg = [""]
-  | otherwise          = ["\n(set-option :smt.mbqi false)"]
+  | gradual cfg = [""]
+  | otherwise   = ["\n(set-option :smt.mbqi false)"]
 
 -- DON'T REMOVE THIS! z3 changed the names of options between 4.3.1 and 4.3.2...
 z3_432_options :: [LT.Text]

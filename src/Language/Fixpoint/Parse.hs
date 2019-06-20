@@ -100,7 +100,6 @@ import           Language.Fixpoint.Smt.Bitvector
 import           Language.Fixpoint.Types.Errors
 import qualified Language.Fixpoint.Misc      as Misc      
 import           Language.Fixpoint.Smt.Types
--- import           Language.Fixpoint.Types.Names     (headSym)
 -- import           Language.Fixpoint.Types.Visitor   (foldSort, mapSort)
 import           Language.Fixpoint.Types hiding    (mapSort)
 import           Text.PrettyPrint.HughesPJ         (text, nest, vcat, (<+>))
@@ -363,6 +362,7 @@ expr0P
  <|> (ECon <$> constantP)
  <|> (reservedOp "_|_" >> return EBot)
  <|> lamP
+ <|> try tupleP
   -- TODO:AZ get rid of these try, after the rest
  <|> try (parens exprP)
  <|> (reserved "[]" >> emptyListP)
@@ -495,12 +495,19 @@ funAppP            =  litP <|> exprFunP <|> simpleAppP
     exprFunP = mkEApp <$> funSymbolP <*> funRhsP
     funRhsP  =  sepBy1 expr0P blanks
             <|> parens innerP
-    innerP =   brackets (sepBy exprP semi)
-           <|> sepBy exprP comma
+    innerP   = brackets (sepBy exprP semi)
 
     -- TODO:AZ the parens here should be superfluous, but it hits an infinite loop if removed
     simpleAppP     = EApp <$> parens exprP <*> parens exprP
     funSymbolP     = locParserP symbolP
+
+
+tupleP :: (Show s, Hashable s, Fixpoint s, Ord s) => Parser s (Expr s)
+tupleP = do
+  let tp = parens (pairP exprP comma (sepBy1 exprP comma))
+  Loc l1 l2 (first, rest) <- locParserP tp
+  let cons = symbol $ "(" ++ replicate (length rest) ',' ++ ")"
+  return $ mkEApp (Loc l1 l2 (FS cons)) (first : rest)
 
 
 -- TODO:AZ: The comment says BitVector literal, but it accepts any @Sort@
