@@ -271,7 +271,7 @@ fappSmtSort poly env = go
     pad i | poly                = []
           | otherwise           = replicate i SInt
 
-tyArgs :: (Symbolic x, Hashable s, Eq s) => x -> SEnv s (DataDecl s) -> Maybe Int
+tyArgs :: (FixSymbolic x, Hashable s, Eq s) => x -> SEnv s (DataDecl s) -> Maybe Int
 tyArgs x env = ddVars <$> lookupSEnv (FS $ symbol x) env
 
 instance (Fixpoint s) => PPrint (SmtSort s) where

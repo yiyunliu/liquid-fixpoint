@@ -23,7 +23,7 @@ module Language.Fixpoint.Types.Names (
     Symbol (..)
   , FixSymbol
   , AbstractSymbol (..)
-  , Symbolic (..)
+  , FixSymbolic (..)
   , LocSymbol
   , LocText
   , symbolicString
@@ -312,10 +312,10 @@ checkedText x
 type LocSymbol s = Located (Symbol s)
 type LocText   = Located T.Text
 
-isDummy :: (Symbolic a) => a -> Bool
+isDummy :: (FixSymbolic a) => a -> Bool
 isDummy a = isPrefixOfSym (symbol dummyName) (symbol a)
 
-instance Symbolic a => Symbolic (Located a) where
+instance FixSymbolic a => FixSymbolic (Located a) where
   symbol = symbol . val
 
 ---------------------------------------------------------------------------
@@ -561,26 +561,26 @@ isNonSymbol = (== nonSymbol)
 -- | Values that can be viewed as Symbols
 ------------------------------------------------------------------------------
 
-class Symbolic a where
+class FixSymbolic a where
   symbol :: a -> FixSymbol
 
-symbolicString :: (Symbolic a) => a -> String
+symbolicString :: (FixSymbolic a) => a -> String
 symbolicString = symbolString . symbol
 
-instance Symbolic (Symbol s) where
+instance FixSymbolic (Symbol s) where
   symbol (FS s) = s
   symbol _ = panic "Coercing Symbol s into FixSymbol! Potential loss of GHC Information!"
 
-instance Symbolic T.Text where
+instance FixSymbolic T.Text where
   symbol = textSymbol
 
-instance Symbolic String where
+instance FixSymbolic String where
   symbol = symbol . T.pack
 
-instance Symbolic FixSymbol where
+instance FixSymbolic FixSymbol where
   symbol = id
 
-symbolBuilder :: (Symbolic a) => a -> Builder.Builder
+symbolBuilder :: (FixSymbolic a) => a -> Builder.Builder
 symbolBuilder = Builder.fromText . symbolSafeText . symbol
 
 {-# INLINE buildMany #-}

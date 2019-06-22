@@ -768,7 +768,7 @@ pairP :: Parser s a -> Parser s z -> Parser s b -> Parser s (a, b)
 pairP xP sepP yP = (,) <$> xP <* sepP <*> yP
 
 ---------------------------------------------------------------------
--- | Axioms for Symbolic Evaluation ---------------------------------
+-- | Axioms for FixSymbolic Evaluation ---------------------------------
 ---------------------------------------------------------------------
 
 defineP :: (Show s, Fixpoint s, Ord s, Hashable s) => Parser s (Equation s)

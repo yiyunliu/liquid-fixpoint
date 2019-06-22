@@ -380,7 +380,7 @@ instance (Eq s, Fixpoint s) => Fixpoint (Constant s) where
 -- | Replace all symbol-representations-of-string-literals with string-literal
 --   Used to transform parsed output from fixpoint back into fq.
 
-instance Symbolic SymConst where
+instance FixSymbolic SymConst where
   symbol = encodeSymConst
 
 encodeSymConst        :: SymConst -> FixSymbol
@@ -701,10 +701,10 @@ instance Predicate s Bool where
 instance Expression s a => Expression s (Located a) where
   expr   = expr . val
 
-eVar ::  (Expression s a, Symbolic a) => a -> Expr s
+eVar ::  (Expression s a, FixSymbolic a) => a -> Expr s
 eVar = EVar . FS . symbol
 
-eProp :: (Expression s a, Symbolic a) => a -> Expr s
+eProp :: (Expression s a, FixSymbolic a) => a -> Expr s
 eProp = mkProp . eVar
 
 isSingletonExpr :: (Eq s) => Symbol s -> Expr s -> Maybe (Expr s)
@@ -794,10 +794,10 @@ pGAnd p q              = pAnd [p,q]
 -- | Generally Useful Refinements --------------------------
 ------------------------------------------------------------
 
-symbolReft    :: forall a s. (Expression s a, Symbolic a) => a -> Reft s
+symbolReft    :: forall a s. (Expression s a, FixSymbolic a) => a -> Reft s
 symbolReft    = (exprReft :: Expr s -> Reft s) . (eVar :: a -> Expr s)
 
-usymbolReft   :: forall a s. (Expression s a, Symbolic a) => a -> Reft s
+usymbolReft   :: forall a s. (Expression s a, FixSymbolic a) => a -> Reft s
 usymbolReft   = (uexprReft :: Expr s -> Reft s) . (eVar :: a -> Expr s)
 
 vv_ :: Symbol s

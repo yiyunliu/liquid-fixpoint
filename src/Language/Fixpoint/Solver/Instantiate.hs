@@ -332,7 +332,7 @@ unApply = Vis.trans (Vis.defaultVisitor { Vis.txExpr = const go }) () ()
     go e                      = e
 
 --------------------------------------------------------------------------------
--- | Symbolic Evaluation with SMT
+-- | FixSymbolic Evaluation with SMT
 --------------------------------------------------------------------------------
 evaluate :: (Hashable s, Show s, SMT.SMTLIB2 s s, Ord s, Fixpoint s, PPrint s) => Config -> SMT.Context s -> AxiomEnv s -- ^ Definitions
          -> [(Symbol s, SortedReft s)]            -- ^ Environment of "true" facts 

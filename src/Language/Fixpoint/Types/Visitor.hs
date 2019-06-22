@@ -13,7 +13,7 @@ module Language.Fixpoint.Types.Visitor (
      Visitor (..)
   ,  Visitable (..)
 
-  -- * Extracting Symbolic Constants (String Literals)
+  -- * Extracting FixSymbolic Constants (String Literals)
   ,  SymConsts (..)
 
   -- * Default Visitor
