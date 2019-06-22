@@ -151,7 +151,7 @@ isGWfc :: WfC s a -> Bool
 isGWfc (GWfC {}) = True
 isGWfc (WfC  {}) = False
 
-instance HasGradual (WfC s a) s where
+instance HasGradual s (WfC s a) where
   isGradual = isGWfc
 
 type SubcId = Integer
@@ -213,7 +213,7 @@ strengthenSortedReft (RR s (Reft (v, r))) e = RR s (Reft (v, pAnd [r, e]))
 --  where
 --    go (RR s (Reft(v, r))) = RR s (Reft (v, pAnd [r, e]))
 
-class TaggedC c s a | c -> s where
+class TaggedC s c a | c -> s where
   senv  :: c a -> IBindEnv
   sid   :: c a -> Maybe Integer
   stag  :: c a -> Tag
@@ -221,7 +221,7 @@ class TaggedC c s a | c -> s where
   clhs  :: BindEnv s -> c a -> [(Symbol s, SortedReft s)]
   crhs  :: c a -> Expr s
 
-instance TaggedC (SimpC s) s a where
+instance TaggedC s (SimpC s) a where
   senv      = _cenv
   sid       = _cid
   stag      = _ctag
@@ -229,7 +229,7 @@ instance TaggedC (SimpC s) s a where
   crhs      = _crhs
   clhs be c = envCs be (senv c)
 
-instance TaggedC (SubC s) s a where
+instance TaggedC s (SubC s) a where
   senv      = _senv
   sid       = _sid
   stag      = _stag
@@ -242,7 +242,7 @@ sortedReftBind sr = (x, sr)
   where
     Reft (x, _)   = sr_reft sr
 
-subcId :: (TaggedC c s a) => c a -> SubcId
+subcId :: (TaggedC s c a) => c a -> SubcId
 subcId = mfromJust "subCId" . sid
 
 ---------------------------------------------------------------------------
@@ -377,7 +377,7 @@ instance (B.Binary s, Eq s, Hashable s) => B.Binary (GFixSolution s)
 instance (Hashable s, B.Binary s, Eq s, B.Binary a) => B.Binary (SubC s a)
 instance (Hashable s, Eq s, B.Binary s, B.Binary a) => B.Binary (WfC s a)
 instance (Hashable s, B.Binary s, Eq s, B.Binary a) => B.Binary (SimpC s a)
-instance (B.Binary s, Eq s, Hashable s, B.Binary (c a), B.Binary a) => B.Binary (GInfo c s a)
+instance (B.Binary s, Eq s, Hashable s, B.Binary (c a), B.Binary a) => B.Binary (GInfo s c a)
 
 instance (NFData s) => NFData (QualPattern s)
 instance (NFData s) => NFData (QualParam s)
@@ -390,7 +390,7 @@ instance (NFData s) => NFData (GWInfo s)
 instance (NFData s, NFData a) => NFData (SubC s a)
 instance (NFData s, NFData a) => NFData (WfC s a)
 instance (NFData s, NFData a) => NFData (SimpC s a)
-instance (NFData s, NFData (c a), NFData a) => NFData (GInfo c s a)
+instance (NFData s, NFData (c a), NFData a) => NFData (GInfo s c a)
 instance (NFData s, NFData a) => NFData (Result s a)
 
 ---------------------------------------------------------------------------
@@ -481,7 +481,7 @@ instance Loc (Qualifier s) where
     where
       l     = qPos q
 
-instance (Eq s, Hashable s, Ord s, Fixpoint s, Show s) => Subable (Qualifier s) s where 
+instance (Eq s, Hashable s, Ord s, Fixpoint s, Show s) => Subable s (Qualifier s) where 
   syms   = qualFreeSymbols 
   subst  = mapQualBody . subst
   substf = mapQualBody . substf
@@ -631,7 +631,7 @@ fi :: (Hashable s, Ord s, Fixpoint s, Show s)
    -> AxiomEnv s
    -> [DataDecl s]
    -> [BindId] 
-   -> GInfo (SubC s) s a
+   -> GInfo s (SubC s) a
 fi cs ws binds ls ds ks qs bi aHO aHOq es axe adts ebs
   = FI { cm       = M.fromList $ addIds cs
        , ws       = M.fromListWith err [(k, w) | w <- ws, let (_, _, k) = wrft w]
@@ -661,8 +661,8 @@ data FInfoWithOpts s a = FIO
   , fioOpts :: [String]
   }
 
-type FInfo s a   = GInfo (SubC s) s a
-type SInfo s a   = GInfo (SimpC s) s a
+type FInfo s a   = GInfo s (SubC s) a
+type SInfo s a   = GInfo s (SimpC s) a
 
 data HOInfo = HOI 
   { hoBinds :: Bool          -- ^ Allow higher order binds in the environemnt
@@ -670,11 +670,11 @@ data HOInfo = HOI
   }
   deriving (Eq, Show, Generic)
 
-allowHO, allowHOquals :: GInfo c s a -> Bool
+allowHO, allowHOquals :: GInfo s c a -> Bool
 allowHO      = hoBinds . hoInfo
 allowHOquals = hoQuals . hoInfo
 
-data GInfo c s a = FI 
+data GInfo s c a = FI 
   { cm       :: !(M.HashMap SubcId (c a))  -- ^ cst id |-> Horn Constraint
   , ws       :: !(M.HashMap (KVar s) (WfC s a))  -- ^ Kvar  |-> WfC defining its scope/args
   , bs       :: !(BindEnv s)                   -- ^ Bind  |-> (Symbol s, SortedReft s)
@@ -691,7 +691,7 @@ data GInfo c s a = FI
   }
   deriving (Eq, Show, Functor, Generic)
 
-instance HasGradual (GInfo c s a) s where
+instance HasGradual s (GInfo s c a) where
   isGradual info = any isGradual (M.elems $ ws info)
 
 instance Semigroup HOInfo where
@@ -702,7 +702,7 @@ instance Semigroup HOInfo where
 instance Monoid HOInfo where
   mempty        = HOI False False
 
-instance (Eq s, Hashable s) => Semigroup (GInfo c s a) where
+instance (Eq s, Hashable s) => Semigroup (GInfo s c a) where
   i1 <> i2 = FI { cm       = (cm i1)       <> (cm i2)
                 , ws       = (ws i1)       <> (ws i2)
                 , bs       = (bs i1)       <> (bs i2)
@@ -719,7 +719,7 @@ instance (Eq s, Hashable s) => Semigroup (GInfo c s a) where
                 }
 
 
-instance (Eq s, Hashable s) => Monoid (GInfo c s a) where
+instance (Eq s, Hashable s) => Monoid (GInfo s c a) where
   mempty        = FI { cm       = M.empty
                      , ws       = mempty 
                      , bs       = mempty 
@@ -743,7 +743,7 @@ instance PTable (SInfo s a) where
 --------------------------------------------------------------------------
 -- | Rendering Queries
 --------------------------------------------------------------------------
-toFixpoint :: (PPrint s, Ord s, Fixpoint s, Hashable s, Show s, Fixpoint a, Fixpoint (c a)) => Config -> GInfo c s a -> Doc
+toFixpoint :: (PPrint s, Ord s, Fixpoint s, Hashable s, Show s, Fixpoint a, Fixpoint (c a)) => Config -> GInfo s c a -> Doc
 --------------------------------------------------------------------------
 toFixpoint cfg x' =    cfgDoc   cfg
                   $++$ declsDoc x'
@@ -786,7 +786,7 @@ sEnvDoc d       = vcat . map kvD . toListSEnv
   where
     kvD (c, so) = d <+> toFix c <+> ":" <+> parens (toFix so)
 
-writeFInfo :: (PPrint s, Show s, Hashable s, Fixpoint s, Ord s, Fixpoint a, Fixpoint (c a)) => Config -> GInfo c s a -> FilePath -> IO ()
+writeFInfo :: (PPrint s, Show s, Hashable s, Fixpoint s, Ord s, Fixpoint a, Fixpoint (c a)) => Config -> GInfo s c a -> FilePath -> IO ()
 writeFInfo cfg fq f = writeFile f (render $ toFixpoint cfg fq)
 
 --------------------------------------------------------------------------------
@@ -895,7 +895,7 @@ data Equation s = Equ
 mkEquation :: (Eq s, Hashable s, Ord s, Fixpoint s, Show s) => Symbol s -> [(Symbol s, Sort s)] -> Expr s -> Sort s -> Equation s
 mkEquation f xts e out = Equ f xts e out (f `elem` syms e)
 
-instance (Show s, Fixpoint s, Eq s, Hashable s, Ord s) => Subable (Equation s) s where
+instance (Show s, Fixpoint s, Eq s, Hashable s, Ord s) => Subable s (Equation s) where
   syms   a = syms (eqBody a) -- ++ F.syms (axiomEq a)
   subst su = mapEqBody (subst su)
   substf f = mapEqBody (substf f)

@@ -169,7 +169,7 @@ hornify (All b c) = All b $ hornify c
 hornify (Any b c) = Any b $ hornify c
 hornify (CAnd cs) = CAnd $ hornify <$> cs
 
-instance (Hashable s, Ord s, F.Fixpoint s, Show s) => F.Subable (Bind s) s where
+instance (Hashable s, Ord s, F.Fixpoint s, Show s) => F.Subable s (Bind s) where
     syms = undefined
     substa = undefined
     substf = undefined
@@ -182,7 +182,7 @@ instance (Hashable s, Ord s, F.Fixpoint s, Show s) => F.Subable (Bind s) s where
 --    subst su p = substP su p
 
 {- move to FP! -}
-instance (Show s, F.Fixpoint s, Ord s, Hashable s) => F.Subable (Pred s) s where 
+instance (Show s, F.Fixpoint s, Ord s, Hashable s) => F.Subable s (Pred s) where 
   syms (Reft e)   = F.syms e
   syms (Var _ xs) = xs 
   syms (PAnd ps)  = concatMap F.syms ps  
@@ -581,12 +581,12 @@ tx k bss = trans (defaultVisitor { txExpr = existentialPackage, ctxExpr = ctxKV 
   ctxKV m _ = m
 
 -- Visitor only visit Exprs in Pred!
-instance V.Visitable (Pred s) s where
+instance V.Visitable s (Pred s) where
   visit v c (PAnd ps) = PAnd <$> mapM (visit v c) ps
   visit v c (Reft e) = Reft <$> visit v c e
   visit _ _ var      = pure var
 
-instance V.Visitable (Cstr s a) s where
+instance V.Visitable s (Cstr s a) where
   visit v c (CAnd cs) = CAnd <$> mapM (visit v c) cs
   visit v c (Head p a) = Head <$> visit v c p <*> pure a
   visit v ctx (All (Bind x t p) c) = All <$> (Bind x t <$> visit v ctx p) <*> visit v ctx c
@@ -652,7 +652,7 @@ qe' m (CAnd cs)            = F.PAnd <$> mapM (qe m) cs
 qe' m (All (Bind x _ p) c) = forallElim x <$> lookupSol (cLabel c) m p <*> qe m c
 qe' _ Any{}                = error "QE for Any????"
 
-forallElim :: forall t s. (Show s, F.Fixpoint s, Ord s, F.Subable t s, Visitable t s) => F.Symbol s -> t -> F.Expr s -> F.Expr s
+forallElim :: forall t s. (Show s, F.Fixpoint s, Ord s, F.Subable s t, Visitable s t) => F.Symbol s -> t -> F.Expr s -> F.Expr s
 forallElim x p e = forallElim' x eqs p e
   where
   eqs = fold eqVis () [] p
@@ -662,7 +662,7 @@ forallElim x p e = forallElim' x eqs p e
     = [e]
   kv' _ _                    = []
 
-forallElim' :: (Show s, F.Fixpoint s, Ord s, F.Subable a s) => F.Symbol s -> [F.Expr s] -> a -> F.Expr s -> F.Expr s
+forallElim' :: (Show s, F.Fixpoint s, Ord s, F.Subable s a) => F.Symbol s -> [F.Expr s] -> a -> F.Expr s -> F.Expr s
 forallElim' x (F.PAtom F.Eq a b : _) _ e
   | F.EVar x == a
   = F.subst1 e (x,b)

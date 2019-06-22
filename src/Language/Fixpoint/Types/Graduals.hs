@@ -104,23 +104,23 @@ uniquifyCS bs cs
     -- gs      = [x | xs <- M.elems km, (x,_) <- xs]
 
 
-class Unique a s where
+class Unique s a where
    uniq :: a -> UniqueM s a
 
-instance Unique a s => Unique (M.HashMap SubcId a) s where
+instance Unique s a => Unique s (M.HashMap SubcId a) where
   uniq m = M.fromList <$> mapM (\(i,x) -> (i,) <$> uniq x) (M.toList m)
 
-instance (Eq s, Hashable s, Loc a) => Unique (SimpC s a) s where
+instance (Eq s, Hashable s, Loc a) => Unique s (SimpC s a) where
   uniq cs = do
     updateLoc $ srcSpan $ _cinfo cs
     rhs <- uniq (_crhs cs)
     env <- uniq (_cenv cs)
     return cs{_crhs = rhs, _cenv = env}
 
-instance (Hashable s, Eq s) => Unique IBindEnv s where
+instance (Hashable s, Eq s) => Unique s IBindEnv where
   uniq env = withCache (fromListIBindEnv <$> mapM uniq (elemsIBindEnv env))
 
-instance (Hashable s, Eq s) => Unique BindId s where
+instance (Hashable s, Eq s) => Unique s BindId where
   uniq i = do
     bs <- benv <$> get
     let (x, t) = lookupBindEnv i bs
@@ -133,13 +133,13 @@ instance (Hashable s, Eq s) => Unique BindId s where
               return i'
       else return i
 
-instance (Hashable s, Eq s) => Unique (SortedReft s) s where
+instance (Hashable s, Eq s) => Unique s (SortedReft s) where
   uniq (RR s r) = RR s <$> uniq r
 
-instance (Eq s, Hashable s) => Unique (Reft s) s where
+instance (Eq s, Hashable s) => Unique s (Reft s) where
   uniq (Reft (x,e)) = (Reft . (x,)) <$> uniq e
 
-instance (Hashable s, Eq s) => Unique (Expr s) s where
+instance (Hashable s, Eq s) => Unique s (Expr s) where
   uniq = mapMExpr go
    where
     go (PGrad k su i e) = do
@@ -235,31 +235,31 @@ expandWF km ws
 -- |  Substitute Gradual Solution ---------------------------------------------
 -------------------------------------------------------------------------------
 
-class Gradual a s | a -> s where
+class Gradual s a | a -> s where
   gsubst :: GSol s -> a -> a
 
-instance (Fixpoint s, Ord s, PPrint s, Hashable s, Show s, Eq s) => Gradual (Expr s) s where
+instance (Fixpoint s, Ord s, PPrint s, Hashable s, Show s, Eq s) => Gradual s (Expr s) where
   gsubst (GSol env m) e   = mapGVars' (\(k, _) -> Just (fromMaybe (err k) (mknew k))) e
     where
       mknew k = So.elaborate "initBGind.mkPred" env $ fst <$> M.lookup k m
       err   k = errorstar ("gradual substitution: Cannot find " ++ showpp k)
 
-instance (Hashable s, PPrint s, Ord s, Fixpoint s, Show s, Eq s) => Gradual (Reft s) s where
+instance (Hashable s, PPrint s, Ord s, Fixpoint s, Show s, Eq s) => Gradual s (Reft s) where
   gsubst su (Reft (x, e)) = Reft (x, gsubst su e)
 
-instance (Show s, Fixpoint s, Ord s, PPrint s, Hashable s, Eq s) => Gradual (SortedReft s) s where
+instance (Show s, Fixpoint s, Ord s, PPrint s, Hashable s, Eq s) => Gradual s (SortedReft s) where
   gsubst su r = r {sr_reft = gsubst su (sr_reft r)}
 
-instance (Hashable s, PPrint s, Ord s, Fixpoint s, Show s, Eq s) => Gradual (SimpC s a) s where
+instance (Hashable s, PPrint s, Ord s, Fixpoint s, Show s, Eq s) => Gradual s (SimpC s a) where
   gsubst su c = c {_crhs = gsubst su (_crhs c)}
 
-instance (Hashable s, PPrint s, Ord s, Fixpoint s, Show s, Eq s) => Gradual (BindEnv s) s where
+instance (Hashable s, PPrint s, Ord s, Fixpoint s, Show s, Eq s) => Gradual s (BindEnv s) where
   gsubst su = mapBindEnv (\_ (x, r) -> (x, gsubst su r))
 
-instance Gradual v s => Gradual (M.HashMap k v) s where
+instance Gradual s v => Gradual s (M.HashMap k v) where
   gsubst su = M.map (gsubst su)
 
-instance (Fixpoint s, Ord s, PPrint s, Hashable s, Show s, Eq s) => Gradual (SInfo s a) s where
+instance (Fixpoint s, Ord s, PPrint s, Hashable s, Show s, Eq s) => Gradual s (SInfo s a) where
   gsubst su fi = fi { bs = gsubst su (bs fi)
                     , cm = gsubst su (cm fi)
                     }

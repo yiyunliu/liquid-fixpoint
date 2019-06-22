@@ -40,7 +40,7 @@ import           Language.Fixpoint.Types.Visitor   (mapMExpr)
 defunctionalize :: (Hashable s, PPrint s, Fixpoint s, Ord s, Show s, Fixpoint a) => Config -> SInfo s a -> SInfo s a
 defunctionalize cfg si = evalState (defunc si) (makeInitDFState cfg si)
 
-defuncAny :: (Eq s, Hashable s, Defunc a s) => Config -> SymEnv s -> a -> a
+defuncAny :: (Eq s, Hashable s, Defunc s a) => Config -> SymEnv s -> a -> a
 defuncAny cfg env e = evalState (defunc e) (makeDFState cfg env emptyIBindEnv)
 
 
@@ -89,10 +89,10 @@ normalizeLamsFromTo i   = go
 -- | Containers defunctionalization --------------------------------------------
 --------------------------------------------------------------------------------
 
-class Defunc a s | a -> s where
+class Defunc s a | a -> s where
   defunc :: a -> DF s a
 
-instance (PPrint s, Ord s, Fixpoint s, Show s, Hashable s, Eq s, Defunc (c a) s, TaggedC c s a) => Defunc (GInfo c s a) s where
+instance (PPrint s, Ord s, Fixpoint s, Show s, Hashable s, Eq s, Defunc s (c a), TaggedC s c a) => Defunc s (GInfo s c a) where
   defunc fi = do
     cm'    <- defunc $ cm    fi
     ws'    <- defunc $ ws    fi
@@ -110,14 +110,14 @@ instance (PPrint s, Ord s, Fixpoint s, Show s, Hashable s, Eq s, Defunc (c a) s,
                 , asserts = ass'
                 }
 
-instance (Defunc a s) => Defunc (Triggered a) s where
+instance (Defunc s a) => Defunc s (Triggered a) where
   defunc (TR t e) = TR t <$> defunc e
 
-instance (Show s, Fixpoint s, Ord s, Hashable s, Eq s) => Defunc (SimpC s a) s where
+instance (Show s, Fixpoint s, Ord s, Hashable s, Eq s) => Defunc s (SimpC s a) where
   defunc sc = do crhs' <- defunc $ _crhs sc
                  return $ sc {_crhs = crhs'}
 
-instance (Show s, Fixpoint s, Ord s, Hashable s, Eq s) => Defunc (WfC s a) s where
+instance (Show s, Fixpoint s, Ord s, Hashable s, Eq s) => Defunc s (WfC s a) where
   defunc wf@(WfC {}) = do
     let (x, t, k) = wrft wf
     t' <- defunc t
@@ -128,25 +128,25 @@ instance (Show s, Fixpoint s, Ord s, Hashable s, Eq s) => Defunc (WfC s a) s whe
     e' <- defunc $ wexpr wf
     return $ wf { wrft = (x, t', k), wexpr = e' }
 
-instance (Hashable s, Ord s, Fixpoint s, Show s, Eq s) => Defunc (SortedReft s) s where
+instance (Hashable s, Ord s, Fixpoint s, Show s, Eq s) => Defunc s (SortedReft s) where
   defunc (RR s r) = RR s <$> defunc r
 
-instance (Show s, Fixpoint s, Ord s, Hashable s, Eq s) => Defunc (Symbol s, SortedReft s) s where
+instance (Show s, Fixpoint s, Ord s, Hashable s, Eq s) => Defunc s (Symbol s, SortedReft s) where
   defunc (x, sr) = (x,) <$> defunc sr
 
-instance Defunc (Symbol s, Sort s) s where
+instance Defunc s (Symbol s, Sort s) where
   defunc (x, t) = (x,) <$> defunc t
 
-instance (Show s, Fixpoint s, Ord s, Hashable s, Eq s) => Defunc (Reft s) s where
+instance (Show s, Fixpoint s, Ord s, Hashable s, Eq s) => Defunc s (Reft s) where
   defunc (Reft (x, e)) = Reft . (x,) <$> defunc e
 
-instance (Hashable s, Ord s, Fixpoint s, Show s, Eq s) => Defunc (Expr s) s where
+instance (Hashable s, Ord s, Fixpoint s, Show s, Eq s) => Defunc s (Expr s) where
   defunc = txExpr
 
-instance (Hashable s, Eq s, Defunc a s) => Defunc (SEnv s a) s where
+instance (Hashable s, Eq s, Defunc s a) => Defunc s (SEnv s a) where
   defunc = mapMSEnv defunc
 
-instance (Hashable s, Ord s, Fixpoint s, Show s, Eq s) => Defunc (BindEnv s) s where
+instance (Hashable s, Ord s, Fixpoint s, Show s, Eq s) => Defunc s (BindEnv s) where
   defunc bs = do dfbs <- gets dfBEnv
                  let f (i, xs) = if i `memberIBindEnv` dfbs
                                        then  (i,) <$> defunc xs
@@ -160,13 +160,13 @@ instance (Hashable s, Ord s, Fixpoint s, Show s, Eq s) => Defunc (BindEnv s) s w
     matchSort (x, RR s r) = ((x,) . (`RR` r)) <$> defunc s
 
 -- Sort defunctionalization [should be done by elaboration]
-instance Defunc (Sort s) s where
+instance Defunc s (Sort s) where
   defunc = return
 
-instance (Defunc a s) => Defunc [a] s where
+instance (Defunc s a) => Defunc s [a] where
   defunc = mapM defunc
 
-instance (Defunc a s, Eq k, Hashable k) => Defunc (M.HashMap k a) s where
+instance (Defunc s a, Eq k, Hashable k) => Defunc s (M.HashMap k a) where
   defunc m = M.fromList <$> mapM (secondM defunc) (M.toList m)
 
 type DF   s = State (DFST s)

@@ -161,7 +161,7 @@ simplifySubCs ti cm = trace msg cm'
 
 simplifySubC :: forall s a b. (Ord s, Hashable s, Fixpoint s, Show s) => NonTrivSorts s -> (b, SubC s a) -> Maybe (b, SubC s a)
 simplifySubC tm (i, c)
- | isNonTrivial @_ @s srhs' = Just (i, c { slhs = slhs' , srhs = srhs' })
+ | isNonTrivial @s @_ srhs' = Just (i, c { slhs = slhs' , srhs = srhs' })
  | otherwise          = Nothing
   where
     slhs'             = simplifySortedReft tm (slhs c)

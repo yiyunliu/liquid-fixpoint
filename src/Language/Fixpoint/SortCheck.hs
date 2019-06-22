@@ -98,24 +98,24 @@ isMono             = null . Vis.foldSort fv []
 --   KVars. THIS IS NOW MANDATORY as sort-variables can be
 --   instantiated to `int` and `bool`.
 --------------------------------------------------------------------------------
-class Elaborate a s | a -> s where
+class Elaborate s a | a -> s where
   elaborate :: Located String -> SymEnv s -> a -> a
 
 
-instance (PPrint s, Ord s, Hashable s, Fixpoint s, Loc a, Show s) => Elaborate (SInfo s a) s where
+instance (PPrint s, Ord s, Hashable s, Fixpoint s, Loc a, Show s) => Elaborate s (SInfo s a) where
   elaborate x senv si = si
     { cm      = elaborate x senv <$> cm      si
     , bs      = elaborate x senv  $  bs      si
     , asserts = elaborate x senv <$> asserts si
     }
 
-instance (Elaborate e s) => (Elaborate (Triggered e) s) where
+instance (Elaborate s e) => (Elaborate s (Triggered e)) where
   elaborate x env t = fmap (elaborate x env) t
 
-instance (Elaborate a s) => (Elaborate (Maybe a) s) where
+instance (Elaborate s a) => (Elaborate s (Maybe a)) where
   elaborate x env t = fmap (elaborate x env) t
 
-instance (Eq s) => Elaborate (Sort s) s where
+instance (Eq s) => Elaborate s (Sort s) where
   elaborate _ _ = go
    where
       go s | isString s = strSort
@@ -126,23 +126,23 @@ instance (Eq s) => Elaborate (Sort s) s where
       funSort :: Sort s -> Sort s -> Sort s
       funSort = FApp . FApp (funcSort @s)
 
-instance (Show s, PPrint s, Ord s, Fixpoint s, Hashable s, Eq s) => Elaborate (AxiomEnv s) s where
+instance (Show s, PPrint s, Ord s, Fixpoint s, Hashable s, Eq s) => Elaborate s (AxiomEnv s) where
   elaborate msg env ae = ae
     { aenvEqs   = elaborate msg env (aenvEqs ae) 
     -- MISSING SORTS OOPS, aenvSimpl = elaborate msg env (aenvSimpl ae) 
     }
 
-instance (Show s, Ord s, PPrint s, Fixpoint s, Eq s, Hashable s) => Elaborate (Rewrite s) s where 
+instance (Show s, Ord s, PPrint s, Fixpoint s, Eq s, Hashable s) => Elaborate s (Rewrite s) where 
   elaborate msg env rw = rw { smBody = skipElabExpr msg env' (smBody rw) } 
     where 
       env' = insertsSymEnv env undefined
 
-instance (Show s, Ord s, PPrint s, Fixpoint s, Eq s, Hashable s) => Elaborate (Equation s) s where 
+instance (Show s, Ord s, PPrint s, Fixpoint s, Eq s, Hashable s) => Elaborate s (Equation s) where 
   elaborate msg env eq = eq { eqBody = skipElabExpr msg env' (eqBody eq) } 
     where
       env' = insertsSymEnv env (eqArgs eq) 
 
-instance (Show s, Hashable s, PPrint s, Ord s, Fixpoint s) => Elaborate (Expr s) s where
+instance (Show s, Hashable s, PPrint s, Ord s, Fixpoint s) => Elaborate s (Expr s) where
   elaborate msg env = elabNumeric . elabApply env . elabExpr msg env
 
 
@@ -151,10 +151,10 @@ skipElabExpr msg env e = case elabExprE msg env e of
   Left _   -> e 
   Right e' ->  elabNumeric . elabApply env $ e'
 
-instance (Eq s) =>  Elaborate (Symbol s, Sort s) s where
+instance (Eq s) =>  Elaborate s (Symbol s, Sort s) where
   elaborate msg env (x, s) = (x, elaborate msg env s)
 
-instance Elaborate a s => Elaborate [a] s where
+instance Elaborate s a => Elaborate s [a] where
   elaborate msg env xs = elaborate msg env <$> xs
 
 elabNumeric :: (Show s, Ord s, PPrint s, Fixpoint s) => Expr s -> Expr s
@@ -171,19 +171,19 @@ elabNumeric = Vis.mapExpr go
     go e
       = e
 
-instance (Show s, PPrint s, Ord s, PPrint s, Hashable s, Eq s, Fixpoint s) => Elaborate (SortedReft s) s where
+instance (Show s, PPrint s, Ord s, PPrint s, Hashable s, Eq s, Fixpoint s) => Elaborate s (SortedReft s) where
   elaborate x env (RR s (Reft (v, e))) = RR s (Reft (v, e'))
     where
       e'   = elaborate x env' e
       env' = insertSymEnv v s env
 
-instance (PPrint s, Show s, Hashable s, Eq s, Fixpoint s, Ord s) => Elaborate (BindEnv s) s where
+instance (PPrint s, Show s, Hashable s, Eq s, Fixpoint s, Ord s) => Elaborate s (BindEnv s) where
   elaborate z env = mapBindEnv (\i (x, sr) -> (x, elaborate (z' i x sr) env sr))
     where
       z' i  x sr  = z { val = (val z) ++ msg i x sr }
       msg i x sr  = unwords [" elabBE",  show i, show x, show sr]
 
-instance (Hashable s, Show s, Ord s, PPrint s, Loc a, Fixpoint s) => Elaborate (SimpC s a) s where
+instance (Hashable s, Show s, Ord s, PPrint s, Loc a, Fixpoint s) => Elaborate s (SimpC s a) where
   elaborate msg env c = c {_crhs = elaborate msg' env (_crhs c) }
     where msg'        = atLoc c (val msg)
 --------------------------------------------------------------------------------
@@ -270,7 +270,7 @@ checkSortExpr sp γ e = case runCM0 sp (checkExpr f e) of
             Just z  -> Found z
             Nothing -> Alts []
 
-subEnv :: (Subable e s) => SEnv s a -> e -> SEnv s a
+subEnv :: (Subable s e) => SEnv s a -> e -> SEnv s a
 subEnv g e = intersectWithSEnv (\t _ -> t) g g'
   where
     g' = fromListSEnv $ (, ()) <$> syms e
@@ -319,7 +319,7 @@ checkSortedReft env xs sr = applyNonNull Nothing oops unknowns
     unknowns              = [ x | x <- syms sr, x `notElem` v : xs, not (x `memberSEnv` env)]
     Reft (v,_)            = sr_reft sr
 
-checkSortedReftFull :: Checkable a s => SrcSpan -> SEnv s (SortedReft s) -> a -> Maybe Doc
+checkSortedReftFull :: Checkable s a => SrcSpan -> SEnv s (SortedReft s) -> a -> Maybe Doc
 checkSortedReftFull sp γ t = 
   case runCM0 sp (check γ' t) of
     Left e  -> Just (text (val e))
@@ -327,7 +327,7 @@ checkSortedReftFull sp γ t =
   where
     γ' = sr_sort <$> γ
 
-checkSortFull :: Checkable a s => SrcSpan -> SEnv s (SortedReft s) -> Sort s -> a -> Maybe Doc
+checkSortFull :: Checkable s a => SrcSpan -> SEnv s (SortedReft s) -> Sort s -> a -> Maybe Doc
 checkSortFull sp γ s t = 
   case runCM0 sp (checkSort γ' s t) of
     Left e  -> Just (text (val e))
@@ -335,7 +335,7 @@ checkSortFull sp γ s t =
   where
       γ' = sr_sort <$> γ
 
-checkSorted :: Checkable a s => SrcSpan -> SEnv s (Sort s) -> a -> Maybe Doc
+checkSorted :: Checkable s a => SrcSpan -> SEnv s (Sort s) -> a -> Maybe Doc
 checkSorted sp γ t = 
   case runCM0 sp (check γ t) of
     Left e   -> Just (text (val e))
@@ -366,13 +366,13 @@ checkPred' f p = res -- traceFix ("checkPred: p = " ++ showFix p) $ res
                    Left _err -> notracepp ("Removing" ++ showpp p) Nothing
                    Right _   -> Just p
 
-class Checkable a s | a -> s where
+class Checkable s a | a -> s where
   check     :: SEnv s (Sort s) -> a -> CheckM ()
   checkSort :: SEnv s (Sort s) -> Sort s -> a -> CheckM ()
 
   checkSort γ _ = check γ
 
-instance (Fixpoint s, Show s, Ord s, PPrint s, Hashable s, Eq s) => Checkable (Expr s) s where
+instance (Fixpoint s, Show s, Ord s, PPrint s, Hashable s, Eq s) => Checkable s (Expr s) where
   check γ e = void $ checkExpr f e
    where f =  (`lookupSEnvWithDistance` γ)
 
@@ -380,7 +380,7 @@ instance (Fixpoint s, Show s, Ord s, PPrint s, Hashable s, Eq s) => Checkable (E
     where
       f           =  (`lookupSEnvWithDistance` γ)
 
-instance (Show s, Fixpoint s, PPrint s, Ord s, Eq s, Hashable s) => Checkable (SortedReft s) s where
+instance (Show s, Fixpoint s, PPrint s, Ord s, Eq s, Hashable s) => Checkable s (SortedReft s) where
   check γ (RR s (Reft (v, ra))) = check γ' ra
    where
      γ' = insertSEnv v s γ
@@ -760,7 +760,7 @@ which, I imagine is what happens _somewhere_ inside GHC too?
 -}
 
 --------------------------------------------------------------------------------
-applySorts :: (Eq s, Vis.Visitable t s) => t -> [Sort s]
+applySorts :: (Eq s, Vis.Visitable s t) => t -> [Sort s]
 --------------------------------------------------------------------------------
 applySorts = {- tracepp "applySorts" . -} (defs ++) . Vis.fold vis () []
   where

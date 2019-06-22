@@ -308,10 +308,10 @@ symbolEnv cfg si = F.symEnv sEnv tEnv ds (F.dLits si) (ts ++ ts')
     xts          = symbolSorts cfg si
 
 
-symbolSorts :: (Hashable s, PPrint s, Fixpoint s, Ord s) => Config -> F.GInfo c s a -> [(F.Symbol s, F.Sort s)]
+symbolSorts :: (Hashable s, PPrint s, Fixpoint s, Ord s) => Config -> F.GInfo s c a -> [(F.Symbol s, F.Sort s)]
 symbolSorts cfg fi = either E.die id $ symbolSorts' cfg fi
 
-symbolSorts' :: (Ord s, Fixpoint s, PPrint s, Hashable s, Eq s) => Config -> F.GInfo c s a -> SanitizeM [(F.Symbol s, F.Sort s)]
+symbolSorts' :: (Ord s, Fixpoint s, PPrint s, Hashable s, Eq s) => Config -> F.GInfo s c a -> SanitizeM [(F.Symbol s, F.Sort s)]
 symbolSorts' cfg fi  = (normalize . compact . (defs ++)) =<< bindSorts fi
   where
     normalize       = fmap (map (unShadow txFun dm))
@@ -341,7 +341,7 @@ compact xts
     binds     = M.toList . M.map Misc.sortNub . Misc.group
 
 --------------------------------------------------------------------------------
-bindSorts  :: (PPrint s, Fixpoint s, Eq s, Hashable s) => F.GInfo c s a -> Either E.Error [(F.Symbol s, F.Sort s)]
+bindSorts  :: (PPrint s, Fixpoint s, Eq s, Hashable s) => F.GInfo s c a -> Either E.Error [(F.Symbol s, F.Sort s)]
 --------------------------------------------------------------------------------
 bindSorts fi
   | null bad   = Right [ (x, t) | (x, [(t, _)]) <- ok ]

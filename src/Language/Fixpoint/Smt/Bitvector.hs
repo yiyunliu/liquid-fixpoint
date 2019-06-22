@@ -54,7 +54,7 @@ sizeName S32 = FS size32Name
 sizeName S64 = FS size64Name
 
 -- | Construct an `Expr` using a raw string, e.g. (Bv S32 "#x02000000")
-instance (Eq s) =>  Expression Bv s where
+instance (Eq s) =>  Expression s Bv where
   expr (Bv sz v) = ECon $ L (T.pack v) (mkSort sz)
 
 -- | Apply some bitvector operator to a list of arguments

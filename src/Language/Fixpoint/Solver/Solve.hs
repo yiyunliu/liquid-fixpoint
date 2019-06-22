@@ -110,7 +110,7 @@ tidySolution :: (Hashable s, Ord s, Fixpoint s, Show s) => F.FixSolution s -> F.
 tidySolution = fmap tidyPred
 
 tidyPred :: forall s. (Show s, Fixpoint s, Ord s, Hashable s) => F.Expr s -> F.Expr s
-tidyPred = F.substf @_ @s (F.eVar . F.tidySymbol . F.symbol)
+tidyPred = F.substf @s (F.eVar . F.tidySymbol . F.symbol)
 
 --------------------------------------------------------------------------------
 refine :: (SMTLIB2 s s, Fixpoint s, Ord s, PPrint s, Hashable s, Show s, F.Loc a) => Sol.Solution s -> W.Worklist s a -> SolveM s (Sol.Solution s)

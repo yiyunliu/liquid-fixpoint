@@ -88,7 +88,7 @@ updateWfc fi w    = fi'' { ws = M.insert k w' (ws fi) }
     (fi', newIds) = foldl' (accumBindsIfValid k) (fi, []) (elemsIBindEnv $ wenv w)
     (v, t, k)     = wrft w
     v'            = kArgSymbolF v (kv k)
-    su            = mkSubst ((v, EVar v'):[(x, eVar @(Symbol s) $ kArgSymbolF x (kv k)) | x <- kvarDomain fi k])
+    su            = mkSubst ((v, EVar v'):[(x, eVar @s @(Symbol s) $ kArgSymbolF x (kv k)) | x <- kvarDomain fi k])
     kArgSymbolF (FS s) (FS k) = FS (kArgSymbol s k)
     kArgSymbolF _ _     = error "updateWfc: cannot apply kArgSymbol to Symbol s "
     
@@ -113,7 +113,7 @@ accumBinds k (fi, ids) i = (fi', i' : ids)
 newTopBind :: forall s a. (Hashable s, Ord s, Fixpoint s, Show s) => Symbol s -> SortedReft s -> SInfo s a -> (BindId, SInfo s a)
 newTopBind x sr fi = (i', fi {bs = be'})
   where
-    (i', be')   = insertBindEnv x (top @_ @s sr) (bs fi)
+    (i', be')   = insertBindEnv x (top @s @_ sr) (bs fi)
 
 --------------------------------------------------------------
 

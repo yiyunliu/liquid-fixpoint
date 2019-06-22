@@ -113,7 +113,7 @@ removeOtherKs fi0 ks = fi1 { ws = ws', cm = cm' }
     go k | k `elem` ks = Nothing
          | otherwise   = Just PTrue
     ws' = M.filterWithKey (\k _ -> k `elem` ks) $ ws fi1
-    cm' = M.filter (isNonTrivial @_ @s . srhs) $ cm fi1
+    cm' = M.filter (isNonTrivial @s @_ . srhs) $ cm fi1
 
 ---------------------------------------------------------------------------
 -- Helper functions

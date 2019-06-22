@@ -24,14 +24,14 @@ data Templates s
 type Template s = ([Symbol s], Expr s)
 
 
-class HasTemplates a s where 
+class HasTemplates s a where 
   filterUnMatched :: Templates s -> a -> a 
 
 
-instance (Eq s, Fixpoint s, Ord s) => HasTemplates (Expr s) s where
+instance (Eq s, Fixpoint s, Ord s) => HasTemplates s (Expr s) where
   filterUnMatched temps e = pAnd $ filter (not . matchesTemplates temps) $ conjuncts e 
 
-instance (Eq s, Fixpoint s, Ord s) => HasTemplates (Reft s) s where
+instance (Eq s, Fixpoint s, Ord s) => HasTemplates s (Reft s) where
   filterUnMatched temps (Reft (x,e)) = Reft (x, filterUnMatched temps e)
 
 matchesTemplates :: (Fixpoint s, Eq s) => Templates s -> Expr s -> Bool 

@@ -58,11 +58,11 @@ isEmptySubst :: Subst s -> Bool
 isEmptySubst (Su xes) = M.null xes
 
 targetSubstSyms :: forall s. (Hashable s, Ord s, Show s, Fixpoint s, Eq s) => Subst s -> [Symbol s]
-targetSubstSyms (Su ms) = syms @[Expr s] @s $ M.elems ms
+targetSubstSyms (Su ms) = syms @s @[Expr s] $ M.elems ms
 
 
   
-instance (Eq s, Hashable s) => Subable () s where
+instance (Eq s, Hashable s) => Subable s () where
   syms _      = []
   subst _ ()  = ()
   substf _ () = ()
@@ -70,32 +70,32 @@ instance (Eq s, Hashable s) => Subable () s where
 
 -- instance SUbable FixSymbol s where
 
-instance (Subable a s, Subable b s) => Subable (a,b) s where
-  syms  (x, y)   = syms @a @s x ++ syms @b @s y
+instance (Subable s a, Subable s b) => Subable s (a,b) where
+  syms  (x, y)   = syms @s @a x ++ syms @s @b y
   subst su (x,y) = (subst su x, subst su y)
   substf f (x,y) = (substf f x, substf f y)
-  substa f (x,y) = (substa @a @s f x, substa @b @s f y)
+  substa f (x,y) = (substa @s @a f x, substa @s @b f y)
 
-instance Subable a s => Subable [a] s where
-  syms   = concatMap (syms @a @s)
+instance Subable s a => Subable s [a] where
+  syms   = concatMap (syms @s @a)
   subst  = fmap . subst
   substf = fmap . substf
-  substa = fmap . substa @a @s
+  substa = fmap . substa @s @a
 
-instance Subable a s => Subable (Maybe a) s where
-  syms   = concatMap (syms @a @s) . maybeToList
+instance Subable s a => Subable s (Maybe a) where
+  syms   = concatMap (syms @s @a) . maybeToList
   subst  = fmap . subst
   substf = fmap . substf
-  substa = fmap . substa @a @s
+  substa = fmap . substa @s @a
 
  
-instance Subable a s => Subable (M.HashMap k a) s where
-  syms   = syms @[a] @s . M.elems
+instance Subable s a => Subable s (M.HashMap k a) where
+  syms   = syms @s @[a] . M.elems
   subst  = M.map . subst
   substf = M.map . substf
-  substa = M.map . substa @a @s
+  substa = M.map . substa @s @a
 
-subst1Except :: (Eq s, Fixpoint s, Subable a s) => [Symbol s] -> a -> (Symbol s, Expr s) -> a
+subst1Except :: (Eq s, Fixpoint s, Subable s a) => [Symbol s] -> a -> (Symbol s, Expr s) -> a
 subst1Except xs z su@(x, _)
   | x `elem` xs = z
   | otherwise   = subst1 z su
@@ -107,7 +107,7 @@ substExcept  :: (Eq s) => Subst s -> [Symbol s] -> Subst s
 -- substExcept  (Su m) xs = Su (foldr M.delete m xs)
 substExcept (Su xes) xs = Su $ M.filterWithKey (const . not . (`elem` xs)) xes
 
-instance (Fixpoint s, Eq s, Hashable s, Ord s) => Subable (Symbol s) s where
+instance (Fixpoint s, Eq s, Hashable s, Ord s) => Subable s (Symbol s) where
   substa f                 = f
   substf f x               = subSymbol (Just (f x)) x
   subst su x               = subSymbol (Just $ appSubst su x) x -- subSymbol (M.lookup x s) x
@@ -124,9 +124,9 @@ subSymbol a               b = errorstar (printf "Cannot substitute symbol %s wit
 substfLam :: (Hashable s, Eq s, Fixpoint s, Show s, Ord s) => (Symbol s -> Expr s) -> (Symbol s, Sort s) -> Expr s -> Expr s
 substfLam f (x, st) e =  ELam (x, st) (substf (\y -> if y == x then EVar x else f y) e)
 
-instance (Hashable s, Ord s, Fixpoint s, Eq s, Show s) => Subable (Expr s) s where
+instance (Hashable s, Ord s, Fixpoint s, Eq s, Show s) => Subable s (Expr s) where
   syms                     = exprSymbols
-  substa f                 = substf @(Expr s) @s (EVar . f)
+  substa f                 = substf @s @(Expr s) (EVar . f)
   substf f (EApp s e)      = EApp (substf f s) (substf f e)
   substf f (ELam (x, st) e)      = substfLam f (x, st) e
   substf f (ECoerc a t e)  = ECoerc a t (substf f e)
@@ -177,8 +177,8 @@ removeSubst (Su su) x = Su $ M.delete x su
 disjoint :: forall s. (Ord s, Show s, Fixpoint s, Eq s, Hashable s) => Subst s -> [(Symbol s, Sort s)] -> Bool
 disjoint (Su su) bs = S.null $ suSyms `S.intersection` bsSyms
   where
-    suSyms = S.fromList $ syms @[Expr s] @s (M.elems su) ++ syms @_ @s (M.keys su)
-    bsSyms = S.fromList $ syms @[Symbol s] @s $ fst <$> bs
+    suSyms = S.fromList $ syms @s @[Expr s] (M.elems su) ++ syms @s (M.keys su)
+    bsSyms = S.fromList $ syms @s @[Symbol s] $ fst <$> bs
 
 instance (Ord s, Eq s, Fixpoint s) => Semigroup (Expr s) where
   p <> q = pAnd [p, q]
@@ -198,8 +198,8 @@ instance (Ord s, Hashable s, Eq s, Fixpoint s, Show s) => Monoid (Reft s) where
 meetReft :: forall s. (Ord s, Eq s, Fixpoint s, Show s, Hashable s) => Reft s -> Reft s -> Reft s
 meetReft (Reft (v, ra)) (Reft (v', ra'))
   | v == v'          = Reft (v , ra  `mappend` ra')
-  | v == FS dummySymbol = Reft (v', ra' `mappend` (subst1 @_ @s ra (v , EVar v')))
-  | otherwise        = Reft (v , ra  `mappend` (subst1 @_ @s ra' (v', EVar v )))
+  | v == FS dummySymbol = Reft (v', ra' `mappend` (subst1 @s @_ ra (v , EVar v')))
+  | otherwise        = Reft (v , ra  `mappend` (subst1 @s @_ ra' (v', EVar v )))
 
 instance (Hashable s, Ord s, Show s, Eq s, Fixpoint s) => Semigroup (SortedReft s) where
   t1 <> t2 = RR (mappend (sr_sort t1) (sr_sort t2)) (mappend (sr_reft t1) (sr_reft t2))
@@ -208,20 +208,20 @@ instance (Ord s, Hashable s, Show s, Eq s, Fixpoint s) => Monoid (SortedReft s) 
   mempty  = RR mempty mempty
   mappend = (<>)
 
-instance (Hashable s, Fixpoint s, Eq s, Show s, Ord s) => Subable (Reft s) s where
-  syms (Reft (v, ras))      = v : syms @(Expr s) @s ras
-  substa f (Reft (v, ras))  = Reft (f v, substa @_ @s f ras)
+instance (Hashable s, Fixpoint s, Eq s, Show s, Ord s) => Subable s (Reft s) where
+  syms (Reft (v, ras))      = v : syms @s @(Expr s) ras
+  substa f (Reft (v, ras))  = Reft (f v, substa @s @_ f ras)
   subst su (Reft (v, ras))  = Reft (v, subst (substExcept su [v]) ras)
   substf f (Reft (v, ras))  = Reft (v, substf (substfExcept f [v]) ras)
   subst1 (Reft (v, ras)) su = Reft (v, subst1Except [v] ras su)
 
-instance (Ord s, Hashable s, Fixpoint s, Eq s, Show s) => Subable (SortedReft s) s where
-  syms               = syms @_ @s . sr_reft
+instance (Ord s, Hashable s, Fixpoint s, Eq s, Show s) => Subable s (SortedReft s) where
+  syms               = syms @s @_ . sr_reft
   subst su (RR so r) = RR so $ subst su r
   substf f (RR so r) = RR so $ substf f r
-  substa f (RR so r) = RR so $ substa @_ @s f r
+  substa f (RR so r) = RR so $ substa @s @_ f r
 
-instance (Hashable s, Ord s, Eq s, Fixpoint s, Show s) => Reftable () s where
+instance (Hashable s, Ord s, Eq s, Fixpoint s, Show s) => Reftable s () where
   isTauto _ = True
   ppTy _  d = d
   top  _    = ()
@@ -231,7 +231,7 @@ instance (Hashable s, Ord s, Eq s, Fixpoint s, Show s) => Reftable () s where
   ofReft _  = mempty
   params _  = []
 
-instance (Hashable s, Ord s, Show s, Fixpoint s, Eq s) => Reftable (Reft s) s where
+instance (Hashable s, Ord s, Show s, Fixpoint s, Eq s) => Reftable s (Reft s) where
   isTauto  = all isTautoPred . conjuncts . reftPred
   ppTy     = pprReft
   toReft   = id
@@ -247,9 +247,9 @@ pprReft (Reft (v, p)) d
   | otherwise
   = braces (toFix v <+> colon <+> d <+> text "|" <+> ppRas [p])
 
-instance (Hashable s, Ord s, Fixpoint s, Show s, Eq s) => Reftable (SortedReft s) s where
-  isTauto  = isTauto @_ @s . toReft @_ @s
-  ppTy     = ppTy @_ @s . toReft @_ @s
+instance (Hashable s, Ord s, Fixpoint s, Show s, Eq s) => Reftable s (SortedReft s) where
+  isTauto  = isTauto @s @_ . toReft @s @_
+  ppTy     = ppTy @s @_ . toReft @s @_
   toReft   = sr_reft
   ofReft   = errorstar "No instance of ofReft for SortedReft"
   params _ = []
@@ -259,7 +259,7 @@ instance (Hashable s, Ord s, Fixpoint s, Show s, Eq s) => Reftable (SortedReft s
 -- RJ: this depends on `isTauto` hence, here.
 instance (Ord s, Hashable s, Eq s, Show s, Fixpoint s, PPrint s) => PPrint (Reft s) where
   pprintTidy k r
-    | isTauto @_ @s r  = text "true"
+    | isTauto @s @_ r  = text "true"
     | otherwise        = pprintReft k r
 
 instance (Ord s, Eq s, Fixpoint s, PPrint s) => PPrint (SortedReft s) where
@@ -335,7 +335,7 @@ exprSymbols = S.toList . go
     go (PIff p1 p2)       = gos [p1, p2] 
     go (PImp p1 p2)       = gos [p1, p2]
     go (PAtom _ e1 e2)    = gos [e1, e2] 
-    go (PKVar _ (Su su))  = S.fromList $ syms @_ @s $ M.elems su
+    go (PKVar _ (Su su))  = S.fromList $ syms @s @_ $ M.elems su
     go (PAll xts p)       = go p `S.difference` S.fromList (fst <$> xts) 
     go (PExist xts p)     = go p `S.difference` S.fromList (fst <$> xts) 
     go _                  = S.empty 

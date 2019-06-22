@@ -162,14 +162,14 @@ isKvar :: Expr s -> Bool
 isKvar (PKVar _ _) = True
 isKvar _           = False
 
-class HasGradual a s | a -> s where
+class HasGradual s a | a -> s where
   isGradual :: a -> Bool
   gVars     :: a -> [KVar s]
   gVars _ = [] 
   ungrad    :: a -> a
   ungrad x = x 
 
-instance HasGradual (Expr s) s where
+instance HasGradual s (Expr s) where
   isGradual (PGrad {}) = True
   isGradual (PAnd xs)  = any isGradual xs
   isGradual _          = False
@@ -183,12 +183,12 @@ instance HasGradual (Expr s) s where
   ungrad e          = e
 
 
-instance HasGradual (Reft s) s where
+instance HasGradual s (Reft s) where
   isGradual (Reft (_,r)) = isGradual r
   gVars (Reft (_,r))     = gVars r
   ungrad (Reft (x,r))    = Reft(x, ungrad r)
 
-instance HasGradual (SortedReft s) s where
+instance HasGradual s (SortedReft s) where
   isGradual = isGradual . sr_reft
   gVars     = gVars . sr_reft
   ungrad r  = r {sr_reft = ungrad (sr_reft r)}
@@ -654,57 +654,57 @@ pprintReft k (Reft (_,ra)) = pprintBin z k trueD andD flat
 
 -- | Values that can be viewed as Expressions
 
-class Expression a s where
+class Expression s a where
   expr   :: a -> Expr s
 
 -- | Values that can be viewed as Predicates
 
-class Predicate a s where
+class Predicate s a where
   prop   :: a -> Expr s
 
-instance Expression (SortedReft s) s where
+instance Expression s (SortedReft s) where
   expr (RR _ r) = expr r
 
-instance Expression (Reft s) s where
+instance Expression s (Reft s) where
   expr (Reft(_, e)) = e
 
-instance Expression (Expr s) s where
+instance Expression s (Expr s) where
   expr = id
 
 -- | The symbol may be an encoding of a SymConst.
 
-instance Expression FixSymbol s where
+instance Expression s FixSymbol where
   expr s = eVar s
 
-instance Expression (Symbol s) s where
+instance Expression s (Symbol s) where
   expr s = EVar s
 
-instance Expression Text s where
+instance Expression s Text where
   expr = ESym . SL
 
-instance Expression Integer s where
+instance Expression s Integer where
   expr = ECon . I
 
-instance Expression Int s where
+instance Expression s Int where
   expr = expr . toInteger
 
-instance Predicate FixSymbol s where
+instance Predicate s FixSymbol where
   prop = eProp
 
-instance Predicate (Expr s) s where
+instance Predicate s (Expr s) where
   prop = id
 
-instance Predicate Bool s where
+instance Predicate s Bool where
   prop True  = PTrue
   prop False = PFalse
 
-instance Expression a s => Expression (Located a) s where
+instance Expression s a => Expression s (Located a) where
   expr   = expr . val
 
-eVar ::  (Expression a s, Symbolic a) => a -> Expr s
+eVar ::  (Expression s a, Symbolic a) => a -> Expr s
 eVar = EVar . FS . symbol
 
-eProp :: (Expression a s, Symbolic a) => a -> Expr s
+eProp :: (Expression s a, Symbolic a) => a -> Expr s
 eProp = mkProp . eVar
 
 isSingletonExpr :: (Eq s) => Symbol s -> Expr s -> Maybe (Expr s)
@@ -743,18 +743,18 @@ mkProp = id -- EApp (EVar propConName)
 isSingletonReft :: (Eq s) => Reft s -> Maybe (Expr s)
 isSingletonReft (Reft (v, ra)) = firstMaybe (isSingletonExpr v) $ conjuncts ra
 
-relReft :: forall a s. (Expression a s) => Brel -> a -> Reft s
+relReft :: forall a s. (Expression s a) => Brel -> a -> Reft s
 relReft r e   = Reft (vv_, PAtom r (eVar (vv_ @s))  (expr e))
 
-exprReft, notExprReft, uexprReft ::  (Expression a s) => a -> Reft s
+exprReft, notExprReft, uexprReft ::  (Expression s a) => a -> Reft s
 exprReft      = relReft Eq
 notExprReft   = relReft Ne
 uexprReft     = relReft Ueq
 
-propReft      ::  forall a s. (Predicate a s) => a -> Reft s
+propReft      ::  forall s a. (Predicate s a) => a -> Reft s
 propReft p    = Reft (vv_, PIff (eProp (vv_ @s)) (prop p))
 
-predReft      :: (Predicate a s) => a -> Reft s
+predReft      :: (Predicate s a) => a -> Reft s
 predReft p    = Reft (vv_, prop p)
 
 reft :: Symbol s -> Expr s -> Reft s
@@ -770,8 +770,8 @@ mapPredReft f (Reft (v, p)) = Reft (v, f p)
 isFunctionSortedReft :: SortedReft s -> Bool
 isFunctionSortedReft = isJust . functionSort . sr_sort
 
-isNonTrivial :: forall r s. Reftable r s => r -> Bool
-isNonTrivial = not . isTauto @r @s
+isNonTrivial :: forall s r. Reftable s r => r -> Bool
+isNonTrivial = not . isTauto @s @r
 
 reftPred :: Reft s -> Expr s
 reftPred (Reft (_, p)) = p
@@ -794,10 +794,10 @@ pGAnd p q              = pAnd [p,q]
 -- | Generally Useful Refinements --------------------------
 ------------------------------------------------------------
 
-symbolReft    :: forall a s. (Expression a s, Symbolic a) => a -> Reft s
+symbolReft    :: forall a s. (Expression s a, Symbolic a) => a -> Reft s
 symbolReft    = (exprReft :: Expr s -> Reft s) . (eVar :: a -> Expr s)
 
-usymbolReft   :: forall a s. (Expression a s, Symbolic a) => a -> Reft s
+usymbolReft   :: forall a s. (Expression s a, Symbolic a) => a -> Reft s
 usymbolReft   = (uexprReft :: Expr s -> Reft s) . (eVar :: a -> Expr s)
 
 vv_ :: Symbol s
@@ -841,7 +841,7 @@ instance Falseable (Reft s) where
 -- | Class Predicates for Valid Refinements -----------------------------
 -------------------------------------------------------------------------
 
-class (Eq s, Hashable s) =>  Subable a s where
+class (Eq s, Hashable s) =>  Subable s a where
   syms   :: a -> [Symbol s]                   -- ^ free symbols of a
   substa :: (Symbol s -> Symbol s) -> a -> a
   -- substa f  = substf (EVar . f)
@@ -851,14 +851,14 @@ class (Eq s, Hashable s) =>  Subable a s where
   subst1 :: a -> (Symbol s, Expr s) -> a
   subst1 y (x, e) = subst (Su $ M.fromList [(x,e)]) y
 
-instance Subable a s => Subable (Located a) s where
-  syms (Loc _ _ x)   = syms @a @s x
-  substa f (Loc l l' x) = Loc l l' (substa @a @s f x)
+instance Subable s a => Subable s (Located a) where
+  syms (Loc _ _ x)   = syms @s @a x
+  substa f (Loc l l' x) = Loc l l' (substa @s @a f x)
   substf f (Loc l l' x) = Loc l l' (substf f x)
   subst su (Loc l l' x) = Loc l l' (subst su x)
 
 
-class (Monoid r, Subable r s) => Reftable r s where
+class (Monoid r, Subable s r) => Reftable s r where
   isTauto :: r -> Bool
   ppTy    :: r -> Doc -> Doc
 

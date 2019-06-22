@@ -321,10 +321,10 @@ cstrExprs bds sub = (unElab <$> binds, unElab <$> es)
     es            = (crhs sub) : (expr <$> binds)
     binds         = envCs bds (senv sub)
 
-unElab :: (Eq s, Vis.Visitable t s) => t -> t
+unElab :: (Eq s, Vis.Visitable s t) => t -> t
 unElab = Vis.stripCasts . unApply
 
-unApply :: (Eq s, Vis.Visitable t s) => t -> t
+unApply :: (Eq s, Vis.Visitable s t) => t -> t
 unApply = Vis.trans (Vis.defaultVisitor { Vis.txExpr = const go }) () ()
   where
     go (ECst (EApp (EApp f e1) e2) _)
@@ -662,7 +662,7 @@ evalIte' γ stk _ b e1 e2 _ _
   = EIte b <$> eval γ stk' e1 <*> eval γ stk' e2 
     where stk' = mytracepp "evalIte'" $ noRecurCS stk 
 
-instance (Show s, Fixpoint s, Ord s, Hashable s) => Expression (Symbol s, SortedReft s) s where
+instance (Show s, Fixpoint s, Ord s, Hashable s) => Expression s (Symbol s, SortedReft s) where
   expr (x, RR _ (Reft (v, r))) = subst1 (expr r) (v, EVar x)
 
 --------------------------------------------------------------------------------

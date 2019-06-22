@@ -80,7 +80,7 @@ data Stats = Stats
 
 instance NFData Stats
 
-stats0    :: F.GInfo c s b -> Stats
+stats0    :: F.GInfo s c b -> Stats
 stats0 fi = Stats nCs 0 0 0 0
   where
     nCs   = M.size $ F.cm fi
