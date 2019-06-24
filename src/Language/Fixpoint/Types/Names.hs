@@ -22,7 +22,6 @@ module Language.Fixpoint.Types.Names (
   -- * Symbols
     Symbol (..)
   , FixSymbol
-  , AbstractSymbol (..)
   , FixSymbolic (..)
   , LocSymbol
   , LocText
@@ -171,24 +170,11 @@ data FixSymbol
       , symbolEncoded :: !T.Text
       } deriving (Data, Typeable, Generic)
 
-data AbstractSymbol s
-  = PS { abstractSymbol :: s
-       , abstractSymbolEncoded :: !T.Text
-       } deriving (Data, Typeable, Generic)
-instance Eq s => Eq (AbstractSymbol s) where
-  s1 == s2 = abstractSymbol s1 == abstractSymbol s2
-instance Show s => Show (AbstractSymbol s) where
-  show as = show (abstractSymbol as)
-
-
-instance (Ord s) => Ord (AbstractSymbol s) where
-  compare s1 s2 = compare (abstractSymbol s1) (abstractSymbol s2)
-
 
 data Symbol s
   = FS FixSymbol
   -- | 's' represents an abstract symbol from the source language.
-  | AS (AbstractSymbol s)
+  | AS s
   deriving (Data, Typeable, Generic)
 deriving instance (Eq s) => Eq (Symbol s)
 deriving instance (Ord s) => Ord (Symbol s)
@@ -226,16 +212,10 @@ instance Hashable FixSymbol where
   hashWithSalt s (S _ t _) = hashWithSalt s t
 
 
-instance Hashable s => Hashable (Symbol s) where
-  hashWithSalt s sym = hashWithSalt s (toPolynomial sym)
-    where toPolynomial :: Symbol s -> Either FixSymbol (s, T.Text)
-          toPolynomial (AS (PS {abstractSymbolEncoded=encoded, abstractSymbol=as})) = Right (as, encoded)
-          toPolynomial (FS s) = Left s
+instance Hashable s => Hashable (Symbol s)
 
 instance NFData FixSymbol where
   rnf (S {}) = ()
-
-instance NFData s => NFData (AbstractSymbol s)
 
 instance NFData s => NFData (Symbol s)
 
@@ -243,7 +223,6 @@ instance Binary FixSymbol where
   get = textSymbol <$> get
   put = put . symbolText
 
-instance Binary s => Binary (AbstractSymbol s)
 
 instance Binary s => Binary (Symbol s)
 
@@ -269,9 +248,6 @@ mappendSym s1 s2 = textSymbol $ mappend s1' s2'
 instance PPrint FixSymbol where
   pprintTidy _ = text . symbolString
 
-instance PPrint s => PPrint (AbstractSymbol s) where
-  pprintTidy t as = pprintTidy t $ abstractSymbol as
-
 instance PPrint s => PPrint (Symbol s) where
   pprintTidy t (FS fs) = pprintTidy t fs
   pprintTidy t (AS as) = pprintTidy t as
@@ -286,9 +262,6 @@ instance Fixpoint T.Text where
 
 instance Fixpoint FixSymbol where
   toFix = toFix . checkedText -- symbolSafeText
-
-instance Fixpoint s => Fixpoint (AbstractSymbol s)  where
-  toFix (PS {abstractSymbol=as}) = toFix as
 
 instance (Fixpoint s) => Fixpoint (Symbol s) where
   toFix (FS s) = toFix s

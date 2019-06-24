@@ -28,9 +28,6 @@ import           Data.Void
 import           Language.Fixpoint.Misc (sortNub, errorstar)
 -- import Debug.Trace (trace)
 
-instance (SMTLIB2 s s) => SMTLIB2 s (AbstractSymbol s) where
-  smt2 env (PS {abstractSymbol = as}) = smt2 env as
-
 instance (Eq s, Hashable s, SMTLIB2 s s) => SMTLIB2 s (Symbol s) where
   smt2 env (AS as) = smt2 env as
   smt2 env (FS s)  = smt2 env s
