@@ -10,7 +10,8 @@
 {-# LANGUAGE UndecidableInstances       #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE GADTs                      #-}
-{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE ViewPatterns               #-}
+{-# LANGUAGE StandaloneDeriving         #-}
 
 -- | This module contains the data types, operations and
 --   serialization functions for representing Fixpoint's
@@ -145,12 +146,25 @@ charFTyCon = TC (dummyLoc (FS charConName)) defTcInfo
 setFTyCon  = TC (dummyLoc (FS setConName) ) defTcInfo
 mapFTyCon  = TC (dummyLoc (FS mapConName) ) defTcInfo
 
-isListConName :: (Eq s) => LocSymbol s -> Bool
-isListConName x = c == FS listConName || c == FS listLConName --"List"
-  where
-    c           = val x
+class IsListConName s where
+  isListConName :: s -> Bool
 
-isListTC :: (Eq s) => FTycon s -> Bool
+
+instance IsListConName LocFixSymbol where
+  isListConName x = c == listConName || c == listLConName --"List"
+    where
+      c           = val x
+
+instance IsListConName s => IsListConName (LocSymbol s) where
+  isListConName (FS s) = isListConName s
+  isListConName (AS s) = isListConName s
+
+-- isListConName :: (Eq s) => LocSymbol s -> Bool
+-- isListConName x = c == FS listConName || c == FS listLConName --"List"
+--   where
+--     c           = val x
+
+isListTC :: (Eq s, IsListConName s) => FTycon s -> Bool
 isListTC (TC z _) = isListConName z
 
 sizeBv :: (Eq s) => FTycon s -> Maybe Int
@@ -161,12 +175,13 @@ sizeBv tc
   where
     s               = val $ fTyconSymbol tc
 
-fTyconSymbol :: FTycon s -> Located (Symbol s)
+fTyconSymbol :: FTycon s -> LocSymbol s
 fTyconSymbol (TC s _) = s
 
 symbolNumInfoFTyCon :: (Eq s) => LocSymbol s -> Bool -> Bool -> FTycon s
 symbolNumInfoFTyCon c isNum isReal
-  | isListConName c
+  | FS fs <- c
+  , isListConName fs
   = TC (fmap (FS . const listConName) c) tcinfo
   | otherwise
   = TC c tcinfo
@@ -231,7 +246,8 @@ data Sort s = FInt
             | FNum                 -- ^ numeric kind for Num tyvars
             | FFrac                -- ^ numeric kind for Fractional tyvars
             | FObj  !(Symbol s)        -- ^ uninterpreted type
-            | FVar  !Int           -- ^ fixpoint type variable
+            -- YL: may need to switch to symbol instead
+            | FVar  !Int           -- ^ fixpoint type variable. 
             | FFunc !(Sort s) !(Sort s)    -- ^ function
             | FAbs  !Int !(Sort s)     -- ^ type-abstraction
             | FTC   !(FTycon s)

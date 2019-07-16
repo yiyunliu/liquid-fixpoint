@@ -452,7 +452,7 @@ addIds = zipWith (\i c -> (i, shiftId i $ c {_sid = Just i})) [1..]
 -- | Qualifiers ----------------------------------------------------------------
 --------------------------------------------------------------------------------
 data Qualifier s = Q 
-  { qName   :: !(Symbol s)     -- ^ Name
+  { qName   :: !FixSymbol     -- ^ Name
   , qParams :: [QualParam s] -- ^ Parameters
   , qBody   :: !(Expr s)       -- ^ Predicate
   , qPos    :: !SourcePos  -- ^ Source Location
@@ -474,7 +474,7 @@ data QualPattern s
   deriving (Eq, Show, Data, Typeable, Generic)
 
 trueQual :: (Fixpoint s, Eq s, Ord s) => Qualifier s
-trueQual = Q (FS $ symbol ("QTrue" :: String)) [] mempty (dummyPos "trueQual")
+trueQual = Q (symbol ("QTrue" :: String)) [] mempty (dummyPos "trueQual")
 
 instance Loc (Qualifier s) where
   srcSpan q = SS l l
@@ -526,7 +526,7 @@ qualifier lEnv l γ v so p   = mkQ "Auto" ((v, so) : xts) p l
     xs  = L.delete v $ L.nub $ syms p
     xts = catMaybes $ zipWith (envSort l lEnv γ) xs [0..]
 
-mkQ :: Symbol s -> [(Symbol s, Sort s)] -> Expr s -> SourcePos -> Qualifier s 
+mkQ :: FixSymbol -> [(FixSymbol, Sort s)] -> Expr s -> SourcePos -> Qualifier s 
 mkQ n = Q n . qualParams
 
 qualParams :: [(Symbol s, Sort s)] -> [QualParam s]

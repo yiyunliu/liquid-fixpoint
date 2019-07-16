@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable         #-}
 {-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
@@ -20,12 +21,16 @@
 module Language.Fixpoint.Types.Names (
 
   -- * Symbols
-    Symbol (..)
+    Symbol
+  , Symbol' (..)
   , FixSymbol
   , FixSymbolic (..)
   , LocSymbol
+  , LocFixSymbol
   , LocText
   , symbolicString
+  , liftFixFun
+  , encode
 
   -- * Conversion to/from Text
   , symbolSafeText
@@ -171,13 +176,21 @@ data FixSymbol
       } deriving (Data, Typeable, Generic)
 
 
-data Symbol s
-  = FS FixSymbol
-  -- | 's' represents an abstract symbol from the source language.
-  | AS s
-  deriving (Data, Typeable, Generic)
+data Symbol' fs s
+  = FS fs -- ^ Fixpoint generated symbol
+  | AS s         -- ^ (Abstract) Symbol from source language
+  deriving (Data, Typeable, Generic, Functor)
+
+type Symbol = Symbol' FixSymbol
+
 deriving instance (Eq s) => Eq (Symbol s)
 deriving instance (Ord s) => Ord (Symbol s)
+
+
+-- | transforming FixSymbol while leaving source symbol unchanged
+liftFixFun :: (FixSymbol -> FixSymbol) -> Symbol s -> Symbol s
+liftFixFun f (FS s) = FS (f s)
+liftFixFun _ a = a
 
 instance (Show s) => Show (Symbol s) where
   show (FS s) = show s
@@ -282,7 +295,10 @@ checkedText x
 -- | Located Symbols -----------------------------------------------------
 ---------------------------------------------------------------------------
 
-type LocSymbol s = Located (Symbol s)
+type LocSymbol = Symbol' (Located FixSymbol)
+
+type LocFixSymbol = Located FixSymbol
+
 type LocText   = Located T.Text
 
 isDummy :: (FixSymbolic a) => a -> Bool
