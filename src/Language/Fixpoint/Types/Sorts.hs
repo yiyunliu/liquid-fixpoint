@@ -9,6 +9,8 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE UndecidableInstances       #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE MultiWayIf                 #-}
+{-# LANGUAGE PatternGuards              #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE ViewPatterns               #-}
 {-# LANGUAGE StandaloneDeriving         #-}
@@ -107,7 +109,8 @@ instance FixSymbolic (FTycon s) where
   symbol (TC s _) = symbol s
 
 instance Eq s => Eq (FTycon s) where
-  (TC s _) == (TC s' _) = val s == val s'
+  -- (TC s _) == (TC s' _) = val s == val s'
+  (TC s _) == (TC s' _) = s == s'
 
 data TCInfo = TCInfo { tc_isNum :: Bool, tc_isReal :: Bool, tc_isString :: Bool }
   deriving (Eq, Ord, Show, Data, Typeable, Generic)
@@ -135,29 +138,16 @@ defStrInfo  = False
 
 charFTyCon, intFTyCon, boolFTyCon, realFTyCon, funcFTyCon, numFTyCon :: FTycon s
 strFTyCon, listFTyCon, mapFTyCon, setFTyCon :: FTycon s
-intFTyCon  = TC (dummyLoc (FS "int")      ) numTcInfo
-boolFTyCon = TC (dummyLoc (FS "bool")     ) defTcInfo
-realFTyCon = TC (dummyLoc (FS "real")     ) realTcInfo
-numFTyCon  = TC (dummyLoc (FS "num")      ) numTcInfo
-funcFTyCon = TC (dummyLoc (FS "function") ) defTcInfo
-strFTyCon  = TC (dummyLoc (FS strConName) ) strTcInfo
-listFTyCon = TC (dummyLoc (FS listConName)) defTcInfo
-charFTyCon = TC (dummyLoc (FS charConName)) defTcInfo
-setFTyCon  = TC (dummyLoc (FS setConName) ) defTcInfo
-mapFTyCon  = TC (dummyLoc (FS mapConName) ) defTcInfo
-
-class IsListConName s where
-  isListConName :: s -> Bool
-
-
-instance IsListConName LocFixSymbol where
-  isListConName x = c == listConName || c == listLConName --"List"
-    where
-      c           = val x
-
-instance IsListConName s => IsListConName (LocSymbol s) where
-  isListConName (FS s) = isListConName s
-  isListConName (AS s) = isListConName s
+intFTyCon  = TC (FS (dummyLoc "int"      )) numTcInfo
+boolFTyCon = TC (FS (dummyLoc "bool"     )) defTcInfo
+realFTyCon = TC (FS (dummyLoc "real"     )) realTcInfo
+numFTyCon  = TC (FS (dummyLoc "num"      )) numTcInfo
+funcFTyCon = TC (FS (dummyLoc "function" )) defTcInfo
+strFTyCon  = TC (FS (dummyLoc strConName)) strTcInfo
+listFTyCon = TC (FS (dummyLoc listConName)) defTcInfo
+charFTyCon = TC (FS (dummyLoc charConName)) defTcInfo
+setFTyCon  = TC (FS (dummyLoc setConName)) defTcInfo
+mapFTyCon  = TC (FS (dummyLoc mapConName)) defTcInfo
 
 -- isListConName :: (Eq s) => LocSymbol s -> Bool
 -- isListConName x = c == FS listConName || c == FS listLConName --"List"
@@ -167,29 +157,31 @@ instance IsListConName s => IsListConName (LocSymbol s) where
 isListTC :: (Eq s, IsListConName s) => FTycon s -> Bool
 isListTC (TC z _) = isListConName z
 
-sizeBv :: (Eq s) => FTycon s -> Maybe Int
+sizeBv :: (Eq s, Loc s) => FTycon s -> Maybe Int
 sizeBv tc
-  | s == FS size32Name = Just 32
-  | s == FS size64Name = Just 64
+  | FS (Loc _ _ fs) <- s
+  = if | fs == size64Name -> Just 64
+       | fs == size32Name -> Just 32
+       | otherwise -> Nothing
   | otherwise       = Nothing
   where
-    s               = val $ fTyconSymbol tc
+    s               = fTyconSymbol tc
 
 fTyconSymbol :: FTycon s -> LocSymbol s
 fTyconSymbol (TC s _) = s
 
-symbolNumInfoFTyCon :: (Eq s) => LocSymbol s -> Bool -> Bool -> FTycon s
+symbolNumInfoFTyCon :: (Eq s, Loc s) => LocSymbol s -> Bool -> Bool -> FTycon s
 symbolNumInfoFTyCon c isNum isReal
-  | FS fs <- c
-  , isListConName fs
-  = TC (fmap (FS . const listConName) c) tcinfo
+  | FS s <- c
+  , isListConName s
+  = TC (FS $ atLoc c listConName) tcinfo
   | otherwise
   = TC c tcinfo
   where
     tcinfo = defTcInfo { tc_isNum = isNum, tc_isReal = isReal}
 
 
-symbolFTycon :: (Eq s) => LocSymbol s -> FTycon s
+symbolFTycon :: (Loc s, Eq s) => LocSymbol s -> FTycon s
 symbolFTycon c = symbolNumInfoFTyCon c defNumInfo defRealInfo
 
 fApp :: Sort s -> [Sort s] -> Sort s
@@ -274,10 +266,10 @@ instance FixSymbolic (DataDecl s) where
   symbol = symbol . ddTyCon
 
 instance FixSymbolic (DataField s) where
-  symbol = symbol . val . dfName
+  symbol = symbol . dfName
 
 instance FixSymbolic (DataCtor s) where
-  symbol = symbol . val . dcName
+  symbol = symbol . dcName
 
 
 muSort  :: Eq s => [DataDecl s] -> [DataDecl s]
@@ -315,13 +307,13 @@ isReal (FAbs _ s)     = isReal s
 isReal _              = False
 
 
-isString :: Eq s => Sort s -> Bool
+isString :: (IsListConName s, Eq s) => Sort s -> Bool
 isString (FApp l c)     = (isList l && isChar c) || isString l
-isString (FTC (TC c i)) = (val c == FS strConName || tc_isString i)
+isString (FTC (TC c i)) = (c == FS strConName || tc_isString i)
 isString (FAbs _ s)     = isString s
 isString _              = False
 
-isList :: Eq s => Sort s -> Bool
+isList :: (IsListConName s, Eq s) => Sort s -> Bool
 isList (FTC c) = isListTC c
 isList _       = False
 
@@ -368,17 +360,17 @@ isPoly _         = False
 instance Hashable s => Hashable (FTycon s) where
   hashWithSalt i (TC s _) = hashWithSalt i s
 
-instance Loc (FTycon s) where
+instance Loc s => Loc (FTycon s) where
   srcSpan (TC c _) = srcSpan c
 
 instance Hashable s => Hashable (Sort s)
 
 newtype Sub s = Sub [(Int, Sort s)] deriving (Generic)
 
-instance (Eq s, Fixpoint s) => Fixpoint (Sort s) where
+instance (IsListConName s, Eq s, Fixpoint s) => Fixpoint (Sort s) where
   toFix = toFixSort
 
-toFixSort :: (Fixpoint s, Eq s) => Sort s -> Doc
+toFixSort :: (IsListConName s, Fixpoint s, Eq s) => Sort s -> Doc
 toFixSort (FVar i)     = text "@" <-> parens (toFix i)
 toFixSort FInt         = text "int"
 toFixSort FReal        = text "real"
@@ -390,29 +382,29 @@ toFixSort t@(FFunc _ _)= toFixAbsApp t
 toFixSort (FTC c)      = toFix c
 toFixSort t@(FApp _ _) = toFixFApp (unFApp t)
 
-toFixAbsApp :: (Fixpoint s, Eq s) => Sort s -> Doc
+toFixAbsApp :: (IsListConName s, Fixpoint s, Eq s) => Sort s -> Doc
 toFixAbsApp t = text "func" <-> parens (toFix n <+> text "," <+> toFix ts)
   where
     Just (vs, ss, s) = functionSort t
     n                = length vs
     ts               = ss ++ [s]
 
-toFixFApp            :: (Fixpoint s, Eq s) => ListNE (Sort s) -> Doc
+toFixFApp            :: (IsListConName s, Fixpoint s, Eq s) => ListNE (Sort s) -> Doc
 toFixFApp [t]        = toFixSort t
 toFixFApp [FTC c, t]
   | isListTC c       = brackets $ toFixSort t
 toFixFApp ts         = parens $ intersperse (text "") (toFixSort <$> ts)
 
 instance Fixpoint s => Fixpoint (FTycon s) where
-  toFix (TC s _)       = toFix (val s)
+  toFix (TC s _)       = toFix s
 
-instance (Eq s, Fixpoint s) => Fixpoint (DataField s) where
+instance (IsListConName s, Eq s, Fixpoint s) => Fixpoint (DataField s) where
   toFix (DField x t) = toFix x <+> text ":" <+> toFix t
 
-instance (Eq s, Fixpoint s) => Fixpoint (DataCtor s) where
+instance (IsListConName s, Eq s, Fixpoint s) => Fixpoint (DataCtor s) where
   toFix (DCtor x flds) = toFix x <+> braces (intersperse comma (toFix <$> flds))
 
-instance (Eq s, Fixpoint s) => Fixpoint (DataDecl s) where
+instance (IsListConName s, Eq s, Fixpoint s) => Fixpoint (DataDecl s) where
   toFix (DDecl tc n ctors) = vcat ([header] ++ body ++ [footer])
     where
       header               = {- text "data" <+> -} toFix tc <+> toFix n <+> text "= ["
@@ -422,13 +414,13 @@ instance (Eq s, Fixpoint s) => Fixpoint (DataDecl s) where
 instance Fixpoint s => PPrint (FTycon s) where
   pprintTidy _ = toFix
 
-instance (Eq s, Fixpoint s) => PPrint (DataField s) where
+instance (IsListConName s, Eq s, Fixpoint s) => PPrint (DataField s) where
   pprintTidy _ = toFix
 
-instance (Eq s, Fixpoint s) => PPrint (DataCtor s) where
+instance (IsListConName s, Eq s, Fixpoint s) => PPrint (DataCtor s) where
   pprintTidy _ = toFix
 
-instance (Eq s, Fixpoint s) => PPrint (DataDecl s) where
+instance (IsListConName s, Eq s, Fixpoint s) => PPrint (DataDecl s) where
   pprintTidy _ = toFix
 
 -------------------------------------------------------------------------
@@ -446,14 +438,16 @@ funcSort = fTyconSort funcFTyCon
 setSort :: Sort s -> Sort s
 setSort    = FApp (FTC setFTyCon)
 
-bitVecSort :: Eq s => Sort s
+bitVecSort :: (Loc s, Eq s) => Sort s
 bitVecSort = FApp (FTC $ symbolFTycon' (FS bitVecName)) (FTC $ symbolFTycon' (FS size32Name))
 
-mapSort :: Eq s => Sort s -> Sort s -> Sort s
+mapSort :: (Loc s, Eq s) => Sort s -> Sort s -> Sort s
 mapSort = FApp . FApp (FTC (symbolFTycon' (FS mapConName)))
 
-symbolFTycon' :: Eq s => Symbol s -> FTycon s
-symbolFTycon' = symbolFTycon . dummyLoc
+symbolFTycon' :: (Loc s) => Eq s => Symbol s -> FTycon s
+symbolFTycon' = symbolFTycon . dummyLoc'
+  where dummyLoc' (FS s) = FS $ dummyLoc s
+        dummyLoc' (AS s) = AS s
 
 fTyconSort :: Eq s => FTycon s -> Sort s
 fTyconSort c

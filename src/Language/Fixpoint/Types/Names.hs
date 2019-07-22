@@ -28,6 +28,8 @@ module Language.Fixpoint.Types.Names (
   , LocSymbol
   , LocFixSymbol
   , LocText
+  , IsListConName (..)
+  , dropLoc
   , symbolicString
   , liftFixFun
   , encode
@@ -183,8 +185,8 @@ data Symbol' fs s
 
 type Symbol = Symbol' FixSymbol
 
-deriving instance (Eq s) => Eq (Symbol s)
-deriving instance (Ord s) => Ord (Symbol s)
+deriving instance (Eq s, Eq fs) => Eq (Symbol' fs s)
+deriving instance (Ord s, Ord fs) => Ord (Symbol' fs s)
 
 
 -- | transforming FixSymbol while leaving source symbol unchanged
@@ -192,7 +194,11 @@ liftFixFun :: (FixSymbol -> FixSymbol) -> Symbol s -> Symbol s
 liftFixFun f (FS s) = FS (f s)
 liftFixFun _ a = a
 
-instance (Show s) => Show (Symbol s) where
+instance Loc s => Loc (LocSymbol s) where
+  srcSpan (FS s) = srcSpan s
+  srcSpan (AS s) = srcSpan s
+
+instance (Show fs, Show s) => Show (Symbol' fs s) where
   show (FS s) = show s
   show (AS as) = show as
 
@@ -225,19 +231,19 @@ instance Hashable FixSymbol where
   hashWithSalt s (S _ t _) = hashWithSalt s t
 
 
-instance Hashable s => Hashable (Symbol s)
+instance (Hashable s, Hashable fs) => Hashable (Symbol' fs s)
 
 instance NFData FixSymbol where
   rnf (S {}) = ()
 
-instance NFData s => NFData (Symbol s)
+instance (NFData fs, NFData s) => NFData (Symbol' fs s)
 
 instance Binary FixSymbol where
   get = textSymbol <$> get
   put = put . symbolText
 
 
-instance Binary s => Binary (Symbol s)
+instance (Binary s, Binary fs) => Binary (Symbol' fs s)
 
 sCache :: Cache FixSymbol
 sCache = mkCache
@@ -261,7 +267,7 @@ mappendSym s1 s2 = textSymbol $ mappend s1' s2'
 instance PPrint FixSymbol where
   pprintTidy _ = text . symbolString
 
-instance PPrint s => PPrint (Symbol s) where
+instance (PPrint s, PPrint fs) => PPrint (Symbol' fs s) where
   pprintTidy t (FS fs) = pprintTidy t fs
   pprintTidy t (AS as) = pprintTidy t as
 
@@ -276,7 +282,7 @@ instance Fixpoint T.Text where
 instance Fixpoint FixSymbol where
   toFix = toFix . checkedText -- symbolSafeText
 
-instance (Fixpoint s) => Fixpoint (Symbol s) where
+instance (Fixpoint fs, Fixpoint s) => Fixpoint (Symbol' fs s) where
   toFix (FS s) = toFix s
   toFix (AS as) = toFix as
   
@@ -300,6 +306,12 @@ type LocSymbol = Symbol' (Located FixSymbol)
 type LocFixSymbol = Located FixSymbol
 
 type LocText   = Located T.Text
+
+-- YL: Maybe we need a comonad dependency
+-- should be defined as extract
+dropLoc :: LocSymbol s -> Symbol s
+dropLoc (FS s) = FS $ val s
+dropLoc (AS s) = AS s
 
 isDummy :: (FixSymbolic a) => a -> Bool
 isDummy a = isPrefixOfSym (symbol dummyName) (symbol a)
@@ -556,9 +568,10 @@ class FixSymbolic a where
 symbolicString :: (FixSymbolic a) => a -> String
 symbolicString = symbolString . symbol
 
-instance FixSymbolic (Symbol s) where
-  symbol (FS s) = s
+instance (FixSymbolic fs) => FixSymbolic (Symbol' fs s) where
+  symbol (FS s) = symbol s
   symbol _ = panic "Coercing Symbol s into FixSymbol! Potential loss of GHC Information!"
+
 
 instance FixSymbolic T.Text where
   symbol = textSymbol
@@ -698,6 +711,26 @@ prims = S.fromList
   , nilName
   , consName
   ]
+
+-------------------------------------------------------------------------------
+-- | Classes that need to be implemented by the source language symbol
+-------------------------------------------------------------------------------
+
+
+class IsListConName s where
+  isListConName :: s -> Bool
+
+
+instance IsListConName LocFixSymbol where
+  isListConName x = c == listConName || c == listLConName --"List"
+    where
+      c           = val x
+
+instance IsListConName s => IsListConName (LocSymbol s) where
+  isListConName (FS s) = isListConName s
+  isListConName (AS s) = isListConName s
+
+
 
 {-
 -------------------------------------------------------------------------------

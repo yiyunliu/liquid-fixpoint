@@ -28,10 +28,10 @@ class HasTemplates s a where
   filterUnMatched :: Templates s -> a -> a 
 
 
-instance (Eq s, Fixpoint s, Ord s) => HasTemplates s (Expr s) where
+instance (IsListConName s, Eq s, Fixpoint s, Ord s) => HasTemplates s (Expr s) where
   filterUnMatched temps e = pAnd $ filter (not . matchesTemplates temps) $ conjuncts e 
 
-instance (Eq s, Fixpoint s, Ord s) => HasTemplates s (Reft s) where
+instance (IsListConName s, Eq s, Fixpoint s, Ord s) => HasTemplates s (Reft s) where
   filterUnMatched temps (Reft (x,e)) = Reft (x, filterUnMatched temps e)
 
 matchesTemplates :: (Fixpoint s, Eq s) => Templates s -> Expr s -> Bool 
@@ -104,5 +104,5 @@ instance Semigroup (Templates s) where
 instance Monoid (Templates s) where 
   mempty = TExprs [] 
 
-instance (Show s, Eq s, Fixpoint s, Ord s) => PPrint (Templates s) where
+instance (IsListConName s, Show s, Eq s, Fixpoint s, Ord s) => PPrint (Templates s) where
   pprintTidy _ = text . show 

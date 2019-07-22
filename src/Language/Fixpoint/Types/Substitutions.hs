@@ -30,10 +30,10 @@ import           Language.Fixpoint.Misc
 import           Text.PrettyPrint.HughesPJ.Compat
 import           Text.Printf               (printf)
 
-instance (Ord s, Eq s, Fixpoint s, Show s, Hashable s) => Semigroup (Subst s) where
+instance (IsListConName s, Ord s, Eq s, Fixpoint s, Show s, Hashable s) => Semigroup (Subst s) where
   (<>) = catSubst
 
-instance (Ord s, Show s, Eq s, Fixpoint s, Hashable s) => Monoid (Subst s) where
+instance (IsListConName s, Ord s, Show s, Eq s, Fixpoint s, Hashable s) => Monoid (Subst s) where
   mempty  = emptySubst
   mappend = (<>)
 
@@ -43,7 +43,7 @@ filterSubst f (Su m) = Su (M.filterWithKey f m)
 emptySubst :: Subst s
 emptySubst = Su M.empty
 
-catSubst :: (Ord s, Fixpoint s, Eq s, Show s, Hashable s) => Subst s -> Subst s -> Subst s
+catSubst :: (IsListConName s, Ord s, Fixpoint s, Eq s, Show s, Hashable s) => Subst s -> Subst s -> Subst s
 catSubst (Su s1) θ2@(Su s2) = Su $ M.union s1' s2
   where
     s1'                     = subst θ2 <$> s1
@@ -57,7 +57,7 @@ mkSubst = Su . M.fromList . reverse . filter notTrivial
 isEmptySubst :: Subst s -> Bool
 isEmptySubst (Su xes) = M.null xes
 
-targetSubstSyms :: forall s. (Hashable s, Ord s, Show s, Fixpoint s, Eq s) => Subst s -> [Symbol s]
+targetSubstSyms :: forall s. (IsListConName s, Hashable s, Ord s, Show s, Fixpoint s, Eq s) => Subst s -> [Symbol s]
 targetSubstSyms (Su ms) = syms @s @[Expr s] $ M.elems ms
 
 
@@ -107,7 +107,7 @@ substExcept  :: (Eq s) => Subst s -> [Symbol s] -> Subst s
 -- substExcept  (Su m) xs = Su (foldr M.delete m xs)
 substExcept (Su xes) xs = Su $ M.filterWithKey (const . not . (`elem` xs)) xes
 
-instance (Fixpoint s, Eq s, Hashable s, Ord s) => Subable s (Symbol s) where
+instance (IsListConName s, Fixpoint s, Eq s, Hashable s, Ord s) => Subable s (Symbol s) where
   substa f                 = f
   substf f x               = subSymbol (Just (f x)) x
   subst su x               = subSymbol (Just $ appSubst su x) x -- subSymbol (M.lookup x s) x
@@ -116,15 +116,15 @@ instance (Fixpoint s, Eq s, Hashable s, Ord s) => Subable s (Symbol s) where
 appSubst :: (Hashable s, Eq s) => Subst s -> Symbol s -> Expr s
 appSubst (Su s) x = fromMaybe (EVar x) (M.lookup x s)
 
-subSymbol :: (Ord s, Fixpoint s, Eq s) => Maybe (Expr s) -> Symbol s -> Symbol s
+subSymbol :: (IsListConName s, Ord s, Fixpoint s, Eq s) => Maybe (Expr s) -> Symbol s -> Symbol s
 subSymbol (Just (EVar y)) _ = y
 subSymbol Nothing         x = x
 subSymbol a               b = errorstar (printf "Cannot substitute symbol %s with expression %s" (showFix b) (showFix a))
 
-substfLam :: (Hashable s, Eq s, Fixpoint s, Show s, Ord s) => (Symbol s -> Expr s) -> (Symbol s, Sort s) -> Expr s -> Expr s
+substfLam :: (IsListConName s, Hashable s, Eq s, Fixpoint s, Show s, Ord s) => (Symbol s -> Expr s) -> (Symbol s, Sort s) -> Expr s -> Expr s
 substfLam f (x, st) e =  ELam (x, st) (substf (\y -> if y == x then EVar x else f y) e)
 
-instance (Hashable s, Ord s, Fixpoint s, Eq s, Show s) => Subable s (Expr s) where
+instance (IsListConName s, Hashable s, Ord s, Fixpoint s, Eq s, Show s) => Subable s (Expr s) where
   syms                     = exprSymbols
   substa f                 = substf @s @(Expr s) (EVar . f)
   substf f (EApp s e)      = EApp (substf f s) (substf f e)
@@ -174,54 +174,54 @@ instance (Hashable s, Ord s, Fixpoint s, Eq s, Show s) => Subable s (Expr s) whe
 removeSubst :: (Eq s, Hashable s) => Subst s -> Symbol s -> Subst s
 removeSubst (Su su) x = Su $ M.delete x su
 
-disjoint :: forall s. (Ord s, Show s, Fixpoint s, Eq s, Hashable s) => Subst s -> [(Symbol s, Sort s)] -> Bool
+disjoint :: forall s. (IsListConName s, Ord s, Show s, Fixpoint s, Eq s, Hashable s) => Subst s -> [(Symbol s, Sort s)] -> Bool
 disjoint (Su su) bs = S.null $ suSyms `S.intersection` bsSyms
   where
     suSyms = S.fromList $ syms @s @[Expr s] (M.elems su) ++ syms @s (M.keys su)
     bsSyms = S.fromList $ syms @s @[Symbol s] $ fst <$> bs
 
-instance (Ord s, Eq s, Fixpoint s) => Semigroup (Expr s) where
+instance (IsListConName s, Ord s, Eq s, Fixpoint s) => Semigroup (Expr s) where
   p <> q = pAnd [p, q]
 
-instance (Ord s, Eq s, Fixpoint s) => Monoid (Expr s) where
+instance (IsListConName s, Ord s, Eq s, Fixpoint s) => Monoid (Expr s) where
   mempty  = PTrue
   mappend = (<>)
   mconcat = pAnd
 
-instance (Hashable s, Ord s, Eq s, Fixpoint s, Show s) => Semigroup (Reft s) where
+instance (IsListConName s, Hashable s, Ord s, Eq s, Fixpoint s, Show s) => Semigroup (Reft s) where
   (<>) = meetReft
 
-instance (Ord s, Hashable s, Eq s, Fixpoint s, Show s) => Monoid (Reft s) where
+instance (IsListConName s, Ord s, Hashable s, Eq s, Fixpoint s, Show s) => Monoid (Reft s) where
   mempty  = trueReft
   mappend = (<>)
 
-meetReft :: forall s. (Ord s, Eq s, Fixpoint s, Show s, Hashable s) => Reft s -> Reft s -> Reft s
+meetReft :: forall s. (IsListConName s, Ord s, Eq s, Fixpoint s, Show s, Hashable s) => Reft s -> Reft s -> Reft s
 meetReft (Reft (v, ra)) (Reft (v', ra'))
   | v == v'          = Reft (v , ra  `mappend` ra')
   | v == FS dummySymbol = Reft (v', ra' `mappend` (subst1 @s @_ ra (v , EVar v')))
   | otherwise        = Reft (v , ra  `mappend` (subst1 @s @_ ra' (v', EVar v )))
 
-instance (Hashable s, Ord s, Show s, Eq s, Fixpoint s) => Semigroup (SortedReft s) where
+instance (IsListConName s, Hashable s, Ord s, Show s, Eq s, Fixpoint s) => Semigroup (SortedReft s) where
   t1 <> t2 = RR (mappend (sr_sort t1) (sr_sort t2)) (mappend (sr_reft t1) (sr_reft t2))
 
-instance (Ord s, Hashable s, Show s, Eq s, Fixpoint s) => Monoid (SortedReft s) where
+instance (IsListConName s, Ord s, Hashable s, Show s, Eq s, Fixpoint s) => Monoid (SortedReft s) where
   mempty  = RR mempty mempty
   mappend = (<>)
 
-instance (Hashable s, Fixpoint s, Eq s, Show s, Ord s) => Subable s (Reft s) where
+instance (IsListConName s, Hashable s, Fixpoint s, Eq s, Show s, Ord s) => Subable s (Reft s) where
   syms (Reft (v, ras))      = v : syms @s @(Expr s) ras
   substa f (Reft (v, ras))  = Reft (f v, substa @s @_ f ras)
   subst su (Reft (v, ras))  = Reft (v, subst (substExcept su [v]) ras)
   substf f (Reft (v, ras))  = Reft (v, substf (substfExcept f [v]) ras)
   subst1 (Reft (v, ras)) su = Reft (v, subst1Except [v] ras su)
 
-instance (Ord s, Hashable s, Fixpoint s, Eq s, Show s) => Subable s (SortedReft s) where
+instance (IsListConName s, Ord s, Hashable s, Fixpoint s, Eq s, Show s) => Subable s (SortedReft s) where
   syms               = syms @s @_ . sr_reft
   subst su (RR so r) = RR so $ subst su r
   substf f (RR so r) = RR so $ substf f r
   substa f (RR so r) = RR so $ substa @s @_ f r
 
-instance (Hashable s, Ord s, Eq s, Fixpoint s, Show s) => Reftable s () where
+instance (IsListConName s, Hashable s, Ord s, Eq s, Fixpoint s, Show s) => Reftable s () where
   isTauto _ = True
   ppTy _  d = d
   top  _    = ()
@@ -231,7 +231,7 @@ instance (Hashable s, Ord s, Eq s, Fixpoint s, Show s) => Reftable s () where
   ofReft _  = mempty
   params _  = []
 
-instance (Hashable s, Ord s, Show s, Fixpoint s, Eq s) => Reftable s (Reft s) where
+instance (IsListConName s, Hashable s, Ord s, Show s, Fixpoint s, Eq s) => Reftable s (Reft s) where
   isTauto  = all isTautoPred . conjuncts . reftPred
   ppTy     = pprReft
   toReft   = id
@@ -240,14 +240,14 @@ instance (Hashable s, Ord s, Show s, Fixpoint s, Eq s) => Reftable s (Reft s) wh
   bot    _        = falseReft
   top (Reft(v,_)) = Reft (v, mempty)
 
-pprReft :: (Ord s, Eq s, Fixpoint s) => Reft s -> Doc -> Doc
+pprReft :: (IsListConName s, Ord s, Eq s, Fixpoint s) => Reft s -> Doc -> Doc
 pprReft (Reft (v, p)) d
   | isTautoPred p
   = d
   | otherwise
   = braces (toFix v <+> colon <+> d <+> text "|" <+> ppRas [p])
 
-instance (Hashable s, Ord s, Fixpoint s, Show s, Eq s) => Reftable s (SortedReft s) where
+instance (IsListConName s, Hashable s, Ord s, Fixpoint s, Show s, Eq s) => Reftable s (SortedReft s) where
   isTauto  = isTauto @s @_ . toReft @s @_
   ppTy     = ppTy @s @_ . toReft @s @_
   toReft   = sr_reft
@@ -257,38 +257,38 @@ instance (Hashable s, Ord s, Fixpoint s, Show s, Eq s) => Reftable s (SortedReft
   top s    = s { sr_reft = trueReft }
 
 -- RJ: this depends on `isTauto` hence, here.
-instance (Ord s, Hashable s, Eq s, Show s, Fixpoint s, PPrint s) => PPrint (Reft s) where
+instance (IsListConName s, Ord s, Hashable s, Eq s, Show s, Fixpoint s, PPrint s) => PPrint (Reft s) where
   pprintTidy k r
     | isTauto @s @_ r  = text "true"
     | otherwise        = pprintReft k r
 
-instance (Ord s, Eq s, Fixpoint s, PPrint s) => PPrint (SortedReft s) where
+instance (IsListConName s, Ord s, Eq s, Fixpoint s, PPrint s) => PPrint (SortedReft s) where
   pprintTidy k (RR so (Reft (v, ras)))
     = braces
     $ pprintTidy k v <+> text ":" <+> toFix so <+> text "|" <+> pprintTidy k ras
 
-instance (Ord s, Eq s, Fixpoint s) => Fixpoint (Reft s) where
+instance (IsListConName s, Ord s, Eq s, Fixpoint s) => Fixpoint (Reft s) where
   toFix = pprReftPred
 
-instance (Ord s, Eq s, Fixpoint s) => Fixpoint (SortedReft s) where
+instance (IsListConName s, Ord s, Eq s, Fixpoint s) => Fixpoint (SortedReft s) where
   toFix (RR so (Reft (v, ra)))
     = braces
     $ toFix v <+> text ":" <+> toFix so <+> text "|" <+> toFix (conjuncts ra)
 
-instance (Ord s, Eq s, Fixpoint s) => Show (Reft s) where
+instance (IsListConName s, Ord s, Eq s, Fixpoint s) => Show (Reft s) where
   show = showFix
 
-instance (Ord s, Eq s, Fixpoint s) => Show (SortedReft s) where
+instance (IsListConName s, Ord s, Eq s, Fixpoint s) => Show (SortedReft s) where
   show  = showFix
 
-pprReftPred :: (Ord s, Eq s, Fixpoint s) => Reft s -> Doc
+pprReftPred :: (IsListConName s, Ord s, Eq s, Fixpoint s) => Reft s -> Doc
 pprReftPred (Reft (_, p))
   | isTautoPred p
   = text "true"
   | otherwise
   = ppRas [p]
 
-ppRas :: (Ord s, Fixpoint s, Eq s) => [Expr s] -> Doc
+ppRas :: (IsListConName s, Ord s, Fixpoint s, Eq s) => [Expr s] -> Doc
 ppRas = cat . punctuate comma . map toFix . flattenRefas
 
 --------------------------------------------------------------------------------
@@ -315,7 +315,7 @@ ppRas = cat . punctuate comma . map toFix . flattenRefas
     -- go (PAll xts p)       = (fst <$> xts) ++ go p
     -- go _                  = []
 
-exprSymbols :: forall s. (Hashable s, Fixpoint s, Eq s, Show s, Ord s) => Expr s -> [Symbol s]
+exprSymbols :: forall s. (IsListConName s, Hashable s, Fixpoint s, Eq s, Show s, Ord s) => Expr s -> [Symbol s]
 exprSymbols = S.toList . go
   where
     gos es                = S.unions (go <$> es)

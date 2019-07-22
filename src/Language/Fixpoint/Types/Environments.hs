@@ -258,12 +258,12 @@ adjustBindEnv f i (BE n m) = BE n $ M.adjust f i m
 instance Functor (SEnv s) where
   fmap = mapSEnv
 
-instance (Eq s, Fixpoint s) => Fixpoint (EBindEnv s) where
+instance (IsListConName s, Eq s, Fixpoint s) => Fixpoint (EBindEnv s) where
   toFix (EB (BE _ m)) = vcat $ map toFixBind $ hashMapToAscList m
     where
       toFixBind (i, (x, r)) = "ebind" <+> toFix i <+> toFix x <+> ": { " <+> toFix (sr_sort r) <+> " }"
 
-instance (Fixpoint s, Eq s, Ord s) => Fixpoint (BindEnv s) where
+instance (IsListConName s, Fixpoint s, Eq s, Ord s) => Fixpoint (BindEnv s) where
   toFix (BE _ m) = vcat $ map toFixBind $ hashMapToAscList m
     where
       toFixBind (i, (x, r)) = "bind" <+> toFix i <+> toFix x <+> ":" <+> toFix r
