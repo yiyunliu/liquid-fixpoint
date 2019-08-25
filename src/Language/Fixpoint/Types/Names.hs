@@ -26,6 +26,8 @@ module Language.Fixpoint.Types.Names (
   , LocSymbol
   , LocText
   , symbolicString
+  , liftFixFun
+  , encode
 
   -- * Conversion to/from Text
   , symbolSafeText
@@ -193,6 +195,11 @@ instance Ord FixSymbol where
   -- compare (S i _ _) (S j _ _) = compare i j
   -- compare s1 s2 = compare (symbolString s1) (symbolString s2)
   compare s1 s2 = compare (symbolText s1) (symbolText s2)
+
+
+liftFixFun :: (FixSymbol -> FixSymbol) -> Symbol s -> Symbol s
+liftFixFun f (FS s) = FS (f s)
+liftFixFun _ a = a
 
 instance Interned FixSymbol where
   type Uninterned FixSymbol = T.Text
