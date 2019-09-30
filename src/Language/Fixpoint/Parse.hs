@@ -319,7 +319,8 @@ lowerIdP :: Parser Symbol
 lowerIdP  = condIdP (lower <|> char '_')   symChars isNotReserved
 
 symCharsP :: Parser Symbol
-symCharsP = condIdP (letter <|> char '_')  symChars isNotReserved
+-- YL : remember to change this back!
+symCharsP = condIdP (letter <|> char '_' <|> char '$')  symChars isNotReserved
 
 isNotReserved :: String -> Bool
 isNotReserved s = not (s `S.member` reservedNames)
